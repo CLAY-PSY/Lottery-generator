@@ -55,7 +55,7 @@ SOFTWARE.
     --blue:#60a5fa;
   }
 }
-* {box-sizing:border-box;}
+* { box-sizing:border-box; }
 body {
   margin:0;
   min-height:100vh;
@@ -85,9 +85,6 @@ h1 {
   border-radius:12px;
   padding:18px;
   margin-bottom:16px;
-}
-.form-group {
-  margin-bottom:14px;
 }
 label {
   display:block;
@@ -119,12 +116,7 @@ button {
   color:#fff;
   cursor:pointer;
 }
-button:active {background:var(--primary-hover);}
-.result-title {
-  margin:20px 0 10px;
-  font-size:14px;
-  font-weight:600;
-}
+button:active { background:var(--primary-hover); }
 .result-box {
   background:var(--bg-box);
   border-radius:12px;
@@ -150,101 +142,148 @@ button:active {background:var(--primary-hover);}
   font-weight:600;
   color:#fff;
 }
-.red {background:var(--red);}
-.blue {background:var(--blue);}
+.red { background:var(--red); }
+.blue { background:var(--blue); }
 </style>
 </head>
 <body>
 <div class="container">
-<h1>🎲 彩票号码生成器</h1>
-<div class="form-box">
-  <div class="form-group">
-    <label for="type">选择玩法</label>
+  <h1>🎲 彩票号码生成器</h1>
+  <div class="form-box">
+    <label>选择玩法</label>
     <select id="type">
       <option value="ssq">双色球</option>
       <option value="dlt">大乐透</option>
     </select>
-  </div>
-  <div class="form-group">
-    <label for="count">生成注数</label>
+    <label style="margin-top:12px;">生成注数</label>
     <select id="count"></select>
+    <div class="button-group">
+      <button id="generate-btn">生成号码</button>
+      <button id="save-btn">保存图片</button>
+    </div>
   </div>
-  <div class="button-group">
-    <button id="generate-btn">生成号码</button>
-    <button id="save-btn">保存图片</button>
-  </div>
+  <div class="result-box" id="result"></div>
 </div>
-<div class="result-title">生成结果</div>
-<div class="result-box" id="result"></div>
-</div>
-
 <script>
 const countSelect = document.getElementById("count");
-for(let i=1;i<=20;i++){
-  const option=document.createElement("option");
-  option.value=i;
-  option.textContent=i+' 注';
+for (let i = 1; i <= 20; i++) {
+  const option = document.createElement("option");
+  option.value = i;
+  option.textContent = i + " 注";
   countSelect.appendChild(option);
 }
 
-const generateBtn = document.getElementById("generate-btn");
-const saveBtn = document.getElementById("save-btn");
 const result = document.getElementById("result");
 
-function randomNums(min,max,count){
-  const pool = Array.from({length:max-min+1},(_,i)=>i+min);
-  for(let i=pool.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [pool[i],pool[j]]=[pool[j],pool[i]];
+function randomNums(min, max, count) {
+  const pool = Array.from({ length: max - min + 1 }, (_, i) => i + min);
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  return pool.slice(0,count);
+  return pool.slice(0, count).sort((a, b) => a - b);
 }
 
-function createBall(n,color){
-  const span=document.createElement("span");
-  span.className=`ball ${color}`;
-  span.textContent=String(n).padStart(2,"0");
+function createBall(n, color) {
+  const span = document.createElement("span");
+  span.className = `ball ${color}`;
+  span.textContent = String(n).padStart(2, "0");
   return span;
 }
 
-function generate(){
+function generate() {
   const type = document.getElementById("type").value;
   const count = Number(countSelect.value);
-  result.innerHTML="";
-  for(let i=0;i<count;i++){
-    const line=document.createElement("div");
-    line.className="result-line";
-    if(type==="ssq"){
-      randomNums(1,33,6).forEach(n=>line.appendChild(createBall(n,"red")));
-      line.appendChild(createBall(randomNums(1,16,1)[0],"blue"));
-    }else{
-      randomNums(1,35,5).forEach(n=>line.appendChild(createBall(n,"red")));
-      randomNums(1,12,2).forEach(n=>line.appendChild(createBall(n,"blue")));
+  result.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const line = document.createElement("div");
+    line.className = "result-line";
+    if (type === "ssq") {
+      randomNums(1, 33, 6).forEach(n => line.appendChild(createBall(n, "red")));
+      line.appendChild(createBall(randomNums(1, 16, 1)[0], "blue"));
+    } else {
+      randomNums(1, 35, 5).forEach(n => line.appendChild(createBall(n, "red")));
+      randomNums(1, 12, 2).forEach(n => line.appendChild(createBall(n, "blue")));
     }
     result.appendChild(line);
   }
-  result.scrollTop=result.scrollHeight;
+  result.scrollTop = result.scrollHeight;
 }
 
-function saveAsImage(){
-  if(!result.innerHTML.trim()){ alert("当前没有可保存的生成结果"); return; }
-  const temp=document.createElement("div");
-  temp.style.position="absolute";
-  temp.style.left="-9999px";
-  temp.style.background="#fff";
-  temp.innerHTML=result.innerHTML;
-  document.body.appendChild(temp);
-  html2canvas(temp,{backgroundColor:"#fff"}).then(canvas=>{
-    const a=document.createElement("a");
-    a.download="lottery-result.png";
-    a.href=canvas.toDataURL();
+function saveAsImage() {
+  if (!result.innerHTML.trim()) {
+    alert("当前没有可保存的生成结果");
+    return;
+  }
+  const type = document.getElementById("type").value;
+  const typeText = type === "ssq" ? "双色球" : "大乐透";
+  const dateText = new Date().toISOString().slice(0, 10);
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "absolute";
+  wrapper.style.left = "-9999px";
+  wrapper.style.background = "#fff";
+  wrapper.style.padding = "16px";
+
+  const title = document.createElement("div");
+  title.style.textAlign = "center";
+  title.style.fontSize = "16px";
+  title.style.fontWeight = "600";
+  title.style.marginBottom = "12px";
+  title.style.color = "#111";
+  title.textContent = `${dateText}  ${typeText}`;
+  wrapper.appendChild(title);
+
+  [...result.children].forEach((line, index) => {
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.marginBottom = "10px";
+
+    const numLabel = document.createElement("span");
+    numLabel.textContent = `第 ${String(index + 1).padStart(2, "0")} 注 `;
+    numLabel.style.fontWeight = "600";
+    numLabel.style.fontSize = "14px";
+    numLabel.style.color = "#111";
+    numLabel.style.marginRight = "6px";
+    row.appendChild(numLabel);
+
+    const frontLabel = document.createElement("span");
+    frontLabel.textContent = "前区：";
+    frontLabel.style.fontWeight = "600";
+    frontLabel.style.fontSize = "14px";
+    frontLabel.style.color = "#111";
+    frontLabel.style.marginRight = "4px";
+
+    const backLabel = document.createElement("span");
+    backLabel.textContent = " 后区：";
+    backLabel.style.fontWeight = "600";
+    backLabel.style.fontSize = "14px";
+    backLabel.style.color = "#111";
+    backLabel.style.marginLeft = "6px";
+
+    const reds = [...line.querySelectorAll(".red")];
+    const blues = [...line.querySelectorAll(".blue")];
+
+    row.appendChild(frontLabel);
+    reds.forEach(b => row.appendChild(b.cloneNode(true)));
+    row.appendChild(backLabel);
+    blues.forEach(b => row.appendChild(b.cloneNode(true)));
+
+    wrapper.appendChild(row);
+  });
+
+  document.body.appendChild(wrapper);
+  html2canvas(wrapper, { backgroundColor: "#fff", scale: 2 }).then(canvas => {
+    const a = document.createElement("a");
+    a.download = `lottery-${typeText}-${dateText}.png`;
+    a.href = canvas.toDataURL();
     a.click();
-    document.body.removeChild(temp);
+    document.body.removeChild(wrapper);
   });
 }
 
-generateBtn.onclick=generate;
-saveBtn.onclick=saveAsImage;
+document.getElementById("generate-btn").onclick = generate;
+document.getElementById("save-btn").onclick = saveAsImage;
 </script>
 </body>
 </html>
