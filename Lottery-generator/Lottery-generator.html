@@ -24,257 +24,227 @@ SOFTWARE.
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>彩票号码生成器</title>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <style>
-        :root {
-            --bg-page: #f3f4f6;
-            --bg-card: #ffffff;
-            --bg-box: #f9fafb;
-            --text-main: #111827;
-            --text-sub: #374151;
-            --border: #d1d5db;
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --red: #ef4444;
-            --blue: #3b82f6;
-        }
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-page: #0f172a;
-                --bg-card: #020617;
-                --bg-box: #020617;
-                --text-main: #e5e7eb;
-                --text-sub: #9ca3af;
-                --border: #1f2937;
-                --primary: #818cf8;
-                --primary-hover: #6366f1;
-                --red: #f87171;
-                --blue: #60a5fa;
-            }
-        }
-        * {
-            box-sizing: border-box;
-        }
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: "Segoe UI", "PingFang SC", Arial, sans-serif;
-            background: var(--bg-page);
-            color: var(--text-main);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-        }
-        .container {
-            width: 100%;
-            max-width: 420px;
-            background: var(--bg-card);
-            border-radius: 14px;
-            padding: 24px;
-            box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
-        }
-        h1 {
-            text-align: center;
-            font-size: 20px;
-            margin: 0 0 20px;
-        }
-        .form-box {
-            background: var(--bg-box);
-            border-radius: 12px;
-            padding: 18px;
-            margin-bottom: 16px;
-        }
-        .form-group {
-            margin-bottom: 14px;
-        }
-        label {
-            display: block;
-            font-size: 13px;
-            margin-bottom: 6px;
-            color: var(--text-sub);
-        }
-        select, input {
-            width: 100%;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            font-size: 15px;
-            background: transparent;
-            color: var(--text-main);
-        }
-        select:focus, input:focus {
-            border-color: var(--primary);
-        }
-        input:invalid {
-            border-color: var(--red);
-        }
-        .button-group {
-            display: flex;
-            gap: 10px;
-        }
-        button {
-            flex: 1;
-            padding: 12px;
-            font-size: 16px;
-            border-radius: 10px;
-            border: none;
-            background: var(--primary);
-            color: #fff;
-            cursor: pointer;
-        }
-        button:disabled {
-            background: #ddd;
-            cursor: not-allowed;
-        }
-        button:active {
-            background: var(--primary-hover);
-        }
-        .result-title {
-            margin: 20px 0 10px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        .result-box {
-            background: var(--bg-box);
-            border-radius: 12px;
-            padding: 14px;
-            max-height: calc((28px + 10px) * 5 + 14px * 2);
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        .result-line {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 10px;
-            height: 28px;
-            line-height: 28px;
-        }
-        .ball {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 28px;
-            height: 28px;
-            margin: 0 4px;
-            border-radius: 50%;
-            font-size: 13px;
-            font-weight: 600;
-            color: #fff;
-        }
-        .red {
-            background: var(--red);
-        }
-        .blue {
-            background: var(--blue);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>彩票号码生成器</title>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+:root {
+  --bg-page:#f3f4f6;
+  --bg-card:#ffffff;
+  --bg-box:#f9fafb;
+  --text-main:#111827;
+  --text-sub:#374151;
+  --border:#d1d5db;
+  --primary:#6366f1;
+  --primary-hover:#4f46e5;
+  --red:#ef4444;
+  --blue:#3b82f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-page:#0f172a;
+    --bg-card:#020617;
+    --bg-box:#020617;
+    --text-main:#e5e7eb;
+    --text-sub:#9ca3af;
+    --border:#1f2937;
+    --primary:#818cf8;
+    --primary-hover:#6366f1;
+    --red:#f87171;
+    --blue:#60a5fa;
+  }
+}
+* {box-sizing:border-box;}
+body {
+  margin:0;
+  min-height:100vh;
+  font-family:"Segoe UI","PingFang SC",Arial,sans-serif;
+  background:var(--bg-page);
+  color:var(--text-main);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+}
+.container {
+  width:100%;
+  max-width:420px;
+  background:var(--bg-card);
+  border-radius:14px;
+  padding:24px;
+  box-shadow:0 12px 30px rgba(0,0,0,.18);
+}
+h1 {
+  text-align:center;
+  font-size:20px;
+  margin:0 0 20px;
+}
+.form-box {
+  background:var(--bg-box);
+  border-radius:12px;
+  padding:18px;
+  margin-bottom:16px;
+}
+.form-group {
+  margin-bottom:14px;
+}
+label {
+  display:block;
+  font-size:13px;
+  margin-bottom:6px;
+  color:var(--text-sub);
+}
+select {
+  width:100%;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  font-size:15px;
+  background:transparent;
+  color:var(--text-main);
+}
+.button-group {
+  display:flex;
+  gap:10px;
+  margin-top:14px;
+}
+button {
+  flex:1;
+  padding:12px;
+  font-size:16px;
+  border-radius:10px;
+  border:none;
+  background:var(--primary);
+  color:#fff;
+  cursor:pointer;
+}
+button:active {background:var(--primary-hover);}
+.result-title {
+  margin:20px 0 10px;
+  font-size:14px;
+  font-weight:600;
+}
+.result-box {
+  background:var(--bg-box);
+  border-radius:12px;
+  padding:14px;
+  max-height:218px;
+  overflow-y:auto;
+}
+.result-line {
+  display:flex;
+  justify-content:center;
+  margin-bottom:10px;
+  height:28px;
+}
+.ball {
+  width:28px;
+  height:28px;
+  margin:0 4px;
+  border-radius:50%;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:13px;
+  font-weight:600;
+  color:#fff;
+}
+.red {background:var(--red);}
+.blue {background:var(--blue);}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎲 彩票号码生成器</h1>
-        <div class="form-box">
-            <div class="form-group">
-                <label for="type">选择玩法</label>
-                <select id="type">
-                    <option value="ssq">双色球</option>
-                    <option value="dlt">大乐透</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="count">生成注数</label>
-                <input type="number" id="count" value="1" min="1" max="20" required>
-                <small id="count-error" style="color: var(--red); display:none;">注数必须在 1 到 20 内</small>
-            </div>
-            <div class="button-group">
-                <button id="generate-btn" onclick="generate()">生成号码</button>
-                <button onclick="saveAsImage()">保存图片</button>
-            </div>
-        </div>
-        <div class="result-title">生成结果</div>
-        <div class="result-box" id="result"></div>
-    </div>
-    <script>
-        const countInput = document.getElementById("count");
-        const generateBtn = document.getElementById("generate-btn");
-        const countError = document.getElementById("count-error");
+<div class="container">
+<h1>🎲 彩票号码生成器</h1>
+<div class="form-box">
+  <div class="form-group">
+    <label for="type">选择玩法</label>
+    <select id="type">
+      <option value="ssq">双色球</option>
+      <option value="dlt">大乐透</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="count">生成注数</label>
+    <select id="count"></select>
+  </div>
+  <div class="button-group">
+    <button id="generate-btn">生成号码</button>
+    <button id="save-btn">保存图片</button>
+  </div>
+</div>
+<div class="result-title">生成结果</div>
+<div class="result-box" id="result"></div>
+</div>
 
-        countInput.addEventListener("input", () => {
-            const value = Number(countInput.value);
-            if (isNaN(value) || value < 1 || value > 20) {
-                countError.style.display = 'block';
-                generateBtn.disabled = true;
-            } else {
-                countError.style.display = 'none';
-                generateBtn.disabled = false;
-            }
-        });
+<script>
+const countSelect = document.getElementById("count");
+for(let i=1;i<=20;i++){
+  const option=document.createElement("option");
+  option.value=i;
+  option.textContent=i+' 注';
+  countSelect.appendChild(option);
+}
 
-        function randomNums(min, max, count) {
-            if (count > max - min + 1) {
-                throw new Error("请求生成的随机数数量超出范围");
-            }
-            const arr = [];
-            while (arr.length < count) {
-                const n = Math.floor(Math.random() * (max - min + 1)) + min;
-                if (!arr.includes(n)) arr.push(n);
-            }
-            return arr.sort((a, b) => a - b);
-        }
+const generateBtn = document.getElementById("generate-btn");
+const saveBtn = document.getElementById("save-btn");
+const result = document.getElementById("result");
 
-        function generate() {
-            const type = document.getElementById("type").value;
-            const count = Number(countInput.value);
-            const result = document.getElementById("result");
-            result.innerHTML = "";
-            if (isNaN(count) || count < 1 || count > 20) {
-                alert("注数输入有误，请输入 1-20 的数字");
-                return;
-            }
-            for (let i = 0; i < count; i++) {
-                const line = document.createElement("div");
-                line.className = "result-line";
-                if (type === "ssq") {
-                    randomNums(1, 33, 6).forEach(n => {
-                        line.innerHTML += `<span class="ball red">${String(n).padStart(2, '0')}</span>`;
-                    });
-                    const blue = randomNums(1, 16, 1)[0];
-                    line.innerHTML += `<span class="ball blue">${String(blue).padStart(2, '0')}</span>`;
-                } else {
-                    randomNums(1, 35, 5).forEach(n => {
-                        line.innerHTML += `<span class="ball red">${String(n).padStart(2, '0')}</span>`;
-                    });
-                    randomNums(1, 12, 2).forEach(n => {
-                        line.innerHTML += `<span class="ball blue">${String(n).padStart(2, '0')}</span>`;
-                    });
-                }
-                result.appendChild(line);
-            }
-        }
+function randomNums(min,max,count){
+  const pool = Array.from({length:max-min+1},(_,i)=>i+min);
+  for(let i=pool.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [pool[i],pool[j]]=[pool[j],pool[i]];
+  }
+  return pool.slice(0,count).sort((a,b)=>a-b);
+}
 
-        function saveAsImage() {
-            const resultDiv = document.getElementById("result");
-            if (resultDiv.innerHTML.trim() === "") {
-                alert("当前没有可保存的生成结果");
-                return;
-            }
-            const tempDiv = document.createElement('div');
-            tempDiv.style.position = 'absolute';
-            tempDiv.style.left = '-9999px';
-            tempDiv.style.background = '#fff';
-            tempDiv.innerHTML = resultDiv.innerHTML;
-            document.body.appendChild(tempDiv);
-            html2canvas(tempDiv, { backgroundColor: "#fff" }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = 'lottery-result.png';
-                link.href = canvas.toDataURL();
-                link.click();
-                document.body.removeChild(tempDiv);
-            });
-        }
+function createBall(n,color){
+  const span=document.createElement("span");
+  span.className=`ball ${color}`;
+  span.textContent=String(n).padStart(2,"0");
+  return span;
+}
+
+function generate(){
+  const type = document.getElementById("type").value;
+  const count = Number(countSelect.value);
+  result.innerHTML="";
+  for(let i=0;i<count;i++){
+    const line=document.createElement("div");
+    line.className="result-line";
+    if(type==="ssq"){
+      randomNums(1,33,6).forEach(n=>line.appendChild(createBall(n,"red")));
+      line.appendChild(createBall(randomNums(1,16,1)[0],"blue"));
+    }else{
+      randomNums(1,35,5).forEach(n=>line.appendChild(createBall(n,"blue")));
+      randomNums(1,12,2).forEach(n=>line.appendChild(createBall(n,"red")));
+    }
+    result.appendChild(line);
+  }
+  result.scrollTop=result.scrollHeight;
+}
+
+function saveAsImage(){
+  if(!result.innerHTML.trim()){ alert("当前没有可保存的生成结果"); return; }
+  const temp=document.createElement("div");
+  temp.style.position="absolute";
+  temp.style.left="-9999px";
+  temp.style.background="#fff";
+  temp.innerHTML=result.innerHTML;
+  document.body.appendChild(temp);
+  html2canvas(temp,{backgroundColor:"#fff"}).then(canvas=>{
+    const a=document.createElement("a");
+    a.download="lottery-result.png";
+    a.href=canvas.toDataURL();
+    a.click();
+    document.body.removeChild(temp);
+  });
+}
+
+generateBtn.onclick=generate;
+saveBtn.onclick=saveAsImage;
 </script>
 </body>
 </html>
