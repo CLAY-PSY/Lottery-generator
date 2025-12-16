@@ -26,7 +26,7 @@ SOFTWARE.
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>彩票号码生成器</title>
+<title>彩票生成器</title>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
 :root {
@@ -148,7 +148,7 @@ button:active { background:var(--primary-hover); }
 </head>
 <body>
 <div class="container">
-  <h1>🎲 彩票号码生成器</h1>
+  <h1>彩票生成器</h1>
   <div class="form-box">
     <label>选择玩法</label>
     <select id="type">
@@ -166,124 +166,112 @@ button:active { background:var(--primary-hover); }
 </div>
 <script>
 const countSelect = document.getElementById("count");
-for (let i = 1; i <= 5; i++) {
-  const option = document.createElement("option");
-  option.value = i;
-  option.textContent = i + " 注";
+for (let i=1;i<=5;i++){
+  const option=document.createElement("option");
+  option.value=i;
+  option.textContent=i+" 注";
   countSelect.appendChild(option);
 }
-
-const result = document.getElementById("result");
-
-function randomNums(min, max, count) {
-  const pool = Array.from({ length: max - min + 1 }, (_, i) => i + min);
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+const result=document.getElementById("result");
+function randomNums(min,max,count){
+  const pool=Array.from({length:max-min+1},(_,i)=>i+min);
+  for(let i=pool.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [pool[i],pool[j]]=[pool[j],pool[i]];
   }
-  return pool.slice(0, count).sort((a, b) => a - b);
+  return pool.slice(0,count).sort((a,b)=>a-b);
 }
-
-function createBall(n, color) {
-  const span = document.createElement("span");
-  span.className = `ball ${color}`;
-  span.textContent = String(n).padStart(2, "0");
+function createBall(n,color){
+  const span=document.createElement("span");
+  span.className=`ball ${color}`;
+  span.textContent=String(n).padStart(2,"0");
   return span;
 }
-
-function generate() {
-  const type = document.getElementById("type").value;
-  const count = Number(countSelect.value);
-  result.innerHTML = "";
-  for (let i = 0; i < count; i++) {
-    const line = document.createElement("div");
-    line.className = "result-line";
-    if (type === "ssq") {
-      randomNums(1, 33, 6).forEach(n => line.appendChild(createBall(n, "red")));
-      line.appendChild(createBall(randomNums(1, 16, 1)[0], "blue"));
-    } else {
-      randomNums(1, 35, 5).forEach(n => line.appendChild(createBall(n, "red")));
-      randomNums(1, 12, 2).forEach(n => line.appendChild(createBall(n, "blue")));
+function generate(){
+  const type=document.getElementById("type").value;
+  const count=Number(countSelect.value);
+  result.innerHTML="";
+  for(let i=0;i<count;i++){
+    const line=document.createElement("div");
+    line.className="result-line";
+    if(type==="ssq"){
+      randomNums(1,33,6).forEach(n=>line.appendChild(createBall(n,"red")));
+      line.appendChild(createBall(randomNums(1,16,1)[0],"blue"));
+    }else{
+      randomNums(1,35,5).forEach(n=>line.appendChild(createBall(n,"red")));
+      randomNums(1,12,2).forEach(n=>line.appendChild(createBall(n,"blue")));
     }
     result.appendChild(line);
   }
-  result.scrollTop = result.scrollHeight;
+  result.scrollTop=result.scrollHeight;
 }
-
-function saveAsImage() {
-  if (!result.innerHTML.trim()) {
-    alert("当前没有可保存的生成结果");
-    return;
-  }
-  const type = document.getElementById("type").value;
-  const typeText = type === "ssq" ? "双色球" : "大乐透";
-  const dateText = new Date().toISOString().slice(0, 10);
-  const wrapper = document.createElement("div");
-  wrapper.style.position = "absolute";
-  wrapper.style.left = "-9999px";
-  wrapper.style.background = "#fff";
-  wrapper.style.padding = "16px";
-
-  const title = document.createElement("div");
-  title.style.textAlign = "center";
-  title.style.fontSize = "16px";
-  title.style.fontWeight = "600";
-  title.style.marginBottom = "12px";
-  title.style.color = "#111";
-  title.textContent = `${dateText}  ${typeText}`;
+function formatDateLocal(date){
+  const y=date.getFullYear();
+  const m=String(date.getMonth()+1).padStart(2,"0");
+  const d=String(date.getDate()).padStart(2,"0");
+  return `${y}-${m}-${d}`;
+}
+function saveAsImage(){
+  if(!result.innerHTML.trim()){alert("当前没有可保存的生成结果");return;}
+  const type=document.getElementById("type").value;
+  const typeText=type==="ssq"?"双色球":"大乐透";
+  const dateText=formatDateLocal(new Date());
+  const wrapper=document.createElement("div");
+  wrapper.style.position="absolute";
+  wrapper.style.left="-9999px";
+  wrapper.style.background="#fff";
+  wrapper.style.padding="16px";
+  const title=document.createElement("div");
+  title.style.textAlign="center";
+  title.style.fontSize="16px";
+  title.style.fontWeight="600";
+  title.style.marginBottom="12px";
+  title.style.color="#111";
+  title.textContent=`${dateText}  ${typeText}`;
   wrapper.appendChild(title);
-
-  [...result.children].forEach((line, index) => {
-    const row = document.createElement("div");
-    row.style.display = "flex";
-    row.style.alignItems = "center";
-    row.style.marginBottom = "10px";
-
-    const numLabel = document.createElement("span");
-    numLabel.textContent = `第 ${String(index + 1).padStart(2, "0")} 注 `;
-    numLabel.style.fontWeight = "600";
-    numLabel.style.fontSize = "14px";
-    numLabel.style.color = "#111";
-    numLabel.style.marginRight = "6px";
+  [...result.children].forEach((line,index)=>{
+    const row=document.createElement("div");
+    row.style.display="flex";
+    row.style.alignItems="center";
+    row.style.marginBottom="10px";
+    const numLabel=document.createElement("span");
+    numLabel.textContent=`第 ${String(index+1).padStart(2,"0")} 注 `;
+    numLabel.style.fontWeight="600";
+    numLabel.style.fontSize="14px";
+    numLabel.style.color="#111";
+    numLabel.style.marginRight="6px";
     row.appendChild(numLabel);
-
-    const frontLabel = document.createElement("span");
-    frontLabel.textContent = "前区：";
-    frontLabel.style.fontWeight = "600";
-    frontLabel.style.fontSize = "14px";
-    frontLabel.style.color = "#111";
-    frontLabel.style.marginRight = "4px";
-
-    const backLabel = document.createElement("span");
-    backLabel.textContent = " 后区：";
-    backLabel.style.fontWeight = "600";
-    backLabel.style.fontSize = "14px";
-    backLabel.style.color = "#111";
-    backLabel.style.marginLeft = "6px";
-
-    const reds = [...line.querySelectorAll(".red")];
-    const blues = [...line.querySelectorAll(".blue")];
-
+    const frontLabel=document.createElement("span");
+    frontLabel.textContent="前区：";
+    frontLabel.style.fontWeight="600";
+    frontLabel.style.fontSize="14px";
+    frontLabel.style.color="#111";
+    frontLabel.style.marginRight="4px";
+    const backLabel=document.createElement("span");
+    backLabel.textContent=" 后区：";
+    backLabel.style.fontWeight="600";
+    backLabel.style.fontSize="14px";
+    backLabel.style.color="#111";
+    backLabel.style.marginLeft="6px";
+    const reds=[...line.querySelectorAll(".red")];
+    const blues=[...line.querySelectorAll(".blue")];
     row.appendChild(frontLabel);
-    reds.forEach(b => row.appendChild(b.cloneNode(true)));
+    reds.forEach(b=>row.appendChild(b.cloneNode(true)));
     row.appendChild(backLabel);
-    blues.forEach(b => row.appendChild(b.cloneNode(true)));
-
+    blues.forEach(b=>row.appendChild(b.cloneNode(true)));
     wrapper.appendChild(row);
   });
-
   document.body.appendChild(wrapper);
-  html2canvas(wrapper, { backgroundColor: "#fff", scale: 2 }).then(canvas => {
-    const a = document.createElement("a");
-    a.download = `lottery-${typeText}-${dateText}.png`;
-    a.href = canvas.toDataURL();
+  html2canvas(wrapper,{backgroundColor:"#fff",scale:2}).then(canvas=>{
+    const a=document.createElement("a");
+    a.download=`lottery-${typeText}-${dateText}.png`;
+    a.href=canvas.toDataURL();
     a.click();
     document.body.removeChild(wrapper);
   });
 }
-
-document.getElementById("generate-btn").onclick = generate;
-document.getElementById("save-btn").onclick = saveAsImage;
+document.getElementById("generate-btn").onclick=generate;
+document.getElementById("save-btn").onclick=saveAsImage;
 </script>
 </body>
 </html>
