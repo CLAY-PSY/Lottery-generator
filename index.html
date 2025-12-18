@@ -125,7 +125,6 @@ button:active { background:var(--primary-hover); }
   display:flex;
   flex-direction:column;
   overflow-y:auto;
-  height:196px;
 }
 .result-inner {
   display:flex;
@@ -196,6 +195,15 @@ function createBall(n,color){
   span.textContent=String(n).padStart(2,"0");
   return span;
 }
+function setResultBoxHeight(){
+  const lineHeight=28;
+  const gap=10;
+  const visibleCount=5;
+  const padding=28;
+  const resultBox=document.querySelector('.result-box');
+  resultBox.style.height=(lineHeight*visibleCount + gap*(visibleCount-1) + padding)+'px';
+}
+setResultBoxHeight();
 function generateRolling(){
   if(isRolling) return;
   const type=document.getElementById("type").value;
