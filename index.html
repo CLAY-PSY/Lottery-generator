@@ -105,7 +105,6 @@ select {
   display:flex;
   gap:10px;
   margin-top:12px;
-  flex-wrap: wrap;
 }
 button {
   flex:1;
@@ -121,25 +120,24 @@ button:active { background:var(--primary-hover); }
 .result-box {
   background: var(--bg-box);
   border-radius: 12px;
-  padding: 14px;
-  max-height:220px;
+  padding:14px;
   width:100%;
+  display:flex;
+  flex-direction:column;
   overflow-y:auto;
-  display: flex;
-  flex-direction: column;
+  height:196px;
 }
 .result-inner {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  margin: auto 0;
-  width: 100%;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  align-items:center;
+  width:100%;
+  gap:10px;
 }
 .result-line {
   display:flex;
   justify-content:center;
-  margin-bottom:10px;
   height:28px;
 }
 .ball {
@@ -156,11 +154,10 @@ button:active { background:var(--primary-hover); }
 }
 .red { background:var(--red); }
 .blue { background:var(--blue); }
-@media (max-width: 360px) {
+@media (max-width:360px) {
   .container { padding:16px; }
   .ball { width:24px; height:24px; font-size:0.75rem; }
   button { padding:8px; font-size:0.9rem; }
-  select { font-size:0.9rem; }
 }
 </style>
 </head>
@@ -173,26 +170,18 @@ button:active { background:var(--primary-hover); }
       <option value="ssq">双色球</option>
       <option value="dlt">大乐透</option>
     </select>
-    <label style="margin-top:12px;">生成注数</label>
-    <select id="count"></select>
     <div class="button-group">
       <button id="generate-btn">生成号码</button>
       <button id="save-btn">保存图片</button>
     </div>
   </div>
-  <div class="result-box" id="result">
+  <div class="result-box">
     <div class="result-inner" id="result-inner"></div>
   </div>
 </div>
 <script>
-const countSelect = document.getElementById("count");
-for (let i=5;i<=5;i++){
-  const option=document.createElement("option");
-  option.value=i;
-  option.textContent=i+" 注";
-  countSelect.appendChild(option);
-}
 const resultInner=document.getElementById("result-inner");
+let isRolling=false;
 function randomNums(min,max,count){
   const pool=Array.from({length:max-min+1},(_,i)=>i+min);
   for(let i=pool.length-1;i>0;i--){
@@ -207,19 +196,16 @@ function createBall(n,color){
   span.textContent=String(n).padStart(2,"0");
   return span;
 }
-let generateInterval=null;
-let isRolling=false;
 function generateRolling(){
+  if(isRolling) return;
   const type=document.getElementById("type").value;
-  const count=Number(countSelect.value);
+  const count=5;
   document.getElementById("generate-btn").disabled=true;
   document.getElementById("save-btn").disabled=true;
-  if(generateInterval) clearInterval(generateInterval);
   isRolling=true;
-  let elapsed=0;
   const duration=10000;
-  const intervalTime=1;
-  generateInterval=setInterval(()=>{
+  const startTime=performance.now();
+  function frame(now){
     resultInner.innerHTML="";
     for(let i=0;i<count;i++){
       const line=document.createElement("div");
@@ -234,15 +220,15 @@ function generateRolling(){
       resultInner.appendChild(line);
     }
     resultInner.scrollTop=resultInner.scrollHeight;
-    elapsed+=intervalTime;
-    if(elapsed>=duration){
-      clearInterval(generateInterval);
-      generateInterval=null;
+    if(now-startTime<duration){
+      requestAnimationFrame(frame);
+    }else{
       isRolling=false;
       document.getElementById("generate-btn").disabled=false;
       document.getElementById("save-btn").disabled=false;
     }
-  },intervalTime);
+  }
+  requestAnimationFrame(frame);
 }
 function formatDateLocal(date){
   const y=date.getFullYear();
@@ -278,28 +264,24 @@ function saveAsImage(){
   title.style.color="#111";
   title.textContent=`${dateText}  ${typeText}`;
   wrapper.appendChild(title);
-  [...resultInner.children].forEach((line)=>{
+  [...resultInner.children].forEach(line=>{
     const row=document.createElement("div");
     row.style.display="flex";
     row.style.alignItems="center";
     row.style.marginBottom="10px";
-    const frontLabel=document.createElement("span");
-    frontLabel.textContent="前区：";
-    frontLabel.style.fontWeight="600";
-    frontLabel.style.fontSize="14px";
-    frontLabel.style.color="#111";
-    frontLabel.style.marginRight="4px";
-    const backLabel=document.createElement("span");
-    backLabel.textContent=" 后区：";
-    backLabel.style.fontWeight="600";
-    backLabel.style.fontSize="14px";
-    backLabel.style.color="#111";
-    backLabel.style.marginLeft="6px";
+    const front=document.createElement("span");
+    front.textContent="前区：";
+    front.style.fontWeight="600";
+    front.style.marginRight="4px";
+    const back=document.createElement("span");
+    back.textContent=" 后区：";
+    back.style.fontWeight="600";
+    back.style.marginLeft="6px";
     const reds=[...line.querySelectorAll(".red")];
     const blues=[...line.querySelectorAll(".blue")];
-    row.appendChild(frontLabel);
+    row.appendChild(front);
     reds.forEach(b=>row.appendChild(b.cloneNode(true)));
-    row.appendChild(backLabel);
+    row.appendChild(back);
     blues.forEach(b=>row.appendChild(b.cloneNode(true)));
     wrapper.appendChild(row);
   });
