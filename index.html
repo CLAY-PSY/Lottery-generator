@@ -187,11 +187,8 @@ function randomNums(min, max, count){
     const rand = crypto.getRandomValues(new Uint32Array(1))[0];
     const j = rand % (i + 1);
     [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
   return pool.slice(0, count).sort((a,b)=>a-b);
-}
-  return pool.slice(0,count).sort((a,b)=>a-b);
-}
+  return pool.slice(0,count).sort((a,b)=>a-b);}
 function createBall(n,color){
   const span=document.createElement("span");
   span.className=`ball ${color}`;
