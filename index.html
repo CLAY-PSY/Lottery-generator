@@ -309,6 +309,10 @@ SOFTWARE.
     }
 
     function saveAsImage() {
+      if (isRolling) {
+        alert("请等待滚动生成完成后再保存图片");
+        return;
+      }
       if (!resultInner.innerHTML.trim()) {
         alert("当前没有可保存的生成结果");
         return;
