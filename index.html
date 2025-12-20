@@ -215,7 +215,7 @@ document.getElementById("save-btn").disabled=disabled;
 function generateRolling(){
 if(isRolling)return;
 const type=document.getElementById("type").value;
-const count=10;
+const count=5;
 toggleButtons(true);
 isRolling=true;
 const duration=10000;
@@ -298,8 +298,7 @@ a.href=canvas.toDataURL();
 a.click();
 document.body.removeChild(wrapper);
 toggleButtons(false);
-});
-}
+});}
 document.getElementById("generate-btn").onclick=generateRolling;
 document.getElementById("save-btn").onclick=saveAsImage;
 </script>
