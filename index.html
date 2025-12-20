@@ -31,11 +31,11 @@ SOFTWARE.
 <style>
 :root{
 --bg-page:#f3f4f6;
---bg-card:#ffffff;
---bg-box:#ffffff;
+--bg-card:#f7f7f7;
+--bg-box:#ececec;
 --text-main:#111827;
 --text-sub:#374151;
---border:#d4d4d8;
+--border:#d1d5db;
 --primary:#6366f1;
 --primary-hover:#4f46e5;
 --red:#ef4444;
@@ -45,7 +45,7 @@ SOFTWARE.
 :root{
 --bg-page:#0f172a;
 --bg-card:#020617;
---bg-box:#0f172a;
+--bg-box:#1e293b;
 --text-main:#e5e7eb;
 --text-sub:#9ca3af;
 --border:#334155;
@@ -92,11 +92,7 @@ padding:10px;
 border-radius:8px;
 border:1px solid var(--border);
 font-size:1rem;
-background:var(--bg-card);
-color:var(--text-main);
-}
-select option{
-background:var(--bg-card);
+background:transparent;
 color:var(--text-main);
 }
 .button-group{
@@ -275,7 +271,7 @@ function saveAsImage() {
   const wrapper = document.createElement("div");
   wrapper.style.position = "absolute";
   wrapper.style.left = "-9999px";
-  wrapper.style.background = "#fff";           /* 强制白底 */
+  wrapper.style.background = "#fff";
   wrapper.style.padding = "20px 16px";
   wrapper.style.textAlign = "center";
 
@@ -283,7 +279,7 @@ function saveAsImage() {
   title.style.fontSize = "16px";
   title.style.fontWeight = "600";
   title.style.marginBottom = "16px";
-  title.style.color = "#111";                  /* 强制深色文字 */
+  title.style.color = "#111";
   title.textContent = `${dateText}  ${typeText}`;
   wrapper.appendChild(title);
 
@@ -292,11 +288,7 @@ function saveAsImage() {
     row.style.display = "flex";
     row.style.justifyContent = "center";
     row.style.marginBottom = "12px";
-    [...line.children].forEach(ball => {
-      const cloned = ball.cloneNode(true);
-      /* 红蓝球颜色在暗黑模式下已定义为更亮的变体，无需强制 */
-      row.appendChild(cloned);
-    });
+    [...line.children].forEach(ball => row.appendChild(ball.cloneNode(true)));
     wrapper.appendChild(row);
   });
 
