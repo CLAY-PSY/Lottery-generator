@@ -30,16 +30,16 @@ SOFTWARE.
 <script src="./html2canvas.min.js"></script>
 <style>
 :root {
---bg-page:#f3f4f6;
---bg-card:#ffffff;
---bg-box:#f9fafb;
---text-main:#111827;
---text-sub:#374151;
---border:#d1d5db;
---primary:#6366f1;
---primary-hover:#4f46e5;
---red:#ef4444;
---blue:#3b82f6;
+  --bg-page:#f3f4f6;
+  --bg-card:#f7f7f7;
+  --bg-box:#ececec;
+  --text-main:#111827;
+  --text-sub:#374151;
+  --border:#d1d5db;
+  --primary:#6366f1;
+  --primary-hover:#4f46e5;
+  --red:#ef4444;
+  --blue:#3b82f6;
 }
 @media (prefers-color-scheme: dark){
 :root{
@@ -84,6 +84,7 @@ background:var(--bg-box);
 border-radius:12px;
 padding:16px;
 margin-bottom:16px;
+border:1px solid var(--border);
 }
 select{
 width:100%;
@@ -124,6 +125,7 @@ width:100%;
 display:flex;
 flex-direction:column;
 overflow-y:auto;
+border:1px solid var(--border);
 }
 .result-inner{
 display:flex;
