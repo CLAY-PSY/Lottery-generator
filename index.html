@@ -258,44 +258,47 @@ const wrapper=document.createElement("div");
 wrapper.style.position="absolute";
 wrapper.style.left="-9999px";
 wrapper.style.background="#fff";
-wrapper.style.padding="20px 16px";
-wrapper.style.textAlign="center";
-
+wrapper.style.padding="16px";
 const title=document.createElement("div");
+title.style.textAlign="center";
 title.style.fontSize="16px";
 title.style.fontWeight="600";
-title.style.marginBottom="16px";
+title.style.marginBottom="12px";
 title.style.color="#111";
 title.textContent=`${dateText}  ${typeText}`;
 wrapper.appendChild(title);
-
-// 直接克隆每一行号码，保持原样（红球 + 蓝球顺序），不再添加任何文字
 [...resultInner.children].forEach(line=>{
-  const row=document.createElement("div");
-  row.style.display="flex";
-  row.style.justifyContent="center";
-  row.style.marginBottom="12px";
-  
-  // 克隆所有球（红 + 蓝）
-  [...line.children].forEach(ball=>{
-    row.appendChild(ball.cloneNode(true));
-  });
-  
-  wrapper.appendChild(row);
+const row=document.createElement("div");
+row.style.display="flex";
+row.style.alignItems="center";
+row.style.marginBottom="10px";
+const front=document.createElement("span");
+front.textContent="前区：";
+front.style.fontWeight="600";
+front.style.marginRight="4px";
+front.style.color="#111";
+const back=document.createElement("span");
+back.textContent=" 后区：";
+back.style.fontWeight="600";
+back.style.marginLeft="6px";
+back.style.color="#111";
+const reds=[...line.querySelectorAll(".red")];
+const blues=[...line.querySelectorAll(".blue")];
+row.appendChild(front);
+reds.forEach(b=>row.appendChild(b.cloneNode(true)));
+row.appendChild(back);
+blues.forEach(b=>row.appendChild(b.cloneNode(true)));
+wrapper.appendChild(row);
 });
-
 document.body.appendChild(wrapper);
-
 html2canvas(wrapper,{backgroundColor:"#fff",scale:2}).then(canvas=>{
-  const a=document.createElement("a");
-  a.download=`lottery-${typeText}-${dateText}.png`;
-  a.href=canvas.toDataURL();
-  a.click();
-  document.body.removeChild(wrapper);
-  toggleButtons(false);
-});
-}
-
+const a=document.createElement("a");
+a.download=`lottery-${typeText}-${dateText}.png`;
+a.href=canvas.toDataURL();
+a.click();
+document.body.removeChild(wrapper);
+toggleButtons(false);
+});}
 document.getElementById("generate-btn").onclick=generateRolling;
 document.getElementById("save-btn").onclick=saveAsImage;
 </script>
