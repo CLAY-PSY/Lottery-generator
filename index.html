@@ -234,8 +234,6 @@ randomNums(1,12,2).forEach(n=>line.appendChild(createBall(n,"blue")));
 }
 resultInner.appendChild(line);
 }
-const resultBox = document.querySelector('.result-box');
-resultBox.scrollTop = resultBox.scrollHeight;
 if(now-startTime<duration){
 requestAnimationFrame(frame);
 }else{
