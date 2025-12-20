@@ -30,16 +30,16 @@ SOFTWARE.
 <script src="./html2canvas.min.js"></script>
 <style>
 :root {
-  --bg-page:#f3f4f6;
-  --bg-card:#f7f7f7;
-  --bg-box:#ececec;
-  --text-main:#111827;
-  --text-sub:#374151;
-  --border:#d1d5db;
-  --primary:#6366f1;
-  --primary-hover:#4f46e5;
-  --red:#ef4444;
-  --blue:#3b82f6;
+--bg-page:#f3f4f6;
+--bg-card:#f7f7f7;
+--bg-box:#ececec;
+--text-main:#111827;
+--text-sub:#374151;
+--border:#d1d5db;
+--primary:#6366f1;
+--primary-hover:#4f46e5;
+--red:#ef4444;
+--blue:#3b82f6;
 }
 @media (prefers-color-scheme: dark){
 :root{
@@ -215,7 +215,7 @@ document.getElementById("save-btn").disabled=disabled;
 function generateRolling(){
 if(isRolling)return;
 const type=document.getElementById("type").value;
-const count=5;
+const count=10;
 toggleButtons(true);
 isRolling=true;
 const duration=10000;
