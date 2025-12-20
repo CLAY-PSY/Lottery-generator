@@ -115,8 +115,14 @@ button {
   background:var(--primary);
   color:#fff;
   cursor:pointer;
+  transition: background-color 0.3s;
 }
 button:active { background:var(--primary-hover); }
+button:disabled { 
+  background:#ccc; 
+  color:#666; 
+  cursor:not-allowed; 
+}
 .result-box {
   background: var(--bg-box);
   border-radius: 12px;
@@ -205,12 +211,15 @@ function setResultBoxHeight(){
   resultBox.style.height=(lineHeight*visibleCount+gap*(visibleCount-1)+padding)+'px';
 }
 setResultBoxHeight();
+function toggleButtons(disabled){
+  document.getElementById("generate-btn").disabled=disabled;
+  document.getElementById("save-btn").disabled=disabled;
+}
 function generateRolling(){
-  if(isRolling)return;
+  if(isRolling) return;
   const type=document.getElementById("type").value;
   const count=5;
-  document.getElementById("generate-btn").disabled=true;
-  document.getElementById("save-btn").disabled=true;
+  toggleButtons(true);
   isRolling=true;
   const duration=10000;
   const startTime=performance.now();
@@ -233,8 +242,7 @@ function generateRolling(){
       requestAnimationFrame(frame);
     }else{
       isRolling=false;
-      document.getElementById("generate-btn").disabled=false;
-      document.getElementById("save-btn").disabled=false;
+      toggleButtons(false);
     }
   }
   requestAnimationFrame(frame);
@@ -251,6 +259,7 @@ function formatDateLocal(date){
 function saveAsImage(){
   if(isRolling){alert("请等待滚动生成完成后再保存图片");return;}
   if(!resultInner.innerHTML.trim()){alert("当前没有可保存的生成结果");return;}
+  toggleButtons(true);
   const type=document.getElementById("type").value;
   const typeText=type==="ssq"?"双色球":"大乐透";
   const dateText=formatDateLocal(new Date());
@@ -297,6 +306,7 @@ function saveAsImage(){
     a.href=canvas.toDataURL();
     a.click();
     document.body.removeChild(wrapper);
+    toggleButtons(false);
   });
 }
 document.getElementById("generate-btn").onclick=generateRolling;
