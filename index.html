@@ -226,13 +226,26 @@ SOFTWARE.
     const resultInner = document.getElementById("result-inner");
     let isRolling = false;
 
+    function randomIntUnbiased(max) {
+      if (max <= 0) throw new Error("max must be > 0");
+      const limit = Math.floor(0x100000000 / max) * max;
+      let r;
+      do {
+        r = crypto.getRandomValues(new Uint32Array(1))[0];
+      } while (r >= limit);
+      return r % max;
+    }
+
     function randomNums(min, max, count) {
-      const pool = Array.from({ length: max - min + 1 }, (_, i) => i + min);
+      const range = max - min + 1;
+      if (count > range) throw new Error("count exceeds available range");
+      const pool = Array.from({ length: range }, (_, i) => i + min);
+
       for (let i = pool.length - 1; i > 0; i--) {
-        const rand = crypto.getRandomValues(new Uint32Array(1))[0];
-        const j = rand % (i + 1);
+        const j = randomIntUnbiased(i + 1);
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }
+
       return pool.slice(0, count).sort((a, b) => a - b);
     }
 
@@ -263,6 +276,7 @@ SOFTWARE.
 
       const type = document.getElementById("type").value;
       const count = 5;
+
       toggleButtons(true);
       isRolling = true;
 
@@ -313,6 +327,7 @@ SOFTWARE.
         alert("请等待滚动生成完成后再保存图片");
         return;
       }
+
       if (!resultInner.innerHTML.trim()) {
         alert("当前没有可保存的生成结果");
         return;
@@ -344,9 +359,7 @@ SOFTWARE.
         row.style.display = "flex";
         row.style.justifyContent = "center";
         row.style.marginBottom = "12px";
-
         [...line.children].forEach(ball => row.appendChild(ball.cloneNode(true)));
-
         wrapper.appendChild(row);
       });
 
