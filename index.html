@@ -47,8 +47,6 @@ SOFTWARE.
     --border:#334155;
     --primary:#818cf8;
     --primary-hover:#6366f1;
-    --red:#ef4444;
-    --blue:#3b82f6;
   }
 }
 * {box-sizing:border-box;}
@@ -84,18 +82,28 @@ h1 {
   padding:16px;
   border:1px solid var(--border);
 }
-select {
-  width:100%;
-  padding:10px;
-  border-radius:8px;
-  border:1px solid var(--border);
-  font-size:1rem;
-  background:var(--bg-box);
-  color:var(--text-main);
+.type-buttons {
+  display:flex;
+  gap:10px;
 }
-select option {
+.type-btn {
+  flex:1;
+  padding:10px;
+  border-radius:10px;
+  border:1px solid var(--border);
   background:var(--bg-box);
   color:var(--text-main);
+  font-size:1rem;
+  cursor:pointer;
+  transition: background-color .2s, color .2s;
+}
+.type-btn.active {
+  background:var(--primary);
+  color:#fff;
+  border-color:var(--primary);
+}
+.type-btn[disabled] {
+  cursor:not-allowed;
 }
 .button-group {
   display:flex;
@@ -111,32 +119,28 @@ button {
   background:var(--primary);
   color:#fff;
   cursor:pointer;
-  transition:background-color .3s;
 }
-button:active {background:var(--primary-hover);}
-button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
+button:disabled {
+  background:#555;
+  color:#ccc;
+}
 .result-box {
   background:var(--bg-box);
   border-radius:12px;
   padding:14px;
   width:100%;
   height:210px;
-  overflow-y:hidden;
   border:1px solid var(--border);
-  flex-shrink:0;
 }
 .result-inner {
   display:flex;
   flex-direction:column;
-  justify-content:flex-start;
   align-items:center;
-  width:100%;
   gap:10px;
 }
 .result-line {
   display:flex;
   justify-content:center;
-  height:28px;
 }
 .ball {
   width:28px;
@@ -152,20 +156,16 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
 }
 .red {background:var(--red);}
 .blue {background:var(--blue);}
-@media (max-width:360px) {
-  .ball {width:24px;height:24px;font-size:.75rem;}
-  button {padding:8px;font-size:.9rem;}
-}
 </style>
 </head>
 <body>
 <div class="container">
   <h1>双色球 / 大乐透 随机选号</h1>
   <div class="form-box">
-    <select id="type">
-      <option value="ssq">双色球</option>
-      <option value="dlt">大乐透</option>
-    </select>
+    <div class="type-buttons">
+      <button class="type-btn active" data-value="ssq">双色球</button>
+      <button class="type-btn" data-value="dlt">大乐透</button>
+    </div>
     <div class="button-group">
       <button id="generate-btn">生成号码</button>
       <button id="save-btn">保存图片</button>
@@ -176,16 +176,24 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
   </div>
 </div>
 <script>
-const resultInner=document.getElementById("result-inner")
-const typeSelect=document.getElementById("type")
-let isRolling=false
-typeSelect.addEventListener('change',()=>{
-  if(!isRolling){
-    resultInner.innerHTML=''
-  }
+const resultInner = document.getElementById("result-inner")
+const typeButtons = document.querySelectorAll(".type-btn")
+let currentType = "ssq"
+let isRolling = false
+function switchType(type){
+  if(isRolling || currentType===type) return
+  currentType = type
+  typeButtons.forEach(b=>{
+    b.classList.toggle("active", b.dataset.value===type)
+  })
+  resultInner.innerHTML = ""
+}
+typeButtons.forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    switchType(btn.dataset.value)
+  })
 })
 function randomIntUnbiased(max){
-  if(max<=0) throw new Error("max must be positive")
   const bytes=new Uint8Array(128)
   const maxBig=BigInt(max)
   const range=1n<<1024n
@@ -194,9 +202,7 @@ function randomIntUnbiased(max){
   do{
     crypto.getRandomValues(bytes)
     x=0n
-    for(const b of bytes){
-      x=(x<<8n)|BigInt(b)
-    }
+    for(const b of bytes){x=(x<<8n)|BigInt(b)}
   }while(x>=limit)
   return Number(x%maxBig)
 }
@@ -217,19 +223,20 @@ function createBall(n,color){
 function toggleButtons(disabled){
   document.getElementById("generate-btn").disabled=disabled
   document.getElementById("save-btn").disabled=disabled
-  typeSelect.disabled=disabled
+  typeButtons.forEach(b=>{
+    if(disabled){b.setAttribute("disabled","true")}else{b.removeAttribute("disabled")}
+  })
 }
 function generateRolling(){
   if(isRolling) return
-  const type=typeSelect.value
-  const count=5
+  const type=currentType
   isRolling=true
   toggleButtons(true)
-  const duration=10000
   const start=performance.now()
+  const duration=10000
   function frame(now){
     resultInner.innerHTML=''
-    for(let i=0;i<count;i++){
+    for(let i=0;i<5;i++){
       const line=document.createElement("div")
       line.className="result-line"
       if(type==="ssq"){
@@ -241,64 +248,12 @@ function generateRolling(){
       }
       resultInner.appendChild(line)
     }
-    if(now-start<duration){
-      requestAnimationFrame(frame)
-    }else{
-      isRolling=false
-      toggleButtons(false)
-    }
+    if(now-start<duration){requestAnimationFrame(frame)}
+    else{isRolling=false;toggleButtons(false)}
   }
   requestAnimationFrame(frame)
 }
-function formatDateLocal(date){
-  const y=date.getFullYear()
-  const m=String(date.getMonth()+1).padStart(2,"0")
-  const d=String(date.getDate()).padStart(2,"0")
-  const h=String(date.getHours()).padStart(2,"0")
-  const min=String(date.getMinutes()).padStart(2,"0")
-  const s=String(date.getSeconds()).padStart(2,"0")
-  return `${y}-${m}-${d}_${h}${min}${s}`
-}
-function saveAsImage(){
-  if(isRolling){alert("请等待生成完成再保存");return}
-  if(!resultInner.innerHTML.trim()){alert("当前没有生成结果");return}
-  toggleButtons(true)
-  const type=typeSelect.value
-  const typeText=type==="ssq"?"双色球":"大乐透"
-  const dateText=formatDateLocal(new Date())
-  const wrapper=document.createElement("div")
-  wrapper.style.position="absolute"
-  wrapper.style.left="-9999px"
-  wrapper.style.background="#fff"
-  wrapper.style.padding="20px 16px"
-  wrapper.style.textAlign="center"
-  const title=document.createElement("div")
-  title.style.fontSize="16px"
-  title.style.fontWeight="600"
-  title.style.marginBottom="16px"
-  title.style.color="#111"
-  title.textContent=`${dateText}  ${typeText}`
-  wrapper.appendChild(title)
-  ;[...resultInner.children].forEach(line=>{
-    const row=document.createElement("div")
-    row.style.display="flex"
-    row.style.justifyContent="center"
-    row.style.marginBottom="12px"
-    ;[...line.children].forEach(ball=>row.appendChild(ball.cloneNode(true)))
-    wrapper.appendChild(row)
-  })
-  document.body.appendChild(wrapper)
-  html2canvas(wrapper,{backgroundColor:"#fff",scale:2}).then(canvas=>{
-    const a=document.createElement("a")
-    a.download=`lottery-${typeText}-${dateText}.png`
-    a.href=canvas.toDataURL()
-    a.click()
-    document.body.removeChild(wrapper)
-    toggleButtons(false)
-  })
-}
 document.getElementById("generate-btn").onclick=generateRolling
-document.getElementById("save-btn").onclick=saveAsImage
 </script>
 </body>
 </html>
