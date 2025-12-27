@@ -47,6 +47,8 @@ SOFTWARE.
     --border:#334155;
     --primary:#818cf8;
     --primary-hover:#6366f1;
+    --red:#ef4444;
+    --blue:#3b82f6;
   }
 }
 * {box-sizing:border-box;}
@@ -71,32 +73,35 @@ html,body {
   gap:16px;
   padding:24px;
 }
-h1 {text-align:center;font-size:1.5rem;margin:0;}
+h1 {
+  text-align:center;
+  font-size:1.5rem;
+  margin:0;
+}
 .form-box {
   background:var(--bg-box);
   border-radius:12px;
   padding:16px;
   border:1px solid var(--border);
 }
-.type-buttons {display:flex;gap:10px;}
-.type-btn {
-  flex:1;
+select {
+  width:100%;
   padding:10px;
-  border-radius:10px;
+  border-radius:8px;
   border:1px solid var(--border);
+  font-size:1rem;
   background:var(--bg-box);
   color:var(--text-main);
-  font-size:1rem;
-  cursor:pointer;
-  transition:background-color .2s,color .2s;
 }
-.type-btn.active {
-  background:var(--primary);
-  color:#fff;
-  border-color:var(--primary);
+select option {
+  background:var(--bg-box);
+  color:var(--text-main);
 }
-.type-btn[disabled] {cursor:not-allowed;}
-.button-group {display:flex;gap:10px;margin-top:12px;}
+.button-group {
+  display:flex;
+  gap:10px;
+  margin-top:12px;
+}
 button {
   flex:1;
   padding:10px;
@@ -106,18 +111,33 @@ button {
   background:var(--primary);
   color:#fff;
   cursor:pointer;
+  transition:background-color .3s;
 }
-button:disabled {background:#555;color:#ccc;}
+button:active {background:var(--primary-hover);}
+button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
 .result-box {
   background:var(--bg-box);
   border-radius:12px;
   padding:14px;
   width:100%;
   height:210px;
+  overflow-y:hidden;
   border:1px solid var(--border);
+  flex-shrink:0;
 }
-.result-inner {display:flex;flex-direction:column;align-items:center;gap:10px;}
-.result-line {display:flex;justify-content:center;}
+.result-inner {
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  align-items:center;
+  width:100%;
+  gap:10px;
+}
+.result-line {
+  display:flex;
+  justify-content:center;
+  height:28px;
+}
 .ball {
   width:28px;
   height:28px;
@@ -132,16 +152,20 @@ button:disabled {background:#555;color:#ccc;}
 }
 .red {background:var(--red);}
 .blue {background:var(--blue);}
+@media (max-width:360px) {
+  .ball {width:24px;height:24px;font-size:.75rem;}
+  button {padding:8px;font-size:.9rem;}
+}
 </style>
 </head>
 <body>
 <div class="container">
   <h1>双色球 / 大乐透 随机选号</h1>
   <div class="form-box">
-    <div class="type-buttons">
-      <button class="type-btn active" data-value="ssq">双色球</button>
-      <button class="type-btn" data-value="dlt">大乐透</button>
-    </div>
+    <select id="type">
+      <option value="ssq">双色球</option>
+      <option value="dlt">大乐透</option>
+    </select>
     <div class="button-group">
       <button id="generate-btn">生成号码</button>
       <button id="save-btn">保存图片</button>
@@ -153,17 +177,15 @@ button:disabled {background:#555;color:#ccc;}
 </div>
 <script>
 const resultInner=document.getElementById("result-inner")
-const typeButtons=document.querySelectorAll(".type-btn")
-let currentType="ssq"
+const typeSelect=document.getElementById("type")
 let isRolling=false
-function switchType(type){
-  if(isRolling||currentType===type)return
-  currentType=type
-  typeButtons.forEach(b=>b.classList.toggle("active",b.dataset.value===type))
-  resultInner.innerHTML=""
-}
-typeButtons.forEach(btn=>{btn.addEventListener("click",()=>{switchType(btn.dataset.value)})})
+typeSelect.addEventListener('change',()=>{
+  if(!isRolling){
+    resultInner.innerHTML=''
+  }
+})
 function randomIntUnbiased(max){
+  if(max<=0) throw new Error("max must be positive")
   const bytes=new Uint8Array(128)
   const maxBig=BigInt(max)
   const range=1n<<1024n
@@ -172,7 +194,9 @@ function randomIntUnbiased(max){
   do{
     crypto.getRandomValues(bytes)
     x=0n
-    for(const b of bytes)x=(x<<8n)|BigInt(b)
+    for(const b of bytes){
+      x=(x<<8n)|BigInt(b)
+    }
   }while(x>=limit)
   return Number(x%maxBig)
 }
@@ -193,18 +217,19 @@ function createBall(n,color){
 function toggleButtons(disabled){
   document.getElementById("generate-btn").disabled=disabled
   document.getElementById("save-btn").disabled=disabled
-  typeButtons.forEach(b=>disabled?b.setAttribute("disabled","true"):b.removeAttribute("disabled"))
+  typeSelect.disabled=disabled
 }
 function generateRolling(){
-  if(isRolling)return
-  const type=currentType
+  if(isRolling) return
+  const type=typeSelect.value
+  const count=5
   isRolling=true
   toggleButtons(true)
-  const start=performance.now()
   const duration=10000
+  const start=performance.now()
   function frame(now){
-    resultInner.innerHTML=""
-    for(let i=0;i<5;i++){
+    resultInner.innerHTML=''
+    for(let i=0;i<count;i++){
       const line=document.createElement("div")
       line.className="result-line"
       if(type==="ssq"){
@@ -216,8 +241,12 @@ function generateRolling(){
       }
       resultInner.appendChild(line)
     }
-    if(now-start<duration)requestAnimationFrame(frame)
-    else{isRolling=false;toggleButtons(false)}
+    if(now-start<duration){
+      requestAnimationFrame(frame)
+    }else{
+      isRolling=false
+      toggleButtons(false)
+    }
   }
   requestAnimationFrame(frame)
 }
@@ -234,7 +263,8 @@ function saveAsImage(){
   if(isRolling){alert("请等待生成完成再保存");return}
   if(!resultInner.innerHTML.trim()){alert("当前没有生成结果");return}
   toggleButtons(true)
-  const typeText=currentType==="ssq"?"双色球":"大乐透"
+  const type=typeSelect.value
+  const typeText=type==="ssq"?"双色球":"大乐透"
   const dateText=formatDateLocal(new Date())
   const wrapper=document.createElement("div")
   wrapper.style.position="absolute"
@@ -242,9 +272,6 @@ function saveAsImage(){
   wrapper.style.background="#fff"
   wrapper.style.padding="20px 16px"
   wrapper.style.textAlign="center"
-  wrapper.style.display="flex"
-  wrapper.style.flexDirection="column"
-  wrapper.style.alignItems="center"
   const title=document.createElement("div")
   title.style.fontSize="16px"
   title.style.fontWeight="600"
@@ -252,18 +279,12 @@ function saveAsImage(){
   title.style.color="#111"
   title.textContent=`${dateText}  ${typeText}`
   wrapper.appendChild(title)
-  [...resultInner.children].forEach(line=>{
+  ;[...resultInner.children].forEach(line=>{
     const row=document.createElement("div")
     row.style.display="flex"
     row.style.justifyContent="center"
     row.style.marginBottom="12px"
-    [...line.children].forEach(ball=>{
-      const clone=ball.cloneNode(true)
-      clone.style.display="inline-flex"
-      clone.style.alignItems="center"
-      clone.style.justifyContent="center"
-      row.appendChild(clone)
-    })
+    ;[...line.children].forEach(ball=>row.appendChild(ball.cloneNode(true)))
     wrapper.appendChild(row)
   })
   document.body.appendChild(wrapper)
