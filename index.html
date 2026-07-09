@@ -289,14 +289,56 @@ function saveAsImage(){
   })
   document.body.appendChild(wrapper)
   html2canvas(wrapper,{backgroundColor:"#fff",scale:2}).then(canvas=>{
-    const a=document.createElement("a")
-    a.download=`lottery-${typeText}-${dateText}.png`
-    a.href=canvas.toDataURL()
-    a.click()
-    document.body.removeChild(wrapper)
-    toggleButtons(false)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  if(isIOS){
+  const imgWindow = window.open("")
+  if(imgWindow){
+  imgWindow.document.write(`
+  <html>
+  <head>
+  <title>保存图片</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <style>
+  body{
+  margin:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  background:#fff;}
+  img{
+  max-width:100%;
+  height:auto;}
+  </style>
+  </head>
+  <body>
+  <img src="${canvas.toDataURL("image/png")}">
+  </body>
+  </html>
+  `)
+  imgWindow.document.close()
+  }else{
+  alert("请允许打开新页面，然后长按图片保存")
+  }
+  }else{
+  canvas.toBlob(blob=>{
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement("a")
+  a.href=url
+  a.download=`lottery-${typeText}-${dateText}.png`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(()=>{
+  URL.revokeObjectURL(url)
+  },1000)
+  },"image/png")
+  }
+  document.body.removeChild(wrapper)
+  toggleButtons(false)
   })
-}
+  })
+  }
 document.getElementById("generate-btn").onclick=generateRolling
 document.getElementById("save-btn").onclick=saveAsImage
 </script>
