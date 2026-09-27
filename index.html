@@ -156,6 +156,73 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
   .ball {width:24px;height:24px;font-size:.75rem;}
   button {padding:8px;font-size:.9rem;}
 }
+.ios-save-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.48);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  touch-action: none;
+}
+.ios-save-overlay.show {
+  opacity: 1;
+}
+.ios-save-modal {
+  width: min(340px, 85vw);
+  max-height: 80vh;
+  padding: 14px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+.ios-save-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 65vh;
+  object-fit: contain;
+  border-radius: 10px;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: default;
+}
+.ios-save-tip {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 20px;
+  color: #666;
+  text-align: center;
+}
+.ios-save-close {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px;
+  border: none;
+  border-radius: 9px;
+  background: #6366f1;
+  color: #fff;
+  font-size: 15px;
+  -webkit-tap-highlight-color: transparent;
+}
+.ios-save-close:active {
+  background: #4f46e5;
+}
 </style>
 </head>
 <body>
@@ -316,81 +383,89 @@ function saveAsImage(){
 
     const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)
 
-    if(isIOS){
+  if(isIOS){
 
-      const overlay=document.createElement("div")
+  const overlay=document.createElement("div")
+  overlay.className="ios-save-overlay"
 
-      overlay.style.position="fixed"
-      overlay.style.inset="0"
-      overlay.style.zIndex="99999"
-      overlay.style.background="rgba(0,0,0,.55)"
-      overlay.style.display="flex"
-      overlay.style.alignItems="center"
-      overlay.style.justifyContent="center"
-      overlay.style.padding="20px"
+  const modal=document.createElement("div")
+  modal.className="ios-save-modal"
 
-      overlay.addEventListener("click",function(e){
-        if(e.target===overlay){
-          overlay.remove()
-        }
-      })
+  const preview=document.createElement("img")
+  preview.className="ios-save-preview"
 
-      const modal=document.createElement("div")
+  preview.src=canvas.toDataURL("image/png")
 
-      modal.style.width="min(340px,85vw)"
-      modal.style.maxHeight="80vh"
-      modal.style.background="#fff"
-      modal.style.borderRadius="16px"
-      modal.style.padding="14px"
-      modal.style.boxShadow="0 10px 40px rgba(0,0,0,.3)"
-      modal.style.display="flex"
-      modal.style.flexDirection="column"
-      modal.style.alignItems="center"
-      modal.style.overflow="hidden"
+  const tip=document.createElement("div")
+  tip.className="ios-save-tip"
+  tip.textContent="长按图片即可保存到相册"
 
-      const preview=document.createElement("img")
+  const closeBtn=document.createElement("button")
+  closeBtn.className="ios-save-close"
+  closeBtn.textContent="关闭"
 
-      preview.src=canvas.toDataURL("image/png")
-      preview.style.display="block"
-      preview.style.width="100%"
-      preview.style.height="auto"
-      preview.style.maxHeight="65vh"
-      preview.style.objectFit="contain"
-      preview.style.borderRadius="10px"
-      preview.style.webkitUserSelect="none"
-      preview.style.userSelect="none"
+  let closing=false
 
-      const tip=document.createElement("div")
+  function closePreview(){
 
-      tip.textContent="长按图片即可保存到相册"
-      tip.style.fontSize="13px"
-      tip.style.color="#666"
-      tip.style.marginTop="10px"
-      tip.style.textAlign="center"
+    if(closing) return
 
-      const closeBtn=document.createElement("button")
+    closing=true
 
-      closeBtn.textContent="关闭"
-      closeBtn.style.width="100%"
-      closeBtn.style.marginTop="10px"
-      closeBtn.style.padding="9px"
-      closeBtn.style.border="none"
-      closeBtn.style.borderRadius="9px"
-      closeBtn.style.background="#6366f1"
-      closeBtn.style.color="#fff"
-      closeBtn.style.fontSize="15px"
+    overlay.classList.remove("show")
 
-      closeBtn.onclick=function(){
-        overlay.remove()
+    setTimeout(()=>{
+
+      if(overlay.parentNode){
+        overlay.parentNode.removeChild(overlay)
       }
 
-      modal.appendChild(preview)
-      modal.appendChild(tip)
-      modal.appendChild(closeBtn)
+    },230)
 
-      overlay.appendChild(modal)
-      document.body.appendChild(overlay)
+  }
 
+  closeBtn.addEventListener(
+    "click",
+    closePreview
+  )
+
+  overlay.addEventListener(
+    "click",
+    function(e){
+
+      if(e.target===overlay){
+        closePreview()
+      }
+
+    }
+  )
+
+  modal.addEventListener(
+    "click",
+    function(e){
+      e.stopPropagation()
+    }
+  )
+
+  modal.appendChild(preview)
+  modal.appendChild(tip)
+  modal.appendChild(closeBtn)
+
+  overlay.appendChild(modal)
+
+  document.body.appendChild(overlay)
+
+  requestAnimationFrame(()=>{
+
+    requestAnimationFrame(()=>{
+
+      overlay.classList.add("show")
+
+    })
+
+  })
+
+}
     }else{
 
       canvas.toBlob(blob=>{
