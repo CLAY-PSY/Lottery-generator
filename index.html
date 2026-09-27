@@ -465,8 +465,7 @@ function saveAsImage(){
 
   })
 
-}
-    }else{
+ }else{
 
       canvas.toBlob(blob=>{
 
@@ -502,6 +501,7 @@ function saveAsImage(){
 
     alert("图片生成失败，请重试")
   })
+  
 }
 document.getElementById("generate-btn").onclick=generateRolling
 document.getElementById("save-btn").onclick=saveAsImage
