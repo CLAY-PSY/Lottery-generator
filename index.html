@@ -260,84 +260,174 @@ function formatDateLocal(date){
   return `${y}-${m}-${d}_${h}${min}${s}`
 }
 function saveAsImage(){
-  if(isRolling){alert("请等待生成完成再保存");return}
-  if(!resultInner.innerHTML.trim()){alert("当前没有生成结果");return}
+  if(isRolling){
+    alert("请等待生成完成再保存")
+    return
+  }
+
+  if(!resultInner.innerHTML.trim()){
+    alert("当前没有生成结果")
+    return
+  }
+
   toggleButtons(true)
+
   const type=typeSelect.value
   const typeText=type==="ssq"?"双色球":"大乐透"
   const dateText=formatDateLocal(new Date())
+
   const wrapper=document.createElement("div")
   wrapper.style.position="absolute"
   wrapper.style.left="-9999px"
+  wrapper.style.top="0"
   wrapper.style.background="#fff"
   wrapper.style.padding="20px 16px"
   wrapper.style.textAlign="center"
+  wrapper.style.borderRadius="12px"
+
   const title=document.createElement("div")
   title.style.fontSize="16px"
   title.style.fontWeight="600"
   title.style.marginBottom="16px"
   title.style.color="#111"
   title.textContent=`${dateText}  ${typeText}`
+
   wrapper.appendChild(title)
+
   ;[...resultInner.children].forEach(line=>{
     const row=document.createElement("div")
     row.style.display="flex"
     row.style.justifyContent="center"
     row.style.marginBottom="12px"
-    ;[...line.children].forEach(ball=>row.appendChild(ball.cloneNode(true)))
+
+    ;[...line.children].forEach(ball=>{
+      row.appendChild(ball.cloneNode(true))
+    })
+
     wrapper.appendChild(row)
   })
+
   document.body.appendChild(wrapper)
-  html2canvas(wrapper,{backgroundColor:"#fff",scale:2}).then(canvas=>{
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-  if(isIOS){
-  const imgWindow = window.open("")
-  if(imgWindow){
-  imgWindow.document.write(`
-  <html>
-  <head>
-  <title>保存图片</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <style>
-  body{
-  margin:0;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  min-height:100vh;
-  background:#000;}
-  img{
-  max-width:100%;
-  height:auto;}
-  </style>
-  </head>
-  <body>
-  <img src="${canvas.toDataURL("image/png")}">
-  </body>
-  </html>
-  `)
-  imgWindow.document.close()
-  }else{
-  alert("请允许打开新页面，然后长按图片保存")
-  }
-  }else{
-  canvas.toBlob(blob=>{
-  const url=URL.createObjectURL(blob)
-  const a=document.createElement("a")
-  a.href=url
-  a.download=`lottery-${typeText}-${dateText}.png`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(()=>{
-  URL.revokeObjectURL(url)
-  },1000)
-  },"image/png")
-  }
-  document.body.removeChild(wrapper)
-  toggleButtons(false)
+
+  html2canvas(wrapper,{
+    backgroundColor:"#fff",
+    scale:2
+  }).then(canvas=>{
+
+    const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)
+
+    if(isIOS){
+
+      const overlay=document.createElement("div")
+
+      overlay.style.position="fixed"
+      overlay.style.inset="0"
+      overlay.style.zIndex="99999"
+      overlay.style.background="rgba(0,0,0,.55)"
+      overlay.style.display="flex"
+      overlay.style.alignItems="center"
+      overlay.style.justifyContent="center"
+      overlay.style.padding="20px"
+
+      overlay.addEventListener("click",function(e){
+        if(e.target===overlay){
+          overlay.remove()
+        }
+      })
+
+      const modal=document.createElement("div")
+
+      modal.style.width="min(340px,85vw)"
+      modal.style.maxHeight="80vh"
+      modal.style.background="#fff"
+      modal.style.borderRadius="16px"
+      modal.style.padding="14px"
+      modal.style.boxShadow="0 10px 40px rgba(0,0,0,.3)"
+      modal.style.display="flex"
+      modal.style.flexDirection="column"
+      modal.style.alignItems="center"
+      modal.style.overflow="hidden"
+
+      const preview=document.createElement("img")
+
+      preview.src=canvas.toDataURL("image/png")
+      preview.style.display="block"
+      preview.style.width="100%"
+      preview.style.height="auto"
+      preview.style.maxHeight="65vh"
+      preview.style.objectFit="contain"
+      preview.style.borderRadius="10px"
+      preview.style.webkitUserSelect="none"
+      preview.style.userSelect="none"
+
+      const tip=document.createElement("div")
+
+      tip.textContent="长按图片即可保存到相册"
+      tip.style.fontSize="13px"
+      tip.style.color="#666"
+      tip.style.marginTop="10px"
+      tip.style.textAlign="center"
+
+      const closeBtn=document.createElement("button")
+
+      closeBtn.textContent="关闭"
+      closeBtn.style.width="100%"
+      closeBtn.style.marginTop="10px"
+      closeBtn.style.padding="9px"
+      closeBtn.style.border="none"
+      closeBtn.style.borderRadius="9px"
+      closeBtn.style.background="#6366f1"
+      closeBtn.style.color="#fff"
+      closeBtn.style.fontSize="15px"
+
+      closeBtn.onclick=function(){
+        overlay.remove()
+      }
+
+      modal.appendChild(preview)
+      modal.appendChild(tip)
+      modal.appendChild(closeBtn)
+
+      overlay.appendChild(modal)
+      document.body.appendChild(overlay)
+
+    }else{
+
+      canvas.toBlob(blob=>{
+
+        const url=URL.createObjectURL(blob)
+
+        const a=document.createElement("a")
+        a.href=url
+        a.download=`lottery-${typeText}-${dateText}.png`
+
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+
+        setTimeout(()=>{
+          URL.revokeObjectURL(url)
+        },1000)
+
+      },"image/png")
+    }
+
+    document.body.removeChild(wrapper)
+    toggleButtons(false)
+
+  }).catch(error=>{
+
+    console.error("保存图片失败:",error)
+
+    if(document.body.contains(wrapper)){
+      document.body.removeChild(wrapper)
+    }
+
+    toggleButtons(false)
+
+    alert("图片生成失败，请重试")
   })
-  }
+}
 document.getElementById("generate-btn").onclick=generateRolling
 document.getElementById("save-btn").onclick=saveAsImage
 </script>
