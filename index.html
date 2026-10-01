@@ -248,75 +248,48 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
   </div>
 </div>
 <script>
-
 document.addEventListener("gesturestart", function (e) {
   e.preventDefault();
 }, { passive: false });
-
 document.addEventListener("gesturechange", function (e) {
   e.preventDefault();
 }, { passive: false });
-
 document.addEventListener("gestureend", function (e) {
   e.preventDefault();
 }, { passive: false });
-
 document.addEventListener("touchstart", function (e) {
-
   if (e.touches.length > 1) {
     e.preventDefault();
   }
-
 }, { passive: false });
-
 document.addEventListener("touchmove", function (e) {
-
   if (e.touches.length > 1) {
     e.preventDefault();
   }
-
 }, { passive: false });
-
 let lastTapTime = 0;
-
 document.addEventListener("touchend", function (e) {
-
   const now = Date.now();
-
   if (now - lastTapTime < 300) {
     e.preventDefault();
   }
-
   lastTapTime = now;
-
 }, { passive: false });
-
 document.addEventListener("dblclick", function (e) {
   e.preventDefault();
 }, { passive: false });
-
 let pointerCount = 0;
-
 document.addEventListener("pointerdown", function (e) {
-
   pointerCount++;
-
   if (pointerCount > 1) {
     e.preventDefault();
   }
-
 }, { passive: false });
-
 document.addEventListener("pointerup", function () {
-
 pointerCount = Math.max(0, pointerCount - 1);
-
 }, { passive: false });
-
 document.addEventListener("pointercancel", function () {
-
-  pointerCount = Math.max(0, pointerCount - 1);
-
+pointerCount = Math.max(0, pointerCount - 1);
 }, { passive: false });
 const resultInner=document.getElementById("result-inner")
 const typeSelect=document.getElementById("type")
@@ -415,18 +388,14 @@ function saveAsImage(){
     alert("请等待生成完成再保存")
     return
   }
-
   if(!resultInner.innerHTML.trim()){
     alert("当前没有生成结果")
     return
   }
-
   toggleButtons(true)
-
   const type=typeSelect.value
   const typeText=type==="ssq"?"双色球":"大乐透"
   const dateText=formatDateLocal(new Date())
-
   const wrapper=document.createElement("div")
   wrapper.style.position="absolute"
   wrapper.style.left="-9999px"
@@ -435,157 +404,106 @@ function saveAsImage(){
   wrapper.style.padding="20px 16px"
   wrapper.style.textAlign="center"
   wrapper.style.borderRadius="12px"
-
   const title=document.createElement("div")
   title.style.fontSize="16px"
   title.style.fontWeight="600"
   title.style.marginBottom="16px"
   title.style.color="#111"
   title.textContent=`${dateText}  ${typeText}`
-
   wrapper.appendChild(title)
-
   ;[...resultInner.children].forEach(line=>{
     const row=document.createElement("div")
     row.style.display="flex"
     row.style.justifyContent="center"
     row.style.marginBottom="12px"
-
     ;[...line.children].forEach(ball=>{
       row.appendChild(ball.cloneNode(true))
     })
-
     wrapper.appendChild(row)
   })
-
   document.body.appendChild(wrapper)
-
   html2canvas(wrapper,{
     backgroundColor:"#fff",
     scale:2
   }).then(canvas=>{
-
-    const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)
-
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)
   if(isIOS){
-
   const overlay=document.createElement("div")
   overlay.className="ios-save-overlay"
-
   const modal=document.createElement("div")
   modal.className="ios-save-modal"
-
   const preview=document.createElement("img")
   preview.className="ios-save-preview"
-
   preview.src=canvas.toDataURL("image/png")
-
   const tip=document.createElement("div")
   tip.className="ios-save-tip"
   tip.textContent="长按图片即可保存到相册"
-
   const closeBtn=document.createElement("button")
   closeBtn.className="ios-save-close"
   closeBtn.textContent="关闭"
-
   let closing=false
-
   function closePreview(){
-
     if(closing) return
-
     closing=true
-
     overlay.classList.remove("show")
-
     setTimeout(()=>{
-
       if(overlay.parentNode){
         overlay.parentNode.removeChild(overlay)
       }
-
     },230)
-
   }
-
   closeBtn.addEventListener(
     "click",
     closePreview
   )
-
   overlay.addEventListener(
     "click",
     function(e){
-
-      if(e.target===overlay){
+    if(e.target===overlay){
         closePreview()
       }
-
     }
   )
-
   modal.addEventListener(
     "click",
     function(e){
       e.stopPropagation()
     }
   )
-
   modal.appendChild(preview)
   modal.appendChild(tip)
   modal.appendChild(closeBtn)
-
   overlay.appendChild(modal)
-
   document.body.appendChild(overlay)
-
-  requestAnimationFrame(()=>{
-
     requestAnimationFrame(()=>{
-
-      overlay.classList.add("show")
-
+    requestAnimationFrame(()=>{
+    overlay.classList.add("show")
     })
-
   })
-
  }else{
-
       canvas.toBlob(blob=>{
-
         const url=URL.createObjectURL(blob)
-
         const a=document.createElement("a")
         a.href=url
         a.download=`lottery-${typeText}-${dateText}.png`
-
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
-
         setTimeout(()=>{
           URL.revokeObjectURL(url)
         },1000)
-
       },"image/png")
     }
-
     document.body.removeChild(wrapper)
     toggleButtons(false)
-
-  }).catch(error=>{
-
+    }).catch(error=>{
     console.error("保存图片失败:",error)
-
     if(document.body.contains(wrapper)){
       document.body.removeChild(wrapper)
     }
-
     toggleButtons(false)
-
     alert("图片生成失败，请重试")
   })
-  
 }
 document.getElementById("generate-btn").onclick=generateRolling
 document.getElementById("save-btn").onclick=saveAsImage
