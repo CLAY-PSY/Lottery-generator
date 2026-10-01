@@ -52,8 +52,8 @@ SOFTWARE.
   }
 }
 * {box-sizing:border-box;}
-html,
-body {
+  html,
+  body {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -65,7 +65,7 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  touch-action: manipulation;
+  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -261,20 +261,62 @@ document.addEventListener("gestureend", function (e) {
   e.preventDefault();
 }, { passive: false });
 
+document.addEventListener("touchstart", function (e) {
+
+  if (e.touches.length > 1) {
+    e.preventDefault();
+  }
+
+}, { passive: false });
+
+document.addEventListener("touchmove", function (e) {
+
+  if (e.touches.length > 1) {
+    e.preventDefault();
+  }
+
+}, { passive: false });
+
 let lastTapTime = 0;
 
 document.addEventListener("touchend", function (e) {
+
   const now = Date.now();
 
-  if (lastTapTime && now - lastTapTime < 350) {
+  if (now - lastTapTime < 300) {
     e.preventDefault();
   }
 
   lastTapTime = now;
+
 }, { passive: false });
 
 document.addEventListener("dblclick", function (e) {
   e.preventDefault();
+}, { passive: false });
+
+let pointerCount = 0;
+
+document.addEventListener("pointerdown", function (e) {
+
+  pointerCount++;
+
+  if (pointerCount > 1) {
+    e.preventDefault();
+  }
+
+}, { passive: false });
+
+document.addEventListener("pointerup", function () {
+
+pointerCount = Math.max(0, pointerCount - 1);
+
+}, { passive: false });
+
+document.addEventListener("pointercancel", function () {
+
+  pointerCount = Math.max(0, pointerCount - 1);
+
 }, { passive: false });
 const resultInner=document.getElementById("result-inner")
 const typeSelect=document.getElementById("type")
