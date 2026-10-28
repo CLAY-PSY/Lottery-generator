@@ -42,19 +42,23 @@ SOFTWARE.
   --blob-2:rgba(59,130,246,.55);
   --blob-3:rgba(129,140,248,.6);
   --blob-4:rgba(236,72,153,.35);
-  /* 液体玻璃材质 */
-  --glass-bg:rgba(255,255,255,.32);
-  --glass-bg-strong:rgba(255,255,255,.62);
-  --glass-blur:blur(22px) saturate(180%);
-  --glass-rim:linear-gradient(140deg,rgba(255,255,255,.95),rgba(255,255,255,.2) 32%,rgba(255,255,255,0) 52%,rgba(255,255,255,.18) 72%,rgba(255,255,255,.75));
+  /* 液体玻璃材质（iOS 27）：透明度更低、虚化更强、外圈加深暗边、高光更亮 */
+  --glass-bg:rgba(255,255,255,.44);
+  --glass-bg-strong:rgba(255,255,255,.72);
+  --glass-blur:blur(32px) saturate(190%) brightness(1.04);
+  --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.6),rgba(255,255,255,0) 55%);
+  --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff);
+  --glass-edge:0 0 0 .5px rgba(15,23,42,.16),0 0 2px rgba(15,23,42,.08);
   --glass-shadow:
-    inset 0 1px 1px rgba(255,255,255,.75),
-    inset 0 -1px 1px rgba(255,255,255,.25),
-    inset 0 0 18px rgba(255,255,255,.18),
-    0 10px 30px rgba(31,41,95,.12),
-    0 1px 3px rgba(31,41,95,.08);
-  --tint-primary:rgba(79,70,229,.88);
-  --thumb-bg:rgba(255,255,255,.85);
+    var(--glass-edge),
+    inset 0 1px 0 rgba(255,255,255,.95),
+    inset 0 -1px 0 rgba(255,255,255,.4),
+    inset 0 0 16px rgba(255,255,255,.24),
+    0 12px 32px rgba(31,41,95,.14),
+    0 2px 6px rgba(31,41,95,.08);
+  --rim-w:1.5px;
+  --tint-primary:rgba(79,70,229,.9);
+  --thumb-bg:rgba(255,255,255,.88);
   --overlay-bg:rgba(15,23,42,.32);
   /* 同心圆角：外圆角 = 控件半高 + 内边距 */
   --pad:10px;
@@ -71,17 +75,21 @@ SOFTWARE.
     --blob-2:rgba(59,130,246,.45);
     --blob-3:rgba(99,102,241,.5);
     --blob-4:rgba(236,72,153,.25);
-    --glass-bg:rgba(255,255,255,.07);
-    --glass-bg-strong:rgba(40,46,66,.72);
-    --glass-rim:linear-gradient(140deg,rgba(255,255,255,.5),rgba(255,255,255,.08) 32%,rgba(255,255,255,0) 52%,rgba(255,255,255,.06) 72%,rgba(255,255,255,.35));
+    --glass-bg:rgba(34,38,56,.44);
+    --glass-bg-strong:rgba(54,60,84,.74);
+    --glass-blur:blur(32px) saturate(170%);
+    --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
+    --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55));
+    --glass-edge:0 0 0 .5px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.45);
     --glass-shadow:
-      inset 0 1px 1px rgba(255,255,255,.22),
-      inset 0 -1px 1px rgba(255,255,255,.06),
-      inset 0 0 18px rgba(255,255,255,.04),
-      0 10px 30px rgba(0,0,0,.35),
-      0 1px 3px rgba(0,0,0,.25);
-    --tint-primary:rgba(99,102,241,.62);
-    --thumb-bg:rgba(255,255,255,.2);
+      var(--glass-edge),
+      inset 0 1px 0 rgba(255,255,255,.3),
+      inset 0 -1px 0 rgba(255,255,255,.08),
+      inset 0 0 16px rgba(255,255,255,.05),
+      0 12px 32px rgba(0,0,0,.4),
+      0 2px 6px rgba(0,0,0,.3);
+    --tint-primary:rgba(99,102,241,.72);
+    --thumb-bg:rgba(255,255,255,.22);
     --overlay-bg:rgba(0,0,0,.45);
   }
 }
@@ -91,6 +99,7 @@ SOFTWARE.
     --glass-bg:#ffffff;
     --glass-bg-strong:#ffffff;
     --glass-blur:none;
+    --glass-spec:none;
   }
 }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
@@ -199,20 +208,23 @@ h1 {
   letter-spacing:-.01em;
   margin:0 0 4px;
 }
-/* 液体玻璃基础材质：半透明 + 背景模糊增饱和 + 高光边缘 */
+/* 液体玻璃基础材质：半透明 + 背景模糊增饱和 + 镜面高光 + 高光边缘 */
 .glass {
   position:relative;
-  background:var(--glass-bg);
+  background:var(--glass-spec),var(--glass-bg);
   -webkit-backdrop-filter:var(--glass-blur);
   backdrop-filter:var(--glass-blur);
   box-shadow:var(--glass-shadow);
 }
-.glass::before {
+.glass::before,
+button::before,
+.segmented-thumb::before,
+.ios-save-modal::before {
   content:"";
   position:absolute;
   inset:0;
   border-radius:inherit;
-  padding:1px;
+  padding:var(--rim-w);
   background:var(--glass-rim);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
   -webkit-mask-composite:xor;
@@ -262,9 +274,9 @@ h1 {
   left:4px;
   width:calc(50% - 4px);
   border-radius:calc(var(--ctl-h) / 2 - 4px);
-  background:var(--thumb-bg);
+  background:var(--glass-spec),var(--thumb-bg);
   box-shadow:
-    inset 0 1px 1px rgba(255,255,255,.8),
+    var(--glass-edge),
     0 3px 10px rgba(0,0,0,.12),
     0 1px 2px rgba(0,0,0,.08);
   transform:translateX(var(--thumb-x,0)) scale(var(--thumb-s,1));
@@ -303,14 +315,14 @@ button {
   font-family:inherit;
   border-radius:calc(var(--ctl-h) / 2);
   border:none;
-  background:var(--glass-bg-strong);
+  background:var(--glass-spec),var(--glass-bg-strong);
   color:var(--primary);
   cursor:pointer;
   box-shadow:var(--glass-shadow);
   transition:transform .35s cubic-bezier(.34,1.56,.64,1),filter .25s,opacity .25s,background-color .25s;
 }
 button.prominent {
-  background:var(--tint-primary);
+  background:var(--glass-spec),var(--tint-primary);
   color:#fff;
 }
 button:active {
@@ -398,7 +410,7 @@ button:disabled {
   width: min(340px, 85vw);
   max-height: 80vh;
   padding: 14px;
-  background: var(--glass-bg-strong);
+  background: var(--glass-spec), var(--glass-bg-strong);
   border-radius: 32px;
   box-shadow: var(--glass-shadow), 0 20px 50px rgba(0, 0, 0, 0.25);
   display: flex;
@@ -412,18 +424,6 @@ button:disabled {
 .ios-save-overlay.show .ios-save-modal {
   -webkit-transform: translateZ(0) scale(1);
   transform: translateZ(0) scale(1);
-}
-.ios-save-modal::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: var(--glass-rim);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  pointer-events: none;
 }
 .ios-save-preview {
   display: block;
@@ -447,7 +447,7 @@ button:disabled {
   flex: none;
   width: 100%;
   margin-top: 10px;
-  background: var(--tint-primary);
+  background: var(--glass-spec), var(--tint-primary);
   color: #fff;
   font-size: 15px;
   -webkit-tap-highlight-color: transparent;
