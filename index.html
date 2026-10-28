@@ -52,13 +52,16 @@ SOFTWARE.
   --glass-shadow:
     var(--glass-edge),
     inset 0 1px 0 rgba(255,255,255,.95),
-    inset 0 -1px 0 rgba(255,255,255,.4),
-    inset 0 0 16px rgba(255,255,255,.24),
+    inset 5px 5px 8px -5px rgba(255,255,255,.9),
+    inset -5px -5px 8px -5px rgba(255,255,255,.65),
+    inset 0 0 16px rgba(255,255,255,.2),
     0 12px 32px rgba(31,41,95,.14),
     0 2px 6px rgba(31,41,95,.08);
   --rim-w:1.5px;
+  --glow:rgba(255,255,255,.8);
   --tint-primary:rgba(79,70,229,.9);
   --thumb-bg:rgba(255,255,255,.88);
+  --thumb-lens:rgba(255,255,255,.4);
   --overlay-bg:rgba(15,23,42,.32);
   /* 同心圆角：外圆角 = 控件半高 + 内边距 */
   --pad:10px;
@@ -84,12 +87,15 @@ SOFTWARE.
     --glass-shadow:
       var(--glass-edge),
       inset 0 1px 0 rgba(255,255,255,.3),
-      inset 0 -1px 0 rgba(255,255,255,.08),
+      inset 5px 5px 8px -5px rgba(255,255,255,.24),
+      inset -5px -5px 8px -5px rgba(255,255,255,.12),
       inset 0 0 16px rgba(255,255,255,.05),
       0 12px 32px rgba(0,0,0,.4),
       0 2px 6px rgba(0,0,0,.3);
+    --glow:rgba(255,255,255,.26);
     --tint-primary:rgba(99,102,241,.72);
     --thumb-bg:rgba(255,255,255,.22);
+    --thumb-lens:rgba(255,255,255,.1);
     --overlay-bg:rgba(0,0,0,.45);
   }
 }
@@ -211,6 +217,7 @@ h1 {
 /* 液体玻璃基础材质：半透明 + 背景模糊增饱和 + 镜面高光 + 高光边缘 */
 .glass {
   position:relative;
+  isolation:isolate;
   background:var(--glass-spec),var(--glass-bg);
   -webkit-backdrop-filter:var(--glass-blur);
   backdrop-filter:var(--glass-blur);
@@ -230,6 +237,30 @@ button::before,
   -webkit-mask-composite:xor;
   mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
   pointer-events:none;
+}
+/* 触摸发光：光从手指处向外扩散，并带亮所在的玻璃面板 */
+.glass::after,
+button::after,
+.segmented-thumb::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  border-radius:inherit;
+  background:radial-gradient(circle var(--glow-size,90px) at var(--lx,50%) var(--ly,50%),var(--glow),transparent);
+  opacity:0;
+  transition:opacity .6s ease;
+  pointer-events:none;
+}
+.glass::after {
+  --glow-size:150px;
+}
+.lit::after {
+  opacity:1;
+  transition-duration:.15s;
+}
+.glass.lit::after {
+  opacity:.55;
 }
 .form-box {
   border-radius:var(--radius-outer);
@@ -274,26 +305,53 @@ button::before,
   left:4px;
   width:calc(50% - 4px);
   border-radius:calc(var(--ctl-h) / 2 - 4px);
-  background:var(--glass-spec),var(--thumb-bg);
+  isolation:isolate;
+  background-image:var(--glass-spec);
+  background-color:var(--thumb-bg);
   box-shadow:
     var(--glass-edge),
+    inset 0 1px 0 rgba(255,255,255,.8),
     0 3px 10px rgba(0,0,0,.12),
     0 1px 2px rgba(0,0,0,.08);
-  transform:translateX(var(--thumb-x,0)) scale(var(--thumb-s,1));
-  transition:transform .5s cubic-bezier(.34,1.56,.64,1),opacity .25s;
+  translate:var(--thumb-x,0) 0;
+  scale:var(--thumb-s,1);
+  transition:translate .5s cubic-bezier(.34,1.56,.64,1),scale .4s cubic-bezier(.34,1.56,.64,1),background-color .25s,box-shadow .25s,opacity .25s;
+}
+@supports not (translate:0) {
+  .segmented-thumb {
+    transform:translateX(var(--thumb-x,0)) scale(var(--thumb-s,1));
+    transition:transform .5s cubic-bezier(.34,1.56,.64,1),background-color .25s,opacity .25s;
+  }
+}
+@supports (translate:0) {
+  .segmented-thumb.morph {
+    animation:lg-morph .55s ease;
+  }
+}
+@keyframes lg-morph {
+  0% {transform:none;}
+  35% {transform:scale(1.1,.9);}
+  70% {transform:scale(.98,1.03);}
+  100% {transform:none;}
 }
 #type-dlt:checked ~ .segmented-thumb {
   --thumb-x:100%;
 }
-.segmented:active .segmented-thumb {
-  --thumb-s:1.06;
+.segmented:active input:enabled ~ .segmented-thumb {
+  --thumb-s:1.1;
+  background-color:var(--thumb-lens);
+  box-shadow:
+    var(--glass-edge),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    inset 4px 4px 8px -4px rgba(255,255,255,.8),
+    inset -4px -4px 8px -4px rgba(255,255,255,.6),
+    0 8px 20px rgba(0,0,0,.16);
 }
 .segmented input:focus-visible ~ .segmented-thumb {
   outline:2px solid var(--primary);
   outline-offset:2px;
 }
 .segmented input:disabled ~ .segmented-thumb {
-  --thumb-s:1;
   opacity:.6;
 }
 .segmented input:disabled ~ label {
@@ -307,6 +365,7 @@ button::before,
 }
 button {
   position:relative;
+  isolation:isolate;
   flex:1;
   height:var(--ctl-h);
   padding:0 12px;
@@ -322,12 +381,13 @@ button {
   transition:transform .35s cubic-bezier(.34,1.56,.64,1),filter .25s,opacity .25s,background-color .25s;
 }
 button.prominent {
+  --glow:rgba(255,255,255,.35);
   background:var(--glass-spec),var(--tint-primary);
   color:#fff;
 }
 button:active {
-  transform:scale(1.05);
-  filter:brightness(1.12) saturate(1.1);
+  transform:scale(1.07);
+  filter:brightness(1.1) saturate(1.1);
 }
 button:disabled {
   opacity:.45;
@@ -417,13 +477,17 @@ button:disabled {
   flex-direction: column;
   align-items: center;
   overflow: hidden;
-  -webkit-transform: translateZ(0) scale(.94);
-  transform: translateZ(0) scale(.94);
-  transition: transform .4s cubic-bezier(.34,1.56,.64,1);
+  -webkit-transform: translateZ(0) scale(.9);
+  transform: translateZ(0) scale(.9);
+  -webkit-filter: blur(10px);
+  filter: blur(10px);
+  transition: transform .45s cubic-bezier(.34,1.56,.64,1), filter .3s ease, -webkit-filter .3s ease;
 }
 .ios-save-overlay.show .ios-save-modal {
   -webkit-transform: translateZ(0) scale(1);
   transform: translateZ(0) scale(1);
+  -webkit-filter: none;
+  filter: none;
 }
 .ios-save-preview {
   display: block;
@@ -550,11 +614,48 @@ let isRolling=false
 function getType(){
   return document.querySelector('input[name="type"]:checked').value
 }
+const segmentedThumb=document.querySelector(".segmented-thumb")
 typeInputs.forEach(input=>input.addEventListener('change',()=>{
+  segmentedThumb.classList.remove("morph")
+  void segmentedThumb.offsetWidth
+  segmentedThumb.classList.add("morph")
   if(!isRolling){
     resultInner.innerHTML=''
   }
 }))
+segmentedThumb.addEventListener("animationend",()=>segmentedThumb.classList.remove("morph"))
+;(function liquidGlassTouchLight(){
+  let lit=[]
+  function place(el,e){
+    const r=el.getBoundingClientRect()
+    el.style.setProperty("--lx",`${e.clientX-r.left}px`)
+    el.style.setProperty("--ly",`${e.clientY-r.top}px`)
+  }
+  function release(){
+    lit.forEach(el=>el.classList.remove("lit"))
+    lit=[]
+  }
+  document.addEventListener("pointerdown",e=>{
+    release()
+    const ctl=e.target.closest("button,.segmented")
+    if(!ctl) return
+    if(ctl.matches(".segmented")&&typeInputs[0].disabled) return
+    if(ctl.disabled) return
+    const surface=ctl.matches(".segmented")?segmentedThumb:ctl
+    lit=[surface]
+    const panel=ctl.closest(".glass")
+    if(panel) lit.push(panel)
+    lit.forEach(el=>{
+      place(el,e)
+      el.classList.add("lit")
+    })
+  })
+  document.addEventListener("pointermove",e=>{
+    lit.forEach(el=>place(el,e))
+  })
+  document.addEventListener("pointerup",release)
+  document.addEventListener("pointercancel",release)
+})()
 function randomIntUnbiased(max){
   if(max<=0) throw new Error("max must be positive")
   const bytes=new Uint8Array(128)
