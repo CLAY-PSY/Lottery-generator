@@ -389,11 +389,7 @@ button::after,
   outline:2px solid var(--primary);
   outline-offset:2px;
 }
-.segmented input:disabled ~ .segmented-thumb {
-  opacity:.6;
-}
 .segmented input:disabled ~ label {
-  opacity:.45;
   cursor:not-allowed;
 }
 .button-group {
@@ -427,9 +423,10 @@ button:active {
   transform:scale(1.07);
   filter:brightness(1.1) saturate(1.1);
 }
+/* 生成过程中只禁止点击，外观保持不变 */
 button:disabled {
-  opacity:.45;
-  filter:saturate(.3);
+  opacity:1;
+  filter:none;
   transform:none;
   cursor:not-allowed;
 }
@@ -570,7 +567,7 @@ button:disabled {
     </div>
     <div class="button-group">
       <button id="generate-btn" class="prominent">生成号码</button>
-      <button id="save-btn">保存图片</button>
+      <button id="save-btn" class="prominent">保存图片</button>
     </div>
   </div>
   <div class="result-box glass">
