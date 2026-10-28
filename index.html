@@ -30,25 +30,88 @@ SOFTWARE.
 <script src="./html2canvas.min.js"></script>
 <style>
 :root {
-  --bg-page:#f3f4f6;
-  --bg-box:#ffffff;
+  color-scheme: light dark;
+  --bg-page:#eef0f8;
   --text-main:#111827;
-  --border:#d4d4d8;
-  --primary:#6366f1;
-  --primary-hover:#4f46e5;
+  --text-sub:rgba(17,24,39,.6);
+  --primary:#4f46e5;
   --red:#ef4444;
   --blue:#3b82f6;
+  /* 背景光斑：给玻璃提供可折射的色彩 */
+  --blob-1:rgba(239,68,68,.55);
+  --blob-2:rgba(59,130,246,.55);
+  --blob-3:rgba(129,140,248,.6);
+  --blob-4:rgba(236,72,153,.35);
+  /* 液体玻璃材质（iOS 27）：透明度更低、虚化更强、外圈加深暗边、高光更亮 */
+  --glass-bg:rgba(255,255,255,.44);
+  --glass-bg-strong:rgba(255,255,255,.72);
+  --glass-blur:blur(32px) saturate(190%) brightness(1.04);
+  --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.6),rgba(255,255,255,0) 55%);
+  --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff);
+  --glass-edge:0 0 0 .5px rgba(15,23,42,.16),0 0 2px rgba(15,23,42,.08);
+  --glass-shadow:
+    var(--glass-edge),
+    inset 0 1px 0 rgba(255,255,255,.95),
+    inset 5px 5px 8px -5px rgba(255,255,255,.9),
+    inset -5px -5px 8px -5px rgba(255,255,255,.65),
+    inset 0 0 16px rgba(255,255,255,.2),
+    0 12px 32px rgba(31,41,95,.14),
+    0 2px 6px rgba(31,41,95,.08);
+  --rim-w:1.5px;
+  --glow:rgba(255,255,255,.8);
+  --tint-primary:rgba(79,70,229,.9);
+  --thumb-bg:rgba(255,255,255,.88);
+  --thumb-lens:rgba(255,255,255,.4);
+  --overlay-bg:rgba(15,23,42,.32);
+  /* 同心圆角：外圆角 = 控件半高 + 内边距 */
+  --pad:10px;
+  --ctl-h:46px;
+  --radius-outer:calc(var(--ctl-h) / 2 + var(--pad));
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-page:#0f172a;
-    --bg-box:#0f172a;
-    --text-main:#e5e7eb;
-    --border:#334155;
+    --bg-page:#070b18;
+    --text-main:#f1f5f9;
+    --text-sub:rgba(241,245,249,.6);
     --primary:#818cf8;
-    --primary-hover:#6366f1;
-    --red:#ef4444;
-    --blue:#3b82f6;
+    --blob-1:rgba(239,68,68,.42);
+    --blob-2:rgba(59,130,246,.45);
+    --blob-3:rgba(99,102,241,.5);
+    --blob-4:rgba(236,72,153,.25);
+    --glass-bg:rgba(34,38,56,.44);
+    --glass-bg-strong:rgba(54,60,84,.74);
+    --glass-blur:blur(32px) saturate(170%);
+    --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
+    --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55));
+    --glass-edge:0 0 0 .5px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.45);
+    --glass-shadow:
+      var(--glass-edge),
+      inset 0 1px 0 rgba(255,255,255,.3),
+      inset 5px 5px 8px -5px rgba(255,255,255,.24),
+      inset -5px -5px 8px -5px rgba(255,255,255,.12),
+      inset 0 0 16px rgba(255,255,255,.05),
+      0 12px 32px rgba(0,0,0,.4),
+      0 2px 6px rgba(0,0,0,.3);
+    --glow:rgba(255,255,255,.26);
+    --tint-primary:rgba(99,102,241,.72);
+    --thumb-bg:rgba(255,255,255,.22);
+    --thumb-lens:rgba(255,255,255,.1);
+    --overlay-bg:rgba(0,0,0,.45);
+  }
+}
+/* 系统“降低透明度”时改用实底材质 */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-bg:#ffffff;
+    --glass-bg-strong:#ffffff;
+    --glass-blur:none;
+    --glass-spec:none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
+  :root {
+    --glass-bg:#1e2333;
+    --glass-bg-strong:#1e2333;
   }
 }
 * {box-sizing:border-box;}
@@ -58,7 +121,8 @@ SOFTWARE.
   padding: 0;
   width: 100%;
   height: 100%;
-  font-family: "Segoe UI", "PingFang SC", Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
   background: var(--bg-page);
   color: var(--text-main);
   display: flex;
@@ -80,68 +144,263 @@ SOFTWARE.
   .result-line,
   h1,
   button,
-  select {
+  .segmented,
+  .segmented label {
   touch-action: none;
   -ms-touch-action: none;
 }
+.backdrop {
+  position:fixed;
+  inset:0;
+  z-index:0;
+  overflow:hidden;
+  pointer-events:none;
+}
+.backdrop span {
+  position:absolute;
+  width:70vmax;
+  height:70vmax;
+  border-radius:50%;
+  will-change:transform;
+  animation:drift 26s ease-in-out infinite alternate;
+}
+.backdrop span:nth-child(1) {
+  top:-28vmax;
+  left:-22vmax;
+  background:radial-gradient(circle,var(--blob-1) 0%,transparent 65%);
+}
+.backdrop span:nth-child(2) {
+  bottom:-30vmax;
+  right:-24vmax;
+  background:radial-gradient(circle,var(--blob-2) 0%,transparent 65%);
+  animation-duration:32s;
+  animation-direction:alternate-reverse;
+}
+.backdrop span:nth-child(3) {
+  top:18%;
+  right:-30vmax;
+  background:radial-gradient(circle,var(--blob-3) 0%,transparent 62%);
+  animation-duration:38s;
+}
+.backdrop span:nth-child(4) {
+  bottom:-10vmax;
+  left:-32vmax;
+  background:radial-gradient(circle,var(--blob-4) 0%,transparent 62%);
+  animation-duration:29s;
+  animation-direction:alternate-reverse;
+}
+@keyframes drift {
+  0% {transform:translate3d(0,0,0) scale(1);}
+  50% {transform:translate3d(6vmax,4vmax,0) scale(1.08);}
+  100% {transform:translate3d(-4vmax,8vmax,0) scale(.95);}
+}
+@media (prefers-reduced-motion: reduce) {
+  .backdrop span {animation:none;}
+}
 .container {
+  position:relative;
+  z-index:1;
   width:100%;
   max-width:480px;
   display:flex;
   flex-direction:column;
   gap:16px;
-  padding:24px;
+  padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
 }
 h1 {
   text-align:center;
   font-size:1.5rem;
-  margin:0;
+  font-weight:700;
+  letter-spacing:-.01em;
+  margin:0 0 4px;
+}
+/* 液体玻璃基础材质：半透明 + 背景模糊增饱和 + 镜面高光 + 高光边缘 */
+.glass {
+  position:relative;
+  isolation:isolate;
+  background:var(--glass-spec),var(--glass-bg);
+  -webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);
+  box-shadow:var(--glass-shadow);
+}
+.glass::before,
+button::before,
+.segmented-thumb::before,
+.ios-save-modal::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  padding:var(--rim-w);
+  background:var(--glass-rim);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
+  pointer-events:none;
+}
+/* 触摸发光：光从手指处向外扩散，并带亮所在的玻璃面板 */
+.glass::after,
+button::after,
+.segmented-thumb::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  border-radius:inherit;
+  background:radial-gradient(circle var(--glow-size,90px) at var(--lx,50%) var(--ly,50%),var(--glow),transparent);
+  opacity:0;
+  transition:opacity .6s ease;
+  pointer-events:none;
+}
+.glass::after {
+  --glow-size:150px;
+}
+.lit::after {
+  opacity:1;
+  transition-duration:.15s;
+}
+.glass.lit::after {
+  opacity:.55;
 }
 .form-box {
-  background:var(--bg-box);
-  border-radius:12px;
-  padding:16px;
-  border:1px solid var(--border);
+  border-radius:var(--radius-outer);
+  padding:var(--pad);
 }
-select {
-  width:100%;
-  padding:10px;
-  border-radius:8px;
-  border:1px solid var(--border);
+.segmented {
+  position:relative;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  height:var(--ctl-h);
+  padding:4px;
+  border-radius:calc(var(--ctl-h) / 2);
+  background:rgba(118,118,128,.14);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.06);
+}
+.segmented input {
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.segmented label {
+  position:relative;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   font-size:1rem;
-  background:var(--bg-box);
-  color:var(--text-main);
+  font-weight:500;
+  color:var(--text-sub);
+  cursor:pointer;
+  transition:color .25s;
 }
-select option {
-  background:var(--bg-box);
+#type-ssq:checked ~ label[for="type-ssq"],
+#type-dlt:checked ~ label[for="type-dlt"] {
   color:var(--text-main);
+  font-weight:600;
+}
+.segmented-thumb {
+  position:absolute;
+  top:4px;
+  bottom:4px;
+  left:4px;
+  width:calc(50% - 4px);
+  border-radius:calc(var(--ctl-h) / 2 - 4px);
+  isolation:isolate;
+  background-image:var(--glass-spec);
+  background-color:var(--thumb-bg);
+  box-shadow:
+    var(--glass-edge),
+    inset 0 1px 0 rgba(255,255,255,.8),
+    0 3px 10px rgba(0,0,0,.12),
+    0 1px 2px rgba(0,0,0,.08);
+  translate:var(--thumb-x,0) 0;
+  scale:var(--thumb-s,1);
+  transition:translate .5s cubic-bezier(.34,1.56,.64,1),scale .4s cubic-bezier(.34,1.56,.64,1),background-color .25s,box-shadow .25s,opacity .25s;
+}
+@supports not (translate:0) {
+  .segmented-thumb {
+    transform:translateX(var(--thumb-x,0)) scale(var(--thumb-s,1));
+    transition:transform .5s cubic-bezier(.34,1.56,.64,1),background-color .25s,opacity .25s;
+  }
+}
+@supports (translate:0) {
+  .segmented-thumb.morph {
+    animation:lg-morph .55s ease;
+  }
+}
+@keyframes lg-morph {
+  0% {transform:none;}
+  35% {transform:scale(1.1,.9);}
+  70% {transform:scale(.98,1.03);}
+  100% {transform:none;}
+}
+#type-dlt:checked ~ .segmented-thumb {
+  --thumb-x:100%;
+}
+.segmented:active input:enabled ~ .segmented-thumb {
+  --thumb-s:1.1;
+  background-color:var(--thumb-lens);
+  box-shadow:
+    var(--glass-edge),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    inset 4px 4px 8px -4px rgba(255,255,255,.8),
+    inset -4px -4px 8px -4px rgba(255,255,255,.6),
+    0 8px 20px rgba(0,0,0,.16);
+}
+.segmented input:focus-visible ~ .segmented-thumb {
+  outline:2px solid var(--primary);
+  outline-offset:2px;
+}
+.segmented input:disabled ~ .segmented-thumb {
+  opacity:.6;
+}
+.segmented input:disabled ~ label {
+  opacity:.45;
+  cursor:not-allowed;
 }
 .button-group {
   display:flex;
-  gap:10px;
-  margin-top:12px;
+  gap:var(--pad);
+  margin-top:var(--pad);
 }
 button {
+  position:relative;
+  isolation:isolate;
   flex:1;
-  padding:10px;
+  height:var(--ctl-h);
+  padding:0 12px;
   font-size:1rem;
-  border-radius:10px;
+  font-weight:600;
+  font-family:inherit;
+  border-radius:calc(var(--ctl-h) / 2);
   border:none;
-  background:var(--primary);
-  color:#fff;
+  background:var(--glass-spec),var(--glass-bg-strong);
+  color:var(--primary);
   cursor:pointer;
-  transition:background-color .3s;
+  box-shadow:var(--glass-shadow);
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1),filter .25s,opacity .25s,background-color .25s;
 }
-button:active {background:var(--primary-hover);}
-button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
+button.prominent {
+  --glow:rgba(255,255,255,.35);
+  background:var(--glass-spec),var(--tint-primary);
+  color:#fff;
+}
+button:active {
+  transform:scale(1.07);
+  filter:brightness(1.1) saturate(1.1);
+}
+button:disabled {
+  opacity:.45;
+  filter:saturate(.3);
+  transform:none;
+  cursor:not-allowed;
+}
 .result-box {
-  background:var(--bg-box);
-  border-radius:12px;
+  border-radius:var(--radius-outer);
   padding:14px;
   width:100%;
   height:210px;
   overflow-y:hidden;
-  border:1px solid var(--border);
   flex-shrink:0;
 }
 .result-inner {
@@ -157,6 +416,7 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
   justify-content:center;
   height:28px;
 }
+/* 号码球：带高光的着色玻璃珠 */
 .ball {
   width:28px;
   height:28px;
@@ -168,12 +428,21 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
   font-size:.85rem;
   font-weight:600;
   color:#fff;
+  text-shadow:0 1px 1px rgba(0,0,0,.18);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.6),
+    inset 0 -2px 3px rgba(0,0,0,.12),
+    0 2px 5px rgba(15,23,42,.18);
 }
-.red {background:var(--red);}
-.blue {background:var(--blue);}
+/* html2canvas 不能正确绘制内阴影，导出图片时去掉 */
+.capture .ball {box-shadow:none;}
+.red {background:radial-gradient(circle at 32% 26%,#ff8a8a 0%,var(--red) 55%,#d22f2f 100%);}
+.blue {background:radial-gradient(circle at 32% 26%,#8ab8ff 0%,var(--blue) 55%,#2563d9 100%);}
 @media (max-width:360px) {
+  :root {--ctl-h:42px;--pad:8px;}
   .ball {width:24px;height:24px;font-size:.75rem;}
-  button {padding:8px;font-size:.9rem;}
+  button,
+  .segmented label {font-size:.9rem;}
 }
 .ios-save-overlay {
   position: fixed;
@@ -183,32 +452,42 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(0, 0, 0, 0.48);
+  background: var(--overlay-bg);
   opacity: 0;
   transition: opacity 0.22s ease;
   isolation: isolate;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
   touch-action: none;
 }
 .ios-save-overlay.show {
   opacity: 1;
 }
 .ios-save-modal {
+  position: relative;
   width: min(340px, 85vw);
   max-height: 80vh;
   padding: 14px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.28);
+  background: var(--glass-spec), var(--glass-bg-strong);
+  border-radius: 32px;
+  box-shadow: var(--glass-shadow), 0 20px 50px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow: hidden;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
+  -webkit-transform: translateZ(0) scale(.9);
+  transform: translateZ(0) scale(.9);
+  -webkit-filter: blur(10px);
+  filter: blur(10px);
+  transition: transform .45s cubic-bezier(.34,1.56,.64,1), filter .3s ease, -webkit-filter .3s ease;
+}
+.ios-save-overlay.show .ios-save-modal {
+  -webkit-transform: translateZ(0) scale(1);
+  transform: translateZ(0) scale(1);
+  -webkit-filter: none;
+  filter: none;
 }
 .ios-save-preview {
   display: block;
@@ -216,7 +495,7 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
   height: auto;
   max-height: 65vh;
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: 18px;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: default;
@@ -225,39 +504,38 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
   margin-top: 10px;
   font-size: 13px;
   line-height: 20px;
-  color: #666;
+  color: var(--text-sub);
   text-align: center;
 }
 .ios-save-close {
+  flex: none;
   width: 100%;
   margin-top: 10px;
-  padding: 9px;
-  border: none;
-  border-radius: 9px;
-  background: #6366f1;
+  background: var(--glass-spec), var(--tint-primary);
   color: #fff;
   font-size: 15px;
   -webkit-tap-highlight-color: transparent;
 }
-.ios-save-close:active {
-  background: #4f46e5;
-}
 </style>
 </head>
 <body>
+<div class="backdrop" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
 <div class="container">
   <h1>双色球 / 大乐透 随机选号</h1>
-  <div class="form-box">
-    <select id="type">
-      <option value="ssq">双色球</option>
-      <option value="dlt">大乐透</option>
-    </select>
+  <div class="form-box glass">
+    <div class="segmented" role="radiogroup" aria-label="彩种">
+      <input type="radio" name="type" id="type-ssq" value="ssq" checked>
+      <input type="radio" name="type" id="type-dlt" value="dlt">
+      <span class="segmented-thumb" aria-hidden="true"></span>
+      <label for="type-ssq">双色球</label>
+      <label for="type-dlt">大乐透</label>
+    </div>
     <div class="button-group">
-      <button id="generate-btn">生成号码</button>
+      <button id="generate-btn" class="prominent">生成号码</button>
       <button id="save-btn">保存图片</button>
     </div>
   </div>
-  <div class="result-box">
+  <div class="result-box glass">
     <div class="result-inner" id="result-inner"></div>
   </div>
 </div>
@@ -331,13 +609,53 @@ button:disabled {background:#555;color:#ccc;cursor:not-allowed;}
   );
 })();
 const resultInner=document.getElementById("result-inner")
-const typeSelect=document.getElementById("type")
+const typeInputs=document.querySelectorAll('input[name="type"]')
 let isRolling=false
-typeSelect.addEventListener('change',()=>{
+function getType(){
+  return document.querySelector('input[name="type"]:checked').value
+}
+const segmentedThumb=document.querySelector(".segmented-thumb")
+typeInputs.forEach(input=>input.addEventListener('change',()=>{
+  segmentedThumb.classList.remove("morph")
+  void segmentedThumb.offsetWidth
+  segmentedThumb.classList.add("morph")
   if(!isRolling){
     resultInner.innerHTML=''
   }
-})
+}))
+segmentedThumb.addEventListener("animationend",()=>segmentedThumb.classList.remove("morph"))
+;(function liquidGlassTouchLight(){
+  let lit=[]
+  function place(el,e){
+    const r=el.getBoundingClientRect()
+    el.style.setProperty("--lx",`${e.clientX-r.left}px`)
+    el.style.setProperty("--ly",`${e.clientY-r.top}px`)
+  }
+  function release(){
+    lit.forEach(el=>el.classList.remove("lit"))
+    lit=[]
+  }
+  document.addEventListener("pointerdown",e=>{
+    release()
+    const ctl=e.target.closest("button,.segmented")
+    if(!ctl) return
+    if(ctl.matches(".segmented")&&typeInputs[0].disabled) return
+    if(ctl.disabled) return
+    const surface=ctl.matches(".segmented")?segmentedThumb:ctl
+    lit=[surface]
+    const panel=ctl.closest(".glass")
+    if(panel) lit.push(panel)
+    lit.forEach(el=>{
+      place(el,e)
+      el.classList.add("lit")
+    })
+  })
+  document.addEventListener("pointermove",e=>{
+    lit.forEach(el=>place(el,e))
+  })
+  document.addEventListener("pointerup",release)
+  document.addEventListener("pointercancel",release)
+})()
 function randomIntUnbiased(max){
   if(max<=0) throw new Error("max must be positive")
   const bytes=new Uint8Array(128)
@@ -371,11 +689,11 @@ function createBall(n,color){
 function toggleButtons(disabled){
   document.getElementById("generate-btn").disabled=disabled
   document.getElementById("save-btn").disabled=disabled
-  typeSelect.disabled=disabled
+  typeInputs.forEach(input=>input.disabled=disabled)
 }
 function generateRolling(){
   if(isRolling) return
-  const type=typeSelect.value
+  const type=getType()
   const count=5
   isRolling=true
   toggleButtons(true)
@@ -423,10 +741,11 @@ function saveAsImage(){
     return
   }
   toggleButtons(true)
-  const type=typeSelect.value
+  const type=getType()
   const typeText=type==="ssq"?"双色球":"大乐透"
   const dateText=formatDateLocal(new Date())
   const wrapper=document.createElement("div")
+  wrapper.className="capture"
   wrapper.style.position="absolute"
   wrapper.style.left="-9999px"
   wrapper.style.top="0"
