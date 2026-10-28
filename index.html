@@ -26,27 +26,33 @@ SOFTWARE.
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ffd0da" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1d0e1f" media="(prefers-color-scheme: dark)">
 <title>双色球 / 大乐透 随机选号</title>
 <script src="./html2canvas.min.js"></script>
 <style>
 :root {
   color-scheme: light dark;
-  --bg-page:#eef0f8;
+  --bg-page:#c4d8fc;
+  --bg-canvas:linear-gradient(165deg,#ffd0da 0%,#ecd3f7 32%,#d4d6fb 62%,#c4d8fc 100%);
   --text-main:#111827;
   --text-sub:rgba(17,24,39,.6);
   --primary:#4f46e5;
   --red:#ef4444;
   --blue:#3b82f6;
-  /* 背景光斑：给玻璃提供可折射的色彩 */
-  --blob-1:rgba(239,68,68,.55);
-  --blob-2:rgba(59,130,246,.55);
-  --blob-3:rgba(129,140,248,.6);
-  --blob-4:rgba(236,72,153,.35);
+  /* 背景彩球：边缘清楚的色块，让玻璃的虚化看得出来 */
+  --orb-1:#ff6f7d;
+  --orb-2:#4f8dff;
+  --orb-3:#9a86ff;
+  --orb-4:#ff8fcf;
+  --orb-5:#ffbe5c;
+  --orb-hi:rgba(255,255,255,.45);
+  --orb-o:.85;
   /* 液体玻璃材质（iOS 27）：透明度更低、虚化更强、外圈加深暗边、高光更亮 */
-  --glass-bg:rgba(255,255,255,.44);
-  --glass-bg-strong:rgba(255,255,255,.72);
-  --glass-blur:blur(32px) saturate(190%) brightness(1.04);
-  --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.6),rgba(255,255,255,0) 55%);
+  --glass-bg:rgba(255,255,255,.16);
+  --glass-bg-strong:rgba(255,255,255,.55);
+  --glass-blur:blur(20px) saturate(180%) brightness(1.06);
+  --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%);
   --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff);
   --glass-edge:0 0 0 .5px rgba(15,23,42,.16),0 0 2px rgba(15,23,42,.08);
   --glass-shadow:
@@ -70,14 +76,18 @@ SOFTWARE.
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-page:#070b18;
+    --bg-page:#0b1633;
+    --bg-canvas:linear-gradient(165deg,#1d0e1f 0%,#151030 40%,#0b1633 100%);
     --text-main:#f1f5f9;
     --text-sub:rgba(241,245,249,.6);
     --primary:#818cf8;
-    --blob-1:rgba(239,68,68,.42);
-    --blob-2:rgba(59,130,246,.45);
-    --blob-3:rgba(99,102,241,.5);
-    --blob-4:rgba(236,72,153,.25);
+    --orb-1:#c8323f;
+    --orb-2:#2563eb;
+    --orb-3:#5b45d6;
+    --orb-4:#b02a7f;
+    --orb-5:#b8741c;
+    --orb-hi:rgba(255,255,255,.18);
+    --orb-o:.75;
     --glass-bg:rgba(34,38,56,.44);
     --glass-bg-strong:rgba(54,60,84,.74);
     --glass-blur:blur(32px) saturate(170%);
@@ -123,7 +133,6 @@ SOFTWARE.
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  background: var(--bg-page);
   color: var(--text-main);
   display: flex;
   align-items: center;
@@ -133,6 +142,13 @@ SOFTWARE.
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+  }
+  html {
+  background-color: var(--bg-page);
+  background-image: var(--bg-canvas);
+  background-repeat: no-repeat;
+  background-size: 100% 100vh;
+  background-size: 100% 100lvh;
   }
   * {
   -webkit-tap-highlight-color: transparent;
@@ -151,43 +167,65 @@ SOFTWARE.
 }
 .backdrop {
   position:fixed;
-  inset:0;
+  top:0;
+  left:0;
+  right:0;
+  height:100vh;
+  height:100lvh;
   z-index:0;
   overflow:hidden;
   pointer-events:none;
 }
 .backdrop span {
+  --orb:var(--orb-1);
   position:absolute;
-  width:70vmax;
-  height:70vmax;
   border-radius:50%;
+  opacity:var(--orb-o);
+  background:
+    radial-gradient(circle at 36% 30%,var(--orb-hi),transparent 38%),
+    radial-gradient(circle,var(--orb) 0%,var(--orb) 54%,transparent 70%);
   will-change:transform;
   animation:drift 26s ease-in-out infinite alternate;
 }
 .backdrop span:nth-child(1) {
-  top:-28vmax;
-  left:-22vmax;
-  background:radial-gradient(circle,var(--blob-1) 0%,transparent 65%);
+  width:80vmin;
+  height:80vmin;
+  top:-10%;
+  left:-26vmin;
 }
 .backdrop span:nth-child(2) {
-  bottom:-30vmax;
-  right:-24vmax;
-  background:radial-gradient(circle,var(--blob-2) 0%,transparent 65%);
+  --orb:var(--orb-2);
+  width:90vmin;
+  height:90vmin;
+  bottom:2%;
+  right:-30vmin;
   animation-duration:32s;
   animation-direction:alternate-reverse;
 }
 .backdrop span:nth-child(3) {
-  top:18%;
-  right:-30vmax;
-  background:radial-gradient(circle,var(--blob-3) 0%,transparent 62%);
+  --orb:var(--orb-3);
+  width:60vmin;
+  height:60vmin;
+  top:26%;
+  right:-20vmin;
   animation-duration:38s;
 }
 .backdrop span:nth-child(4) {
-  bottom:-10vmax;
-  left:-32vmax;
-  background:radial-gradient(circle,var(--blob-4) 0%,transparent 62%);
+  --orb:var(--orb-4);
+  width:56vmin;
+  height:56vmin;
+  top:52%;
+  left:-20vmin;
   animation-duration:29s;
   animation-direction:alternate-reverse;
+}
+.backdrop span:nth-child(5) {
+  --orb:var(--orb-5);
+  width:36vmin;
+  height:36vmin;
+  top:9%;
+  right:4vmin;
+  animation-duration:34s;
 }
 @keyframes drift {
   0% {transform:translate3d(0,0,0) scale(1);}
@@ -519,7 +557,7 @@ button:disabled {
 </style>
 </head>
 <body>
-<div class="backdrop" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+<div class="backdrop" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
 <div class="container">
   <h1>双色球 / 大乐透 随机选号</h1>
   <div class="form-box glass">
