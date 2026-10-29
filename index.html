@@ -54,12 +54,13 @@ SOFTWARE.
   --glass-blur:blur(20px) saturate(180%) brightness(1.06);
   --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%);
   --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff);
-  --glass-edge:0 0 0 .5px rgba(15,23,42,.16),0 0 2px rgba(15,23,42,.08);
+  /* 不用扩散值（spread）：Safari 26 遇到大圆角 + 扩散值的阴影会在元素后面画出方形色块 */
+  --glass-edge:0 0 .5px rgba(15,23,42,.3),0 0 .5px rgba(15,23,42,.3),0 0 2px rgba(15,23,42,.1);
   --glass-shadow:
     var(--glass-edge),
     inset 0 1px 0 rgba(255,255,255,.95),
-    inset 5px 5px 8px -5px rgba(255,255,255,.9),
-    inset -5px -5px 8px -5px rgba(255,255,255,.65),
+    inset 2px 2px 4px rgba(255,255,255,.6),
+    inset -2px -2px 4px rgba(255,255,255,.4),
     inset 0 0 16px rgba(255,255,255,.2),
     0 12px 32px rgba(31,41,95,.14),
     0 2px 6px rgba(31,41,95,.08);
@@ -93,12 +94,12 @@ SOFTWARE.
     --glass-blur:blur(32px) saturate(170%);
     --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
     --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55));
-    --glass-edge:0 0 0 .5px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.45);
+    --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55);
     --glass-shadow:
       var(--glass-edge),
       inset 0 1px 0 rgba(255,255,255,.3),
-      inset 5px 5px 8px -5px rgba(255,255,255,.24),
-      inset -5px -5px 8px -5px rgba(255,255,255,.12),
+      inset 2px 2px 4px rgba(255,255,255,.16),
+      inset -2px -2px 4px rgba(255,255,255,.08),
       inset 0 0 16px rgba(255,255,255,.05),
       0 12px 32px rgba(0,0,0,.4),
       0 2px 6px rgba(0,0,0,.3);
@@ -381,8 +382,8 @@ button::after,
   box-shadow:
     var(--glass-edge),
     inset 0 1px 0 rgba(255,255,255,.9),
-    inset 4px 4px 8px -4px rgba(255,255,255,.8),
-    inset -4px -4px 8px -4px rgba(255,255,255,.6),
+    inset 2px 2px 4px rgba(255,255,255,.55),
+    inset -2px -2px 4px rgba(255,255,255,.4),
     0 8px 20px rgba(0,0,0,.16);
 }
 .segmented input:focus-visible ~ .segmented-thumb {
