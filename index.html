@@ -26,28 +26,24 @@ SOFTWARE.
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#ffd0da" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1d0e1f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#fff6e9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#2b0b14" media="(prefers-color-scheme: dark)">
 <title>双色球 / 大乐透 随机选号</title>
 <script src="./html2canvas.min.js"></script>
 <style>
 :root {
   color-scheme: light dark;
-  --bg-page:#c4d8fc;
-  --bg-canvas:linear-gradient(165deg,#ffd0da 0%,#ecd3f7 32%,#d4d6fb 62%,#c4d8fc 100%);
+  --bg-page:#ffc9c2;
+  --bg-canvas:linear-gradient(180deg,#fff6e9 0%,#ffe2cf 45%,#ffc9c2 100%);
   --text-main:#111827;
   --text-sub:rgba(17,24,39,.6);
   --primary:#4f46e5;
   --red:#ef4444;
   --blue:#3b82f6;
-  /* 背景波浪：边界清楚的色带，经过玻璃边缘时能看出折射 */
-  --wave-1:#ffb8c6;
-  --wave-2:#f49bd2;
-  --wave-3:#b59dff;
-  --wave-4:#86b1ff;
-  --wave-5:#5a90ff;
-  --wave-hi:rgba(255,255,255,.6);
-  --wave-shadow:rgba(60,30,110,.18);
+  /* 彩票风格背景：金色光晕、星光颜色、背景号码球的不透明度 */
+  --lotto-glow:rgba(255,190,70,.38);
+  --lotto-spark:#f5b301;
+  --lotto-ball-o:.92;
   /* 液体玻璃材质（iOS 27）：透明度更低、虚化更强、外圈加深暗边、高光更亮 */
   --glass-bg:rgba(255,255,255,.08);
   --glass-bg-strong:rgba(255,255,255,.55);
@@ -80,19 +76,15 @@ SOFTWARE.
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-page:#0b1633;
-    --bg-canvas:linear-gradient(165deg,#1d0e1f 0%,#151030 40%,#0b1633 100%);
+    --bg-page:#14060b;
+    --bg-canvas:linear-gradient(180deg,#2b0b14 0%,#3a0c19 45%,#14060b 100%);
     --text-main:#f1f5f9;
     --text-sub:rgba(241,245,249,.6);
     --primary:#818cf8;
-    --wave-1:#5a1640;
-    --wave-2:#8a2366;
-    --wave-3:#4b33b8;
-    --wave-4:#2552c8;
-    --wave-5:#1b3f9e;
-    --wave-hi:rgba(255,255,255,.2);
-    --wave-shadow:rgba(0,0,0,.45);
-    --glass-bg:rgba(34,38,56,.2);
+    --lotto-glow:rgba(220,38,38,.3);
+    --lotto-spark:#ffd166;
+    --lotto-ball-o:.85;
+    --glass-bg:rgba(40,24,30,.22);
     --glass-bg-strong:rgba(54,60,84,.74);
     --glass-blur:blur(16px) saturate(170%);
     --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
@@ -183,7 +175,7 @@ SOFTWARE.
   overflow:hidden;
   pointer-events:none;
 }
-.backdrop svg {
+.backdrop canvas {
   display:block;
   width:100%;
   height:100%;
@@ -866,64 +858,183 @@ function saveAsImage(){
     alert("图片生成失败，请重试")
   })
 }
-// 背景波浪：WebGL 版和 SVG 兜底共用这组参数。y 为屏幕高度比例，其余单位为 px、弧度、弧度/秒
-const waveShapes=[
-  {y:.13,slope:-.16,amp:[22,10],freq:[.012,.027],speed:[.12,-.08],phase:[0,1.7]},
-  {y:.3,slope:.12,amp:[26,12],freq:[.01,.024],speed:[-.1,.07],phase:[2.1,.4]},
-  {y:.47,slope:-.2,amp:[30,10],freq:[.009,.021],speed:[.09,-.06],phase:[4,2.6]},
-  {y:.65,slope:.14,amp:[24,12],freq:[.011,.025],speed:[-.08,.1],phase:[1.2,5.1]},
-  {y:.83,slope:-.1,amp:[20,10],freq:[.013,.028],speed:[.07,-.09],phase:[3.3,.9]}
+// 彩票风格背景：暖色渐变底 + 金色光晕 + 漂浮的号码球 + 闪烁的星光
+// 画在 2D 画布上：WebGL 版把它当作贴图做折射；不支持 WebGL 时直接显示这张画布
+// x、y 为屏幕宽高比例，r 为短边的百分比；c：r 红球、b 蓝球、g 金球
+const lottoBalls=[
+  {x:.13,y:.09,r:13,c:"r",n:"07"},
+  {x:.86,y:.07,r:9,c:"b",n:"12"},
+  {x:.54,y:.05,r:5,c:"g",n:"★"},
+  {x:.36,y:.19,r:7,c:"r",n:"23"},
+  {x:.72,y:.21,r:6,c:"b",n:"05"},
+  {x:.97,y:.37,r:10,c:"r",n:"18"},
+  {x:.03,y:.43,r:8,c:"b",n:"09"},
+  {x:.5,y:.475,r:5,c:"r",n:"31"},
+  {x:.92,y:.53,r:4,c:"g",n:"★"},
+  {x:.01,y:.63,r:11,c:"b",n:"16"},
+  {x:.99,y:.72,r:9,c:"r",n:"02"},
+  {x:.17,y:.88,r:12,c:"r",n:"26"},
+  {x:.82,y:.9,r:10,c:"b",n:"03"},
+  {x:.5,y:.82,r:6,c:"g",n:"★"},
+  {x:.62,y:.96,r:4,c:"r",n:"15"}
 ]
-function waveY(w,x,width,height){
-  return w.y*height+w.slope*(x-width/2)+w.amp[0]*Math.sin(w.freq[0]*x+w.phase[0])+w.amp[1]*Math.sin(w.freq[1]*x+w.phase[1])
-}
-;(function waveBackdrop(){
-  // 不用 WebGL 时，用 SVG 画同一组波浪（静止）
+const lottoSparks=[[.24,.04],[.68,.13],[.92,.24],[.08,.28],[.44,.3],[.83,.45],[.12,.79],[.6,.78],[.3,.84],[.9,.8],[.06,.95],[.4,.92]]
+const lottoBackdrop=(function(){
   const backdrop=document.querySelector(".backdrop")
-  function draw(){
-    const width=backdrop.clientWidth
-    const height=backdrop.clientHeight
+  const canvas=document.createElement("canvas")
+  backdrop.appendChild(canvas)
+  const ctx=canvas.getContext("2d")
+  const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
+  // 与 .red、.blue 号码球同一套配色：高光、主色、暗部
+  const tones={r:["#ff8a8a","#ef4444","#d22f2f"],b:["#8ab8ff","#3b82f6","#2563d9"],g:["#ffe39a","#f5b301","#c98a00"]}
+  let width=0
+  let height=0
+  let dpr=1
+  let base=null
+  let glow=null
+  let spark=""
+  let ballO=1
+  let sprites=[]
+  let driven=false
+  let raf=0
+  let lastDraw=0
+  function readTheme(){
     const cs=getComputedStyle(document.documentElement)
-    const xs=[]
-    for(let x=0;x<width;x+=8) xs.push(x)
-    xs.push(width)
-    let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"><filter id="wave-shadow" x="-5%" y="-50%" width="110%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>`
-    waveShapes.forEach((w,i)=>{
-      const edge=xs.map((x,j)=>`${j?"L":"M"}${x} ${waveY(w,x,width,height).toFixed(1)}`).join("")
-      svg+=`<path d="${edge}" fill="none" stroke="${cs.getPropertyValue("--wave-shadow").trim()}" stroke-width="12" filter="url(#wave-shadow)"/>`
-      svg+=`<path d="${edge}L${width} ${height}L0 ${height}Z" fill="${cs.getPropertyValue(`--wave-${i+1}`).trim()}"/>`
-      svg+=`<path d="${edge}" fill="none" stroke="${cs.getPropertyValue("--wave-hi").trim()}" stroke-width="1.5"/>`
-    })
-    backdrop.innerHTML=svg+"</svg>"
+    const bg=cs.getPropertyValue("--bg-canvas")
+    const angle=parseFloat((bg.match(/([\d.]+)deg/)||[0,180])[1])*Math.PI/180
+    const dx=Math.sin(angle)
+    const dy=-Math.cos(angle)
+    const half=(Math.abs(width*dx)+Math.abs(height*dy))/2
+    base=ctx.createLinearGradient(width/2-dx*half,height/2-dy*half,width/2+dx*half,height/2+dy*half)
+    for(const m of bg.matchAll(/(#[0-9a-f]{6})\s+([\d.]+)%/gi)) base.addColorStop(parseFloat(m[2])/100,m[1])
+    const glowColor=cs.getPropertyValue("--lotto-glow").trim()
+    glow=ctx.createRadialGradient(width/2,height*.56,0,width/2,height*.56,Math.max(width,height)*.55)
+    glow.addColorStop(0,glowColor)
+    glow.addColorStop(1,glowColor.replace(/[\d.]+\)$/,"0)"))
+    spark=cs.getPropertyValue("--lotto-spark").trim()
+    ballO=parseFloat(cs.getPropertyValue("--lotto-ball-o"))||1
   }
-  draw()
-  window.addEventListener("resize",draw)
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw)
+  // 每个球预先画成小图，逐帧只做平移和旋转
+  function makeSprite(ball){
+    const r=ball.r*Math.min(width,height)/100
+    const size=r*2.6
+    const c=size/2
+    const s=document.createElement("canvas")
+    s.width=s.height=Math.ceil(size*dpr)
+    const g=s.getContext("2d")
+    g.scale(dpr,dpr)
+    const [hi,mid,lo]=tones[ball.c]
+    const shadow=g.createRadialGradient(c,c+r*.18,r*.6,c,c+r*.18,r*1.28)
+    shadow.addColorStop(0,"rgba(60,10,20,.22)")
+    shadow.addColorStop(1,"rgba(60,10,20,0)")
+    g.fillStyle=shadow
+    g.fillRect(0,0,size,size)
+    const body=g.createRadialGradient(c-r*.36,c-r*.48,0,c-r*.36,c-r*.48,r*2.01)
+    body.addColorStop(0,hi)
+    body.addColorStop(.55,mid)
+    body.addColorStop(1,lo)
+    g.fillStyle=body
+    g.beginPath()
+    g.arc(c,c,r,0,Math.PI*2)
+    g.fill()
+    g.textAlign="center"
+    g.textBaseline="middle"
+    g.font=`700 ${Math.round(r*(ball.n.length>1?.82:.95))}px -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Arial,sans-serif`
+    g.fillStyle="rgba(0,0,0,.18)"
+    g.fillText(ball.n,c,c+r*.07)
+    g.fillStyle="#fff"
+    g.fillText(ball.n,c,c+r*.03)
+    return {canvas:s,size}
+  }
+  function draw(now){
+    const t=reduceMotion.matches?0:now/1000
+    ctx.setTransform(dpr,0,0,dpr,0,0)
+    ctx.globalAlpha=1
+    ctx.fillStyle=base
+    ctx.fillRect(0,0,width,height)
+    ctx.fillStyle=glow
+    ctx.fillRect(0,0,width,height)
+    ctx.fillStyle=spark
+    lottoSparks.forEach(([x,y],i)=>{
+      const s=4+(i*3)%5
+      ctx.globalAlpha=.35+.65*(.5+.5*Math.sin(t*(1.1+(i%4)*.35)+i*2.3))
+      ctx.save()
+      ctx.translate(x*width,y*height)
+      ctx.beginPath()
+      ctx.moveTo(0,-s)
+      ctx.quadraticCurveTo(0,0,s,0)
+      ctx.quadraticCurveTo(0,0,0,s)
+      ctx.quadraticCurveTo(0,0,-s,0)
+      ctx.quadraticCurveTo(0,0,0,-s)
+      ctx.fill()
+      ctx.restore()
+    })
+    ctx.globalAlpha=ballO
+    lottoBalls.forEach((b,i)=>{
+      const sp=sprites[i]
+      const x=b.x*width+(6+(i*7)%14)*Math.sin(t*2*Math.PI/(18+(i*3)%14)+i*1.7)
+      const y=b.y*height+(8+(i*5)%16)*Math.sin(t*2*Math.PI/(22+(i*5)%17)+i*2.9)
+      ctx.save()
+      ctx.translate(x,y)
+      ctx.rotate(.12*Math.sin(t*2*Math.PI/(26+(i*4)%13)+i))
+      ctx.drawImage(sp.canvas,-sp.size/2,-sp.size/2,sp.size,sp.size)
+      ctx.restore()
+    })
+    ctx.globalAlpha=1
+    lastDraw=now
+  }
+  function resize(){
+    dpr=Math.min(window.devicePixelRatio||1,2)
+    width=backdrop.clientWidth
+    height=backdrop.clientHeight
+    canvas.width=Math.round(width*dpr)
+    canvas.height=Math.round(height*dpr)
+    readTheme()
+    sprites=lottoBalls.map(makeSprite)
+    draw(performance.now())
+  }
+  // 球漂得很慢，30 帧足够，省电
+  function loop(now){
+    raf=requestAnimationFrame(loop)
+    if(now-lastDraw>=33) draw(now)
+  }
+  // 没有 WebGL 时由这里自己驱动动画；有 WebGL 时由 WebGL 逐帧调用 draw
+  function start(){
+    driven=true
+    if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop)
+  }
+  function stop(){
+    driven=false
+    cancelAnimationFrame(raf)
+    raf=0
+  }
+  resize()
+  window.addEventListener("resize",resize)
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",resize)
+  reduceMotion.addEventListener("change",()=>{
+    const wasDriven=driven
+    stop()
+    if(wasDriven) start()
+    draw(performance.now())
+  })
+  return {canvas,draw,start,stop}
 })()
-;(function liquidGlassWebGL(){
-  // 用 WebGL 画背景彩球和玻璃面板：边缘透镜折射、色散、磨砂、高光和投影
+const liquidGlassOn=(function liquidGlassWebGL(){
+  // 用 WebGL 把背景当作贴图，画出玻璃面板：边缘透镜折射、色散、磨砂、高光和投影
   // 不支持 WebGL 或系统要求降低透明度时，保留 CSS 版本
-  if(matchMedia("(prefers-reduced-transparency: reduce)").matches) return
+  if(matchMedia("(prefers-reduced-transparency: reduce)").matches) return false
   const canvas=document.createElement("canvas")
   canvas.className="lg-canvas"
   canvas.setAttribute("aria-hidden","true")
   const gl=canvas.getContext("webgl",{alpha:false,antialias:false,depth:false,stencil:false,premultipliedAlpha:false,powerPreference:"low-power"})
-  if(!gl) return
+  if(!gl) return false
   const vertSrc=`attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}`
   const fragSrc=`
 precision highp float;
+uniform sampler2D uTex;
 uniform vec2 uRes;
 uniform float uDpr;
 uniform vec2 uView;
-uniform vec2 uDir;
-uniform float uLen;
-uniform vec4 uStop;
-uniform vec3 uBase[4];
-uniform vec4 uWave[5];
-uniform vec4 uWaveF[5];
-uniform vec3 uWaveCol[5];
-uniform vec4 uWaveHi;
-uniform vec4 uWaveSh;
 uniform vec4 uPanel[2];
 uniform float uPanelR[2];
 uniform int uPanelN;
@@ -937,27 +1048,15 @@ uniform vec4 uShadow;
 const float BEZEL=24.;
 const float REFRACT=28.;
 const float DISPERSE=.15;
-vec3 baseGrad(vec2 p){
-  float t=clamp(dot(p-uView*.5,uDir)/uLen+.5,0.,1.);
-  vec3 c=mix(uBase[0],uBase[1],clamp((t-uStop.x)/max(uStop.y-uStop.x,1e-4),0.,1.));
-  c=mix(c,uBase[2],clamp((t-uStop.y)/max(uStop.z-uStop.y,1e-4),0.,1.));
-  return mix(c,uBase[3],clamp((t-uStop.z)/max(uStop.w-uStop.z,1e-4),0.,1.));
+vec3 bg(vec2 p){
+  return texture2D(uTex,clamp(p/uView,0.,1.)).rgb;
 }
-// 背景：渐变底 + 五层波浪。每层顶边一道细高光，并在上一层投下浅阴影
-// blur 加宽边界和阴影，等效于磨砂模糊
-vec3 scene(vec2 p,float blur){
-  vec3 col=baseGrad(p);
-  for(int i=0;i<5;i++){
-    vec4 w=uWave[i];
-    vec4 f=uWaveF[i];
-    float d=p.y-(w.x+w.y*(p.x-uView.x*.5)+w.z*sin(f.x*p.x+f.z)+w.w*sin(f.y*p.x+f.w));
-    float inside=smoothstep(-.6-blur,.6+blur,d);
-    col=mix(col,uWaveSh.rgb,uWaveSh.a*exp(-max(-d,0.)/(10.+blur))*(1.-inside));
-    vec3 lc=uWaveCol[i]*(1.-.12*clamp(d/280.,0.,1.));
-    lc=mix(lc,uWaveHi.rgb,uWaveHi.a*exp(-max(d,0.)/(1.5+blur*.5)));
-    col=mix(col,lc,inside);
-  }
-  return col;
+// 九点采样的轻度磨砂
+vec3 frost(vec2 p,float r){
+  vec2 a=vec2(r,0.);
+  vec2 b=vec2(.7071*r,.7071*r);
+  vec2 c=vec2(-b.x,b.y);
+  return bg(p)*.2+(bg(p+a)+bg(p-a)+bg(p+a.yx)+bg(p-a.yx)+bg(p+b)+bg(p-b)+bg(p+c)+bg(p-c))*.1;
 }
 float sdBox(vec2 q,vec2 b,float r){
   vec2 k=abs(q)-b+r;
@@ -965,7 +1064,7 @@ float sdBox(vec2 q,vec2 b,float r){
 }
 void main(){
   vec2 p=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr;
-  vec3 col=scene(p,0.);
+  vec3 col=bg(p);
   for(int i=0;i<2;i++){
     if(i>=uPanelN) break;
     float ds=sdBox(p-uPanel[i].xy-vec2(0.,12.),uPanel[i].zw,uPanelR[i]);
@@ -985,11 +1084,11 @@ void main(){
     vec2 off=-n*REFRACT*lens;
     vec3 g;
     if(lens>.001){
-      g.r=scene(p+off*(1.+DISPERSE),uFrost).r;
-      g.g=scene(p+off,uFrost).g;
-      g.b=scene(p+off*(1.-DISPERSE),uFrost).b;
+      g.r=frost(p+off*(1.+DISPERSE),uFrost).r;
+      g.g=frost(p+off,uFrost).g;
+      g.b=frost(p+off*(1.-DISPERSE),uFrost).b;
     }else{
-      g=scene(p,uFrost);
+      g=frost(p,uFrost);
     }
     float l=dot(g,vec3(.2126,.7152,.0722));
     g=clamp(mix(vec3(l),g,uSat)*uBright,0.,1.);
@@ -1015,58 +1114,47 @@ void main(){
   }
   const vs=compile(gl.VERTEX_SHADER,vertSrc)
   const fs=compile(gl.FRAGMENT_SHADER,fragSrc)
-  if(!vs||!fs) return
+  if(!vs||!fs) return false
   const prog=gl.createProgram()
   gl.attachShader(prog,vs)
   gl.attachShader(prog,fs)
   gl.linkProgram(prog)
-  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) return
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) return false
   gl.useProgram(prog)
   gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer())
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW)
   const aLoc=gl.getAttribLocation(prog,"a")
   gl.enableVertexAttribArray(aLoc)
   gl.vertexAttribPointer(aLoc,2,gl.FLOAT,false,0,0)
+  gl.bindTexture(gl.TEXTURE_2D,gl.createTexture())
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE)
   const u={}
-  ;["uRes","uDpr","uView","uDir","uLen","uStop","uBase","uWave","uWaveF","uWaveCol","uWaveHi","uWaveSh","uPanel","uPanelR","uPanelN","uTint","uSat","uBright","uFrost","uSpec","uSheen","uShadow"].forEach(name=>{
+  ;["uTex","uRes","uDpr","uView","uPanel","uPanelR","uPanelN","uTint","uSat","uBright","uFrost","uSpec","uSheen","uShadow"].forEach(name=>{
     u[name]=gl.getUniformLocation(prog,name)
   })
+  gl.uniform1i(u.uTex,0)
   const panels=[...document.querySelectorAll(".glass")].slice(0,2)
   const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
   const darkScheme=matchMedia("(prefers-color-scheme: dark)")
-  let running=false
+  let raf=0
   let lastDraw=0
-  function hex(s){
-    s=s.trim().replace("#","")
-    return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16)/255)
-  }
   function rgba(s){
     const v=(s.match(/[\d.]+/g)||[]).map(Number)
     return [(v[0]||0)/255,(v[1]||0)/255,(v[2]||0)/255,v.length>3?v[3]:1]
   }
-  // 颜色从 CSS 读取；波浪形状和 SVG 兜底共用 waveShapes
   function readTheme(){
     const cs=getComputedStyle(document.documentElement)
-    const bg=cs.getPropertyValue("--bg-canvas")
-    const angle=parseFloat((bg.match(/([\d.]+)deg/)||[0,180])[1])*Math.PI/180
-    const stops=[...bg.matchAll(/#([0-9a-f]{6})\s+([\d.]+)%/gi)].map(m=>({c:hex(m[1]),t:parseFloat(m[2])/100})).slice(0,4)
-    while(stops.length<4) stops.push(stops[stops.length-1])
-    const w=canvas.clientWidth,h=canvas.clientHeight
-    gl.uniform2f(u.uDir,Math.sin(angle),-Math.cos(angle))
-    gl.uniform1f(u.uLen,Math.abs(w*Math.sin(angle))+Math.abs(h*Math.cos(angle)))
-    gl.uniform4f(u.uStop,...stops.map(s=>s.t))
-    gl.uniform3fv(u.uBase,stops.flatMap(s=>s.c))
-    gl.uniform3fv(u.uWaveCol,waveShapes.flatMap((w,i)=>hex(cs.getPropertyValue(`--wave-${i+1}`))))
-    gl.uniform4f(u.uWaveHi,...rgba(cs.getPropertyValue("--wave-hi")))
-    gl.uniform4f(u.uWaveSh,...rgba(cs.getPropertyValue("--wave-shadow")))
-    gl.uniform4f(u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
     const dark=darkScheme.matches
-    gl.uniform1f(u.uSat,dark?1.7:1.8)
+    gl.uniform4f(u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
+    gl.uniform1f(u.uSat,dark?1.5:1.25)
     gl.uniform1f(u.uBright,dark?1:1.03)
     gl.uniform1f(u.uFrost,dark?6:5)
     gl.uniform1f(u.uSpec,dark?.3:.38)
     gl.uniform1f(u.uSheen,dark?.08:.12)
-    gl.uniform4f(u.uShadow,...(dark?[0,0,0,.4]:[31/255,41/255,95/255,.14]))
+    gl.uniform4f(u.uShadow,...(dark?[0,0,0,.4]:[110/255,30/255,40/255,.14]))
   }
   function resize(){
     const dpr=Math.min(window.devicePixelRatio||1,2)
@@ -1082,10 +1170,8 @@ void main(){
     draw(performance.now())
   }
   function draw(now){
-    const t=reduceMotion.matches?0:now/1000
-    const h=canvas.clientHeight
-    gl.uniform4fv(u.uWave,waveShapes.flatMap(w=>[w.y*h,w.slope,w.amp[0],w.amp[1]]))
-    gl.uniform4fv(u.uWaveF,waveShapes.flatMap(w=>[w.freq[0],w.freq[1],w.phase[0]+w.speed[0]*t,w.phase[1]+w.speed[1]*t]))
+    lottoBackdrop.draw(now)
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,lottoBackdrop.canvas)
     gl.uniform4fv(u.uPanel,panels.flatMap(el=>{
       const r=el.getBoundingClientRect()
       return [r.left+r.width/2,r.top+r.height/2,r.width/2,r.height/2]
@@ -1093,30 +1179,28 @@ void main(){
     gl.drawArrays(gl.TRIANGLES,0,3)
     lastDraw=now
   }
-  // 波浪流得很慢，30 帧足够，省电
+  // 背景动得很慢，30 帧足够，省电
   function loop(now){
-    if(!running) return
-    requestAnimationFrame(loop)
+    raf=requestAnimationFrame(loop)
     if(now-lastDraw>=33) draw(now)
   }
   function start(){
-    if(running||reduceMotion.matches) return
-    running=true
-    requestAnimationFrame(loop)
+    if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop)
   }
   function stop(){
-    running=false
+    cancelAnimationFrame(raf)
+    raf=0
   }
   canvas.addEventListener("webglcontextlost",e=>{
     e.preventDefault()
     stop()
     canvas.remove()
     document.documentElement.classList.remove("lg-webgl")
+    lottoBackdrop.start()
   })
   document.body.insertBefore(canvas,document.body.firstChild)
   resize()
   document.documentElement.classList.add("lg-webgl")
-  draw(performance.now())
   start()
   window.addEventListener("resize",resize)
   if(window.visualViewport) visualViewport.addEventListener("resize",resize)
@@ -1130,7 +1214,9 @@ void main(){
     start()
     draw(performance.now())
   })
+  return true
 })()
+if(!liquidGlassOn) lottoBackdrop.start()
 document.getElementById("generate-btn").onclick=generateRolling
 document.getElementById("save-btn").onclick=saveAsImage
 </script>
