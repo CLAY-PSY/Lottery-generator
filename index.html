@@ -48,6 +48,8 @@ SOFTWARE.
   --liquid-4:#ff9f45;
   --liquid-5:#3fd0c9;
   --liquid-6:#7b6cff;
+  /* 深层液体铺满全屏：颜色倍率 混白比例 表层投下的阴影 */
+  --liquid-depth:1 .4 .14;
   --title-glow:0 0 14px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.8);
   /* 液体玻璃材质（iOS 27 通透）：几乎全透，靠边缘高光、暗边和折射勾出轮廓 */
   --glass-bg:rgba(255,255,255,.03);
@@ -104,6 +106,7 @@ SOFTWARE.
     --liquid-4:#ff8a24;
     --liquid-5:#1fb8b0;
     --liquid-6:#5a4dff;
+    --liquid-depth:.45 0 .4;
     --title-glow:0 0 14px rgba(0,0,0,.7);
     --glass-bg:rgba(20,22,40,.08);
     --glass-bg-strong:rgba(54,60,84,.74);
@@ -910,7 +913,7 @@ const liquidBackdrop=(function(){
   let width=backdrop.clientWidth
   let height=backdrop.clientHeight
   let colors=[]
-  let base=[]
+  let depth=[1,0,0]
   let canvas=null
   let ctx=null
   let image=null
@@ -927,7 +930,7 @@ const liquidBackdrop=(function(){
   function readTheme(){
     const cs=getComputedStyle(document.documentElement)
     colors=[1,2,3,4,5,6].map(i=>hex(cs.getPropertyValue(`--liquid-${i}`)))
-    base=[...cs.getPropertyValue("--bg-canvas").matchAll(/#[0-9a-f]{6}/gi)].map(m=>hex(m[0]))
+    depth=cs.getPropertyValue("--liquid-depth").trim().split(/\s+/).map(Number)
   }
   // 十团大液体按 2×5 网格分布再随机打散，避免挤在一起留下空白；六颗小液滴随机放。r 为短边的百分比
   for(let i=0;i<16;i++){
@@ -936,7 +939,7 @@ const liquidBackdrop=(function(){
       hx:Math.min(.92,Math.max(.08,big?(i%2+.5)/2+rand(-.18,.18):rand(.1,.9))),
       hy:Math.min(.95,Math.max(.05,big?(Math.floor(i/2)+.5)/5+rand(-.07,.07):rand(.06,.94))),
       vx:0,vy:0,fx:0,fy:0,tx:0,ty:0,turn:0,
-      r:big?rand(14,20):rand(4,8),
+      r:big?rand(18,25):rand(5,9),
       breath:rand(0,6.28),breathRate:rand(.2,.5),
       color:i%6
     }
@@ -989,7 +992,7 @@ const liquidBackdrop=(function(){
       drawFallback()
     }
   }
-  // 不支持 WebGL 时，在 2D 画布上逐像素算出和着色器相同的融合液体，再由浏览器平滑放大
+  // 不支持 WebGL 时，在 2D 画布上逐像素算出和着色器相同的两层液体，再由浏览器平滑放大
   function drawFallback(){
     const cw=canvas.width
     const ch=canvas.height
@@ -997,19 +1000,14 @@ const liquidBackdrop=(function(){
     const sh=shapes()
     const n=sh.length
     const cols=blobs.map(b=>colors[b.color])
-    const top=base[0]
-    const bottom=base[base.length-1]
+    const [mul,white,shadow]=depth
     const aa=FALLBACK_SCALE/2
     let o=0
     for(let j=0;j<ch;j++){
       const y=(j+.5)*FALLBACK_SCALE
-      const ty=Math.min(1,y/height)
-      const br=top[0]+(bottom[0]-top[0])*ty
-      const bgc=top[1]+(bottom[1]-top[1])*ty
-      const bb=top[2]+(bottom[2]-top[2])*ty
       for(let i=0;i<cw;i++){
         const x=(i+.5)*FALLBACK_SCALE
-        let f=0,gx=0,gy=0,cr=0,cg=0,cb=0,w=0
+        let f=0,gx=0,gy=0,cr=0,cg=0,cb=0,w=0,sr=0,sg=0,sb=0
         for(let k=0;k<n;k++){
           const s=sh[k]
           const dx=x-s[0]
@@ -1026,6 +1024,9 @@ const liquidBackdrop=(function(){
           cg+=c[1]*qq
           cb+=c[2]*qq
           w+=qq
+          sr+=c[0]*q
+          sg+=c[1]*q
+          sb+=c[2]*q
         }
         const gn=Math.max(Math.sqrt(gx*gx+gy*gy),1e-6)
         const t=1/Math.sqrt(Math.max(f,1e-6))
@@ -1034,6 +1035,11 @@ const liquidBackdrop=(function(){
         const rim=.4*Math.exp(-Math.max(d,0)/3)*Math.max((-gx*-.61-gy*-.79)/gn,0)
         const e=Math.min(1,Math.max(0,(d+aa)/(2*aa)))
         const m=e*e*(3-2*e)
+        const fs=Math.max(f,1e-6)
+        const dim=1-shadow*Math.exp(-Math.max(-d,0)/14)
+        const br=(sr/fs*mul*(1-white)+white)*dim
+        const bgc=(sg/fs*mul*(1-white)+white)*dim
+        const bb=(sb/fs*mul*(1-white)+white)*dim
         w=Math.max(w,1e-6)
         data[o]=255*(br+(Math.min(1,cr/w*shade+rim)-br)*m)
         data[o+1]=255*(bgc+(Math.min(1,cg/w*shade+rim)-bgc)*m)
@@ -1079,7 +1085,7 @@ const liquidBackdrop=(function(){
     start()
     drawFallback()
   })
-  return {step,shapes,start,colors:()=>colors,base:()=>base,blobColor:i=>blobs[i].color}
+  return {step,shapes,start,colors:()=>colors,depth:()=>depth,blobColor:i=>blobs[i].color}
 })()
 const liquidGlassOn=(function liquidGlassWebGL(){
   // WebGL 直接计算液态背景，并画出玻璃面板：边缘透镜折射、色散、轻度磨砂、高光和投影
@@ -1096,7 +1102,7 @@ precision highp float;
 uniform vec2 uRes;
 uniform float uDpr;
 uniform vec2 uView;
-uniform vec3 uBase[2];
+uniform vec3 uDepth;
 uniform vec3 uBlob[16];
 uniform vec3 uBlobCol[16];
 uniform vec4 uPanel[2];
@@ -1110,14 +1116,17 @@ const float BEZEL=24.;
 const float REFRACT=28.;
 const float DISPERSE=.15;
 const vec2 LIGHT=vec2(-.61,-.79);
-// 液态背景：metaball 场 f=Σr²/d²，f=1 处为液面。用 t=1/√f 估算到液面的距离（px）：
+// 液态背景分两层，铺满全屏：
+// 深层：各团颜色按 r²/d² 加权，融成一片连续的柔和色彩，再按 uDepth 压暗（深色）或调淡（浅色）
+// 表层：metaball 场 f=Σr²/d²，f=1 处为液面。用 t=1/√f 估算到液面的距离（px）：
 // 单团液体时 t=d/r，(1-t)/|∇t| 正好等于 r-d，在液体中心也准确。边缘按这个距离抗锯齿，
-// blur 加宽边缘，等效于磨砂。颜色按各团的贡献平滑混合
+// blur 加宽边缘，等效于磨砂；表层颜色按各团贡献的平方加权，边界更分明，并在深层上投下浅阴影
 vec3 liquid(vec2 p,float blur){
   float f=0.;
   vec2 g=vec2(0.);
   vec3 c=vec3(0.);
   float w=0.;
+  vec3 sc=vec3(0.);
   for(int i=0;i<16;i++){
     vec2 dv=p-uBlob[i].xy;
     float d2=max(dot(dv,dv),1.);
@@ -1126,12 +1135,14 @@ vec3 liquid(vec2 p,float blur){
     g-=2.*k/d2*dv;
     c+=uBlobCol[i]*k*k;
     w+=k*k;
+    sc+=uBlobCol[i]*k;
   }
   c/=max(w,1e-6);
   float gn=max(length(g),1e-6);
   float t=inversesqrt(max(f,1e-6));
   float d=(1.-t)/max(.5*t*t*t*gn,1e-6);
-  vec3 back=mix(uBase[0],uBase[1],clamp(p.y/uView.y,0.,1.));
+  vec3 back=mix(sc/max(f,1e-6)*uDepth.x,vec3(1.),uDepth.y);
+  back*=1.-uDepth.z*exp(-max(-d,0.)/(14.+blur));
   // 液体表面：越往里越亮一点；迎光的边缘有一道细高光
   vec3 lc=c*(.9+.18*clamp(d/90.,0.,1.));
   lc+=.4*exp(-max(d,0.)/(3.+blur))*max(dot(-g/gn,LIGHT),0.);
@@ -1205,7 +1216,7 @@ void main(){
   gl.enableVertexAttribArray(aLoc)
   gl.vertexAttribPointer(aLoc,2,gl.FLOAT,false,0,0)
   const u={}
-  ;["uRes","uDpr","uView","uBase","uBlob","uBlobCol","uPanel","uPanelR","uPanelN","uTint","uLook","uShadow"].forEach(name=>{
+  ;["uRes","uDpr","uView","uDepth","uBlob","uBlobCol","uPanel","uPanelR","uPanelN","uTint","uLook","uShadow"].forEach(name=>{
     u[name]=gl.getUniformLocation(prog,name)
   })
   const panels=[...document.querySelectorAll(".glass")].slice(0,2)
@@ -1222,9 +1233,8 @@ void main(){
   // 颜色和玻璃参数都从 CSS 变量读取，深浅模式各一套
   function readTheme(){
     const cs=getComputedStyle(document.documentElement)
-    const base=liquidBackdrop.base()
     const colors=liquidBackdrop.colors()
-    gl.uniform3fv(u.uBase,[...base[0],...base[base.length-1]])
+    gl.uniform3fv(u.uDepth,liquidBackdrop.depth())
     gl.uniform3fv(u.uBlobCol,liquidBackdrop.shapes().flatMap((s,i)=>colors[liquidBackdrop.blobColor(i)]))
     gl.uniform4f(u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
     gl.uniform4f(u.uLook,...cs.getPropertyValue("--gl-look").trim().split(/\s+/).map(Number))
