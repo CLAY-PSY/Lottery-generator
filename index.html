@@ -242,6 +242,30 @@ SOFTWARE.
 @media (prefers-reduced-motion: reduce) {
   .backdrop span {animation:none;}
 }
+/* WebGL 版：背景和玻璃面板由画布绘制，CSS 只保留边框、高光描边和触摸发光 */
+.lg-canvas {
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100vh;
+  height:100lvh;
+  z-index:0;
+  pointer-events:none;
+}
+.lg-webgl .backdrop {
+  visibility:hidden;
+}
+.lg-webgl .backdrop span {
+  animation-play-state:paused;
+  will-change:auto;
+}
+.lg-webgl .glass {
+  background:transparent;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+  box-shadow:none;
+}
 .container {
   position:relative;
   z-index:1;
@@ -900,6 +924,261 @@ function saveAsImage(){
     alert("图片生成失败，请重试")
   })
 }
+;(function liquidGlassWebGL(){
+  // 用 WebGL 画背景彩球和玻璃面板：边缘透镜折射、色散、磨砂、高光和投影
+  // 不支持 WebGL 或系统要求降低透明度时，保留 CSS 版本
+  if(matchMedia("(prefers-reduced-transparency: reduce)").matches) return
+  const canvas=document.createElement("canvas")
+  canvas.className="lg-canvas"
+  canvas.setAttribute("aria-hidden","true")
+  const gl=canvas.getContext("webgl",{alpha:false,antialias:false,depth:false,stencil:false,premultipliedAlpha:false,powerPreference:"low-power"})
+  if(!gl) return
+  const vertSrc=`attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}`
+  const fragSrc=`
+precision highp float;
+uniform vec2 uRes;
+uniform float uDpr;
+uniform vec2 uView;
+uniform vec2 uDir;
+uniform float uLen;
+uniform vec4 uStop;
+uniform vec3 uBase[4];
+uniform vec3 uOrb[5];
+uniform vec3 uOrbCol[5];
+uniform float uOrbO;
+uniform float uHiA;
+uniform vec4 uPanel[2];
+uniform float uPanelR[2];
+uniform int uPanelN;
+uniform vec4 uTint;
+uniform float uSat;
+uniform float uBright;
+uniform float uFrost;
+uniform float uSpec;
+uniform float uSheen;
+uniform vec4 uShadow;
+const float BEZEL=22.;
+const float REFRACT=22.;
+const float DISPERSE=.15;
+vec3 baseGrad(vec2 p){
+  float t=clamp(dot(p-uView*.5,uDir)/uLen+.5,0.,1.);
+  vec3 c=mix(uBase[0],uBase[1],clamp((t-uStop.x)/max(uStop.y-uStop.x,1e-4),0.,1.));
+  c=mix(c,uBase[2],clamp((t-uStop.y)/max(uStop.z-uStop.y,1e-4),0.,1.));
+  return mix(c,uBase[3],clamp((t-uStop.z)/max(uStop.w-uStop.z,1e-4),0.,1.));
+}
+// 背景：渐变底 + 彩球。blur 加宽彩球边缘，等效于磨砂模糊
+vec3 scene(vec2 p,float blur){
+  vec3 col=baseGrad(p);
+  for(int i=0;i<5;i++){
+    vec2 c=uOrb[i].xy;
+    float R=uOrb[i].z;
+    float d=length(p-c);
+    float a=1.-smoothstep(.764*R-blur,.99*R+blur,d);
+    float h=uHiA*(1.-clamp(length(p-c-vec2(-.28,-.4)*R)/(.72*R+blur),0.,1.))*(1.-smoothstep(R-1.-blur,R+blur,d));
+    float la=a+h*(1.-a);
+    vec3 lc=(uOrbCol[i]*a*(1.-h)+vec3(h))/max(la,1e-4);
+    col=mix(col,lc,la*uOrbO);
+  }
+  return col;
+}
+float sdBox(vec2 q,vec2 b,float r){
+  vec2 k=abs(q)-b+r;
+  return length(max(k,0.))+min(max(k.x,k.y),0.)-r;
+}
+void main(){
+  vec2 p=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr;
+  vec3 col=scene(p,0.);
+  for(int i=0;i<2;i++){
+    if(i>=uPanelN) break;
+    float ds=sdBox(p-uPanel[i].xy-vec2(0.,12.),uPanel[i].zw,uPanelR[i]);
+    col=mix(col,uShadow.rgb,(1.-smoothstep(-14.,30.,ds))*uShadow.a);
+  }
+  for(int i=0;i<2;i++){
+    if(i>=uPanelN) break;
+    vec2 q=p-uPanel[i].xy;
+    vec2 b=uPanel[i].zw;
+    float r=uPanelR[i];
+    float d=sdBox(q,b,r);
+    if(d>1.) continue;
+    vec2 n=normalize(vec2(sdBox(q+vec2(.5,0.),b,r)-sdBox(q-vec2(.5,0.),b,r),sdBox(q+vec2(0.,.5),b,r)-sdBox(q-vec2(0.,.5),b,r))+1e-6);
+    float e=1.-clamp(-d/BEZEL,0.,1.);
+    float lens=e*e;
+    // 透镜：边缘光线向内弯折，看到的是更靠里的内容（放大），三色错开形成色散
+    vec2 off=-n*REFRACT*lens;
+    vec3 g;
+    if(lens>.001){
+      g.r=scene(p+off*(1.+DISPERSE),uFrost).r;
+      g.g=scene(p+off,uFrost).g;
+      g.b=scene(p+off*(1.-DISPERSE),uFrost).b;
+    }else{
+      g=scene(p,uFrost);
+    }
+    float l=dot(g,vec3(.2126,.7152,.0722));
+    g=clamp(mix(vec3(l),g,uSat)*uBright,0.,1.);
+    g=mix(g,uTint.rgb,uTint.a);
+    g+=uSheen*(1.-clamp(length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b))/.55,0.,1.));
+    // 高光：迎光的左上边缘最亮，右下边缘有反光
+    vec2 L=normalize(vec2(-1.,-1.3));
+    g+=uSpec*pow(e,3.)*(max(dot(n,L),0.)+.6*max(dot(n,-L),0.));
+    g=mix(g,vec3(1.),uSpec*.18*lens);
+    col=mix(col,clamp(g,0.,1.),clamp(.5-d*uDpr,0.,1.));
+  }
+  gl_FragColor=vec4(col,1.);
+}`
+  function compile(type,src){
+    const s=gl.createShader(type)
+    gl.shaderSource(s,src)
+    gl.compileShader(s)
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){
+      console.warn("液体玻璃着色器编译失败:",gl.getShaderInfoLog(s))
+      return null
+    }
+    return s
+  }
+  const vs=compile(gl.VERTEX_SHADER,vertSrc)
+  const fs=compile(gl.FRAGMENT_SHADER,fragSrc)
+  if(!vs||!fs) return
+  const prog=gl.createProgram()
+  gl.attachShader(prog,vs)
+  gl.attachShader(prog,fs)
+  gl.linkProgram(prog)
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) return
+  gl.useProgram(prog)
+  gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer())
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW)
+  const aLoc=gl.getAttribLocation(prog,"a")
+  gl.enableVertexAttribArray(aLoc)
+  gl.vertexAttribPointer(aLoc,2,gl.FLOAT,false,0,0)
+  const u={}
+  ;["uRes","uDpr","uView","uDir","uLen","uStop","uBase","uOrb","uOrbCol","uOrbO","uHiA","uPanel","uPanelR","uPanelN","uTint","uSat","uBright","uFrost","uSpec","uSheen","uShadow"].forEach(name=>{
+    u[name]=gl.getUniformLocation(prog,name)
+  })
+  const panels=[...document.querySelectorAll(".glass")].slice(0,2)
+  const orbEls=[...document.querySelectorAll(".backdrop span")].slice(0,5)
+  const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
+  const darkScheme=matchMedia("(prefers-color-scheme: dark)")
+  let orbs=[]
+  let vmax=1
+  let running=false
+  let lastDraw=0
+  function hex(s){
+    s=s.trim().replace("#","")
+    return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16)/255)
+  }
+  function rgba(s){
+    const v=(s.match(/[\d.]+/g)||[]).map(Number)
+    return [(v[0]||0)/255,(v[1]||0)/255,(v[2]||0)/255,v.length>3?v[3]:1]
+  }
+  // 颜色、彩球位置都从 CSS 读取，和 CSS 版保持一致
+  function readTheme(){
+    const cs=getComputedStyle(document.documentElement)
+    const bg=cs.getPropertyValue("--bg-canvas")
+    const angle=parseFloat((bg.match(/([\d.]+)deg/)||[0,180])[1])*Math.PI/180
+    const stops=[...bg.matchAll(/#([0-9a-f]{6})\s+([\d.]+)%/gi)].map(m=>({c:hex(m[1]),t:parseFloat(m[2])/100})).slice(0,4)
+    while(stops.length<4) stops.push(stops[stops.length-1])
+    const w=canvas.clientWidth,h=canvas.clientHeight
+    gl.uniform2f(u.uDir,Math.sin(angle),-Math.cos(angle))
+    gl.uniform1f(u.uLen,Math.abs(w*Math.sin(angle))+Math.abs(h*Math.cos(angle)))
+    gl.uniform4f(u.uStop,...stops.map(s=>s.t))
+    gl.uniform3fv(u.uBase,stops.flatMap(s=>s.c))
+    gl.uniform1f(u.uOrbO,parseFloat(cs.getPropertyValue("--orb-o"))||.8)
+    gl.uniform1f(u.uHiA,rgba(cs.getPropertyValue("--orb-hi"))[3])
+    gl.uniform4f(u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
+    const dark=darkScheme.matches
+    gl.uniform1f(u.uSat,dark?1.7:1.8)
+    gl.uniform1f(u.uBright,dark?1:1.06)
+    gl.uniform1f(u.uFrost,dark?14:12)
+    gl.uniform1f(u.uSpec,dark?.3:.5)
+    gl.uniform1f(u.uSheen,dark?.12:.18)
+    gl.uniform4f(u.uShadow,...(dark?[0,0,0,.4]:[31/255,41/255,95/255,.14]))
+    orbs=orbEls.map(el=>{
+      const ocs=getComputedStyle(el)
+      return {
+        x:el.offsetLeft+el.offsetWidth/2,
+        y:el.offsetTop+el.offsetHeight/2,
+        r:el.offsetWidth/2,
+        dur:parseFloat(ocs.animationDuration)||30,
+        rev:ocs.animationDirection.indexOf("reverse")>-1,
+        col:hex(ocs.getPropertyValue("--orb"))
+      }
+    })
+    gl.uniform3fv(u.uOrbCol,orbs.flatMap(o=>o.col))
+    vmax=Math.max(w,h)/100
+  }
+  function resize(){
+    const dpr=Math.min(window.devicePixelRatio||1,2)
+    canvas.width=Math.round(canvas.clientWidth*dpr)
+    canvas.height=Math.round(canvas.clientHeight*dpr)
+    gl.viewport(0,0,canvas.width,canvas.height)
+    gl.uniform2f(u.uRes,canvas.width,canvas.height)
+    gl.uniform1f(u.uDpr,dpr)
+    gl.uniform2f(u.uView,canvas.clientWidth,canvas.clientHeight)
+    gl.uniform1iv(u.uPanelN,[panels.length])
+    gl.uniform1fv(u.uPanelR,panels.map(el=>parseFloat(getComputedStyle(el).borderTopLeftRadius)||0).concat([0,0]).slice(0,2))
+    readTheme()
+    draw(performance.now())
+  }
+  // 与 CSS 的 drift 关键帧相同：0% → 50% → 100%，交替往返
+  function drift(o,t){
+    if(reduceMotion.matches) return [0,0,1]
+    let f=(t/o.dur)%2
+    if(f>1) f=2-f
+    if(o.rev) f=1-f
+    const k=f<.5?[0,0,1,6,4,1.08,f*2]:[6,4,1.08,-4,8,.95,f*2-1]
+    const e=k[6]*k[6]*(3-2*k[6])
+    return [(k[0]+(k[3]-k[0])*e)*vmax,(k[1]+(k[4]-k[1])*e)*vmax,k[2]+(k[5]-k[2])*e]
+  }
+  function draw(now){
+    const t=now/1000
+    gl.uniform3fv(u.uOrb,orbs.flatMap(o=>{
+      const [dx,dy,s]=drift(o,t)
+      return [o.x+dx,o.y+dy,o.r*s]
+    }))
+    gl.uniform4fv(u.uPanel,panels.flatMap(el=>{
+      const r=el.getBoundingClientRect()
+      return [r.left+r.width/2,r.top+r.height/2,r.width/2,r.height/2]
+    }).concat([0,0,0,0,0,0,0,0]).slice(0,8))
+    gl.drawArrays(gl.TRIANGLES,0,3)
+    lastDraw=now
+  }
+  // 背景漂得很慢，30 帧足够，省电
+  function loop(now){
+    if(!running) return
+    requestAnimationFrame(loop)
+    if(now-lastDraw>=33) draw(now)
+  }
+  function start(){
+    if(running||reduceMotion.matches) return
+    running=true
+    requestAnimationFrame(loop)
+  }
+  function stop(){
+    running=false
+  }
+  canvas.addEventListener("webglcontextlost",e=>{
+    e.preventDefault()
+    stop()
+    canvas.remove()
+    document.documentElement.classList.remove("lg-webgl")
+  })
+  document.body.insertBefore(canvas,document.body.firstChild)
+  resize()
+  document.documentElement.classList.add("lg-webgl")
+  draw(performance.now())
+  start()
+  window.addEventListener("resize",resize)
+  if(window.visualViewport) visualViewport.addEventListener("resize",resize)
+  if(window.ResizeObserver) new ResizeObserver(()=>draw(performance.now())).observe(document.querySelector(".container"))
+  darkScheme.addEventListener("change",()=>{
+    readTheme()
+    draw(performance.now())
+  })
+  reduceMotion.addEventListener("change",()=>{
+    stop()
+    start()
+    draw(performance.now())
+  })
+})()
 document.getElementById("generate-btn").onclick=generateRolling
 document.getElementById("save-btn").onclick=saveAsImage
 </script>
