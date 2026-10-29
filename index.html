@@ -26,24 +26,28 @@ SOFTWARE.
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#fff6e9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#2b0b14" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f3ff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#07081a" media="(prefers-color-scheme: dark)">
 <title>双色球 / 大乐透 随机选号</title>
 <script src="./html2canvas.min.js"></script>
 <style>
 :root {
   color-scheme: light dark;
-  --bg-page:#ffc9c2;
-  --bg-canvas:linear-gradient(180deg,#fff6e9 0%,#ffe2cf 45%,#ffc9c2 100%);
+  --bg-page:#eef2ff;
+  --bg-canvas:linear-gradient(180deg,#f7f3ff 0%,#eef2ff 100%);
   --text-main:#111827;
   --text-sub:rgba(17,24,39,.6);
   --primary:#4f46e5;
   --red:#ef4444;
   --blue:#3b82f6;
-  /* 彩票风格背景：金色光晕、星光颜色、背景号码球的不透明度 */
-  --lotto-glow:rgba(255,190,70,.38);
-  --lotto-spark:#f5b301;
-  --lotto-ball-o:.92;
+  /* 液态背景：六种液体颜色 */
+  --liquid-1:#5b8cff;
+  --liquid-2:#a35bff;
+  --liquid-3:#ff6fb1;
+  --liquid-4:#ff9f45;
+  --liquid-5:#3fd0c9;
+  --liquid-6:#7b6cff;
+  --title-glow:0 0 14px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.8);
   /* 液体玻璃材质（iOS 27）：透明度更低、虚化更强、外圈加深暗边、高光更亮 */
   --glass-bg:rgba(255,255,255,.03);
   --glass-bg-strong:rgba(255,255,255,.55);
@@ -76,15 +80,19 @@ SOFTWARE.
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-page:#14060b;
-    --bg-canvas:linear-gradient(180deg,#2b0b14 0%,#3a0c19 45%,#14060b 100%);
+    --bg-page:#0b1026;
+    --bg-canvas:linear-gradient(180deg,#07081a 0%,#0b1026 100%);
     --text-main:#f1f5f9;
     --text-sub:rgba(241,245,249,.6);
     --primary:#818cf8;
-    --lotto-glow:rgba(220,38,38,.3);
-    --lotto-spark:#ffd166;
-    --lotto-ball-o:.85;
-    --glass-bg:rgba(40,24,30,.08);
+    --liquid-1:#3d6bff;
+    --liquid-2:#8b3dff;
+    --liquid-3:#ff3d8f;
+    --liquid-4:#ff8a24;
+    --liquid-5:#1fb8b0;
+    --liquid-6:#5a4dff;
+    --title-glow:0 0 14px rgba(0,0,0,.7);
+    --glass-bg:rgba(20,22,40,.08);
     --glass-bg-strong:rgba(54,60,84,.74);
     --glass-blur:blur(5px) saturate(140%);
     --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
@@ -216,6 +224,8 @@ h1 {
   font-weight:700;
   letter-spacing:-.01em;
   margin:0 0 4px;
+  /* 液体随机流过标题后面时，保证文字清楚 */
+  text-shadow:var(--title-glow);
 }
 /* 液体玻璃基础材质：半透明 + 背景模糊增饱和 + 镜面高光 + 高光边缘 */
 .glass {
@@ -858,169 +868,137 @@ function saveAsImage(){
     alert("图片生成失败，请重试")
   })
 }
-// 彩票风格背景：暖色渐变底 + 金色光晕 + 漂浮的号码球 + 闪烁的星光
-// 画在 2D 画布上：WebGL 版把它当作贴图做折射；不支持 WebGL 时直接显示这张画布
-// x、y 为屏幕宽高比例，r 为短边的百分比；c：r 红球、b 蓝球、g 金球
-const lottoBalls=[
-  {x:.13,y:.09,r:13,c:"r",n:"07"},
-  {x:.86,y:.07,r:9,c:"b",n:"12"},
-  {x:.54,y:.05,r:5,c:"g",n:"★"},
-  {x:.36,y:.19,r:7,c:"r",n:"23"},
-  {x:.9,y:.31,r:6,c:"b",n:"05"},
-  {x:.97,y:.37,r:10,c:"r",n:"18"},
-  {x:.03,y:.43,r:8,c:"b",n:"09"},
-  {x:.5,y:.475,r:5,c:"r",n:"31"},
-  {x:.92,y:.53,r:4,c:"g",n:"★"},
-  {x:.01,y:.63,r:11,c:"b",n:"16"},
-  {x:.99,y:.72,r:9,c:"r",n:"02"},
-  {x:.2,y:.755,r:12,c:"r",n:"26"},
-  {x:.82,y:.9,r:10,c:"b",n:"03"},
-  {x:.5,y:.82,r:6,c:"g",n:"★"},
-  {x:.62,y:.96,r:4,c:"r",n:"15"}
-]
-const lottoSparks=[[.24,.04],[.68,.13],[.92,.24],[.08,.28],[.44,.3],[.83,.45],[.12,.79],[.6,.78],[.3,.84],[.9,.8],[.06,.95],[.4,.92]]
-const lottoBackdrop=(function(){
+// 液态背景：几团彩色液体随机游动、靠近时相互融合（metaball），边缘清楚，经过玻璃边缘时能看出折射
+// 运动由随机力推动（带阻尼和回复力的随机游走），每次打开都不同，也不会循环重复
+const liquidBackdrop=(function(){
   const backdrop=document.querySelector(".backdrop")
-  const canvas=document.createElement("canvas")
-  backdrop.appendChild(canvas)
-  const ctx=canvas.getContext("2d")
   const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
-  // 与 .red、.blue 号码球同一套配色：高光、主色、暗部
-  const tones={r:["#ff8a8a","#ef4444","#d22f2f"],b:["#8ab8ff","#3b82f6","#2563d9"],g:["#ffe39a","#f5b301","#c98a00"]}
-  let width=0
-  let height=0
+  const blobs=[]
+  let width=backdrop.clientWidth
+  let height=backdrop.clientHeight
+  let colors=[]
+  let base=[]
+  let canvas=null
+  let ctx=null
   let dpr=1
-  let base=null
-  let glow=null
-  let spark=""
-  let ballO=1
-  let sprites=[]
-  let driven=false
   let raf=0
+  let lastStep=0
   let lastDraw=0
+  function rand(a,b){
+    return a+Math.random()*(b-a)
+  }
   function readTheme(){
     const cs=getComputedStyle(document.documentElement)
-    const bg=cs.getPropertyValue("--bg-canvas")
-    const angle=parseFloat((bg.match(/([\d.]+)deg/)||[0,180])[1])*Math.PI/180
-    const dx=Math.sin(angle)
-    const dy=-Math.cos(angle)
-    const half=(Math.abs(width*dx)+Math.abs(height*dy))/2
-    base=ctx.createLinearGradient(width/2-dx*half,height/2-dy*half,width/2+dx*half,height/2+dy*half)
-    for(const m of bg.matchAll(/(#[0-9a-f]{6})\s+([\d.]+)%/gi)) base.addColorStop(parseFloat(m[2])/100,m[1])
-    const glowColor=cs.getPropertyValue("--lotto-glow").trim()
-    glow=ctx.createRadialGradient(width/2,height*.1,0,width/2,height*.1,Math.max(width,height)*.5)
-    glow.addColorStop(0,glowColor)
-    glow.addColorStop(1,glowColor.replace(/[\d.]+\)$/,"0)"))
-    spark=cs.getPropertyValue("--lotto-spark").trim()
-    ballO=parseFloat(cs.getPropertyValue("--lotto-ball-o"))||1
+    colors=[1,2,3,4,5,6].map(i=>cs.getPropertyValue(`--liquid-${i}`).trim())
+    base=[...cs.getPropertyValue("--bg-canvas").matchAll(/#[0-9a-f]{6}/gi)].map(m=>m[0])
   }
-  // 每个球预先画成小图，逐帧只做平移和旋转
-  function makeSprite(ball){
-    const r=ball.r*Math.min(width,height)/100
-    const size=r*2.6
-    const c=size/2
-    const s=document.createElement("canvas")
-    s.width=s.height=Math.ceil(size*dpr)
-    const g=s.getContext("2d")
-    g.scale(dpr,dpr)
-    const [hi,mid,lo]=tones[ball.c]
-    const shadow=g.createRadialGradient(c,c+r*.18,r*.6,c,c+r*.18,r*1.28)
-    shadow.addColorStop(0,"rgba(60,10,20,.22)")
-    shadow.addColorStop(1,"rgba(60,10,20,0)")
-    g.fillStyle=shadow
-    g.fillRect(0,0,size,size)
-    const body=g.createRadialGradient(c-r*.36,c-r*.48,0,c-r*.36,c-r*.48,r*2.01)
-    body.addColorStop(0,hi)
-    body.addColorStop(.55,mid)
-    body.addColorStop(1,lo)
-    g.fillStyle=body
-    g.beginPath()
-    g.arc(c,c,r,0,Math.PI*2)
-    g.fill()
-    g.textAlign="center"
-    g.textBaseline="middle"
-    g.font=`700 ${Math.round(r*(ball.n.length>1?.82:.95))}px -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Arial,sans-serif`
-    g.fillStyle="rgba(0,0,0,.18)"
-    g.fillText(ball.n,c,c+r*.07)
-    g.fillStyle="#fff"
-    g.fillText(ball.n,c,c+r*.03)
-    return {canvas:s,size}
+  // 六团大液体 + 两颗小液滴；r 为短边的百分比，位置随机
+  for(let i=0;i<8;i++){
+    const b={hx:rand(.12,.88),hy:rand(.08,.92),vx:0,vy:0,fx:0,fy:0,tx:0,ty:0,turn:0,r:i<6?rand(15,22):rand(5,8),breath:rand(0,6.28),breathRate:rand(.2,.5),color:i%6}
+    b.x=b.hx*width
+    b.y=b.hy*height
+    blobs.push(b)
   }
-  function draw(now){
-    const t=reduceMotion.matches?0:now/1000
-    ctx.setTransform(dpr,0,0,dpr,0,0)
-    ctx.globalAlpha=1
-    ctx.fillStyle=base
-    ctx.fillRect(0,0,width,height)
-    ctx.fillStyle=glow
-    ctx.fillRect(0,0,width,height)
-    ctx.fillStyle=spark
-    lottoSparks.forEach(([x,y],i)=>{
-      const s=4+(i*3)%5
-      ctx.globalAlpha=.35+.65*(.5+.5*Math.sin(t*(1.1+(i%4)*.35)+i*2.3))
-      ctx.save()
-      ctx.translate(x*width,y*height)
-      ctx.beginPath()
-      ctx.moveTo(0,-s)
-      ctx.quadraticCurveTo(0,0,s,0)
-      ctx.quadraticCurveTo(0,0,0,s)
-      ctx.quadraticCurveTo(0,0,-s,0)
-      ctx.quadraticCurveTo(0,0,0,-s)
-      ctx.fill()
-      ctx.restore()
+  // 每隔几秒随机换一次推力方向并平滑过渡；回复力把液体拉向它的家，家本身也在缓慢随机漂移
+  function step(now){
+    const dt=Math.min((now-lastStep)/1000,.1)
+    lastStep=now
+    if(reduceMotion.matches||dt<=0) return
+    blobs.forEach(b=>{
+      b.turn-=dt
+      if(b.turn<=0){
+        b.tx=rand(-1,1)*22
+        b.ty=rand(-1,1)*22
+        b.breathRate=rand(.2,.5)
+        b.turn=rand(2.5,6)
+      }
+      b.fx+=(b.tx-b.fx)*Math.min(1,dt*.8)
+      b.fy+=(b.ty-b.fy)*Math.min(1,dt*.8)
+      b.hx=Math.min(.88,Math.max(.12,b.hx+rand(-1,1)*.02*dt))
+      b.hy=Math.min(.92,Math.max(.08,b.hy+rand(-1,1)*.02*dt))
+      b.vx+=(b.fx-(b.x-b.hx*width)*.12-b.vx*.9)*dt
+      b.vy+=(b.fy-(b.y-b.hy*height)*.12-b.vy*.9)*dt
+      b.x+=b.vx*dt
+      b.y+=b.vy*dt
+      b.breath+=b.breathRate*dt
     })
-    ctx.globalAlpha=ballO
-    lottoBalls.forEach((b,i)=>{
-      const sp=sprites[i]
-      const x=b.x*width+(6+(i*7)%14)*Math.sin(t*2*Math.PI/(18+(i*3)%14)+i*1.7)
-      const y=b.y*height+(8+(i*5)%16)*Math.sin(t*2*Math.PI/(22+(i*5)%17)+i*2.9)
-      ctx.save()
-      ctx.translate(x,y)
-      ctx.rotate(.12*Math.sin(t*2*Math.PI/(26+(i*4)%13)+i))
-      ctx.drawImage(sp.canvas,-sp.size/2,-sp.size/2,sp.size,sp.size)
-      ctx.restore()
-    })
-    ctx.globalAlpha=1
-    lastDraw=now
+  }
+  // 当前每团液体的圆心和半径（px），半径随呼吸轻微变化
+  function shapes(){
+    const unit=Math.min(width,height)/100
+    return blobs.map(b=>[b.x,b.y,b.r*unit*(1+.08*Math.sin(b.breath))])
   }
   function resize(){
-    dpr=Math.min(window.devicePixelRatio||1,2)
+    const sx=backdrop.clientWidth/(width||1)
+    const sy=backdrop.clientHeight/(height||1)
     width=backdrop.clientWidth
     height=backdrop.clientHeight
-    canvas.width=Math.round(width*dpr)
-    canvas.height=Math.round(height*dpr)
+    blobs.forEach(b=>{
+      b.x*=sx
+      b.y*=sy
+    })
     readTheme()
-    sprites=lottoBalls.map(makeSprite)
-    draw(performance.now())
+    if(canvas){
+      dpr=Math.min(window.devicePixelRatio||1,2)
+      canvas.width=Math.round(width*dpr)
+      canvas.height=Math.round(height*dpr)
+      drawFallback()
+    }
   }
-  // 球漂得很慢，30 帧足够，省电
+  // 不支持 WebGL 时的简化画法：渐变底 + 带高光的液体圆团（不做融合）
+  function drawFallback(){
+    ctx.setTransform(dpr,0,0,dpr,0,0)
+    const bg=ctx.createLinearGradient(0,0,0,height)
+    bg.addColorStop(0,base[0])
+    bg.addColorStop(1,base[base.length-1])
+    ctx.fillStyle=bg
+    ctx.fillRect(0,0,width,height)
+    shapes().forEach(([x,y,r],i)=>{
+      const g=ctx.createRadialGradient(x-r*.3,y-r*.35,0,x,y,r)
+      g.addColorStop(0,"rgba(255,255,255,.35)")
+      g.addColorStop(.35,colors[blobs[i].color])
+      g.addColorStop(1,colors[blobs[i].color])
+      ctx.fillStyle=g
+      ctx.beginPath()
+      ctx.arc(x,y,r,0,Math.PI*2)
+      ctx.fill()
+    })
+  }
+  // 30 帧足够，省电
   function loop(now){
     raf=requestAnimationFrame(loop)
-    if(now-lastDraw>=33) draw(now)
+    if(now-lastDraw<33) return
+    lastDraw=now
+    step(now)
+    drawFallback()
   }
-  // 没有 WebGL 时由这里自己驱动动画；有 WebGL 时由 WebGL 逐帧调用 draw
   function start(){
-    driven=true
+    if(!canvas){
+      canvas=document.createElement("canvas")
+      backdrop.appendChild(canvas)
+      ctx=canvas.getContext("2d")
+      resize()
+    }
+    lastStep=performance.now()
     if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop)
   }
-  function stop(){
-    driven=false
+  readTheme()
+  window.addEventListener("resize",resize)
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{
+    readTheme()
+    if(canvas) drawFallback()
+  })
+  reduceMotion.addEventListener("change",()=>{
+    if(!canvas) return
     cancelAnimationFrame(raf)
     raf=0
-  }
-  resize()
-  window.addEventListener("resize",resize)
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",resize)
-  reduceMotion.addEventListener("change",()=>{
-    const wasDriven=driven
-    stop()
-    if(wasDriven) start()
-    draw(performance.now())
+    start()
+    drawFallback()
   })
-  return {canvas,draw,start,stop}
+  return {step,shapes,start,colors:()=>colors,base:()=>base,blobColor:i=>blobs[i].color}
 })()
 const liquidGlassOn=(function liquidGlassWebGL(){
-  // 用 WebGL 把背景当作贴图，画出玻璃面板：边缘透镜折射、色散、磨砂、高光和投影
+  // WebGL 直接计算液态背景，并画出玻璃面板：边缘透镜折射、色散、轻度磨砂、高光和投影
   // 不支持 WebGL 或系统要求降低透明度时，保留 CSS 版本
   if(matchMedia("(prefers-reduced-transparency: reduce)").matches) return false
   const canvas=document.createElement("canvas")
@@ -1031,10 +1009,12 @@ const liquidGlassOn=(function liquidGlassWebGL(){
   const vertSrc=`attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}`
   const fragSrc=`
 precision highp float;
-uniform sampler2D uTex;
 uniform vec2 uRes;
 uniform float uDpr;
 uniform vec2 uView;
+uniform vec3 uBase[2];
+uniform vec3 uBlob[8];
+uniform vec3 uBlobCol[8];
 uniform vec4 uPanel[2];
 uniform float uPanelR[2];
 uniform int uPanelN;
@@ -1048,15 +1028,33 @@ uniform vec4 uShadow;
 const float BEZEL=24.;
 const float REFRACT=28.;
 const float DISPERSE=.15;
-vec3 bg(vec2 p){
-  return texture2D(uTex,clamp(p/uView,0.,1.)).rgb;
-}
-// 九点采样的轻度磨砂
-vec3 frost(vec2 p,float r){
-  vec2 a=vec2(r,0.);
-  vec2 b=vec2(.7071*r,.7071*r);
-  vec2 c=vec2(-b.x,b.y);
-  return bg(p)*.2+(bg(p+a)+bg(p-a)+bg(p+a.yx)+bg(p-a.yx)+bg(p+b)+bg(p-b)+bg(p+c)+bg(p-c))*.1;
+const vec2 LIGHT=vec2(-.61,-.79);
+// 液态背景：metaball 场 f=Σr²/d²，f=1 处为液面。估算到液面的距离（px），
+// 边缘按这个距离抗锯齿；blur 加宽边缘，等效于磨砂。颜色按各团的贡献平滑混合
+vec3 liquid(vec2 p,float blur){
+  float f=0.;
+  vec2 g=vec2(0.);
+  vec3 c=vec3(0.);
+  float w=0.;
+  for(int i=0;i<8;i++){
+    vec2 dv=p-uBlob[i].xy;
+    float d2=max(dot(dv,dv),1.);
+    float k=uBlob[i].z*uBlob[i].z/d2;
+    f+=k;
+    g-=2.*k/d2*dv;
+    c+=uBlobCol[i]*k*k;
+    w+=k*k;
+  }
+  c/=max(w,1e-6);
+  // 用 t=1/√f 估算距离：单团液体时 t=d/r，(1-t)/|∇t| 正好等于 r-d，在液体中心也准确
+  float t=inversesqrt(max(f,1e-6));
+  float d=(1.-t)/max(.5*t*t*t*length(g),1e-6);
+  float gn=max(length(g),1e-6);
+  vec3 back=mix(uBase[0],uBase[1],clamp(p.y/uView.y,0.,1.));
+  // 液体表面：越往里越亮一点；迎光的边缘有一道细高光
+  vec3 lc=c*(.9+.18*clamp(d/90.,0.,1.));
+  lc+=.4*exp(-max(d,0.)/(3.+blur))*max(dot(-g/gn,LIGHT),0.);
+  return mix(back,lc,smoothstep(-.6-blur,.6+blur,d));
 }
 float sdBox(vec2 q,vec2 b,float r){
   vec2 k=abs(q)-b+r;
@@ -1064,7 +1062,7 @@ float sdBox(vec2 q,vec2 b,float r){
 }
 void main(){
   vec2 p=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr;
-  vec3 col=bg(p);
+  vec3 col=liquid(p,0.);
   for(int i=0;i<2;i++){
     if(i>=uPanelN) break;
     float ds=sdBox(p-uPanel[i].xy-vec2(0.,12.),uPanel[i].zw,uPanelR[i]);
@@ -1084,19 +1082,18 @@ void main(){
     vec2 off=-n*REFRACT*lens;
     vec3 g;
     if(lens>.001){
-      g.r=frost(p+off*(1.+DISPERSE),uFrost).r;
-      g.g=frost(p+off,uFrost).g;
-      g.b=frost(p+off*(1.-DISPERSE),uFrost).b;
+      g.r=liquid(p+off*(1.+DISPERSE),uFrost).r;
+      g.g=liquid(p+off,uFrost).g;
+      g.b=liquid(p+off*(1.-DISPERSE),uFrost).b;
     }else{
-      g=frost(p,uFrost);
+      g=liquid(p,uFrost);
     }
     float l=dot(g,vec3(.2126,.7152,.0722));
     g=clamp(mix(vec3(l),g,uSat)*uBright,0.,1.);
     g=mix(g,uTint.rgb,uTint.a);
     g+=uSheen*(1.-clamp(length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b))/.55,0.,1.));
     // 高光：迎光的左上边缘最亮，右下边缘有反光
-    vec2 L=normalize(vec2(-1.,-1.3));
-    g+=uSpec*pow(e,3.)*(max(dot(n,L),0.)+.6*max(dot(n,-L),0.));
+    g+=uSpec*pow(e,3.)*(max(dot(n,LIGHT),0.)+.6*max(dot(n,-LIGHT),0.));
     g=mix(g,vec3(1.),uSpec*.1*lens);
     col=mix(col,clamp(g,0.,1.),clamp(.5-d*uDpr,0.,1.));
   }
@@ -1126,21 +1123,19 @@ void main(){
   const aLoc=gl.getAttribLocation(prog,"a")
   gl.enableVertexAttribArray(aLoc)
   gl.vertexAttribPointer(aLoc,2,gl.FLOAT,false,0,0)
-  gl.bindTexture(gl.TEXTURE_2D,gl.createTexture())
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE)
   const u={}
-  ;["uTex","uRes","uDpr","uView","uPanel","uPanelR","uPanelN","uTint","uSat","uBright","uFrost","uSpec","uSheen","uShadow"].forEach(name=>{
+  ;["uRes","uDpr","uView","uBase","uBlob","uBlobCol","uPanel","uPanelR","uPanelN","uTint","uSat","uBright","uFrost","uSpec","uSheen","uShadow"].forEach(name=>{
     u[name]=gl.getUniformLocation(prog,name)
   })
-  gl.uniform1i(u.uTex,0)
   const panels=[...document.querySelectorAll(".glass")].slice(0,2)
   const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
   const darkScheme=matchMedia("(prefers-color-scheme: dark)")
   let raf=0
   let lastDraw=0
+  function hex(s){
+    s=s.trim().replace("#","")
+    return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16)/255)
+  }
   function rgba(s){
     const v=(s.match(/[\d.]+/g)||[]).map(Number)
     return [(v[0]||0)/255,(v[1]||0)/255,(v[2]||0)/255,v.length>3?v[3]:1]
@@ -1148,13 +1143,17 @@ void main(){
   function readTheme(){
     const cs=getComputedStyle(document.documentElement)
     const dark=darkScheme.matches
+    const base=liquidBackdrop.base()
+    const colors=liquidBackdrop.colors()
+    gl.uniform3fv(u.uBase,[...hex(base[0]),...hex(base[base.length-1])])
+    gl.uniform3fv(u.uBlobCol,[0,1,2,3,4,5,6,7].flatMap(i=>hex(colors[liquidBackdrop.blobColor(i)])))
     gl.uniform4f(u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
     gl.uniform1f(u.uSat,1.1)
     gl.uniform1f(u.uBright,dark?1:1.02)
     gl.uniform1f(u.uFrost,dark?2.5:2)
     gl.uniform1f(u.uSpec,dark?.3:.38)
     gl.uniform1f(u.uSheen,dark?.04:.05)
-    gl.uniform4f(u.uShadow,...(dark?[0,0,0,.25]:[110/255,30/255,40/255,.08]))
+    gl.uniform4f(u.uShadow,...(dark?[0,0,0,.25]:[40/255,30/255,90/255,.08]))
   }
   function resize(){
     const dpr=Math.min(window.devicePixelRatio||1,2)
@@ -1170,8 +1169,8 @@ void main(){
     draw(performance.now())
   }
   function draw(now){
-    lottoBackdrop.draw(now)
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,lottoBackdrop.canvas)
+    liquidBackdrop.step(now)
+    gl.uniform3fv(u.uBlob,liquidBackdrop.shapes().flat())
     gl.uniform4fv(u.uPanel,panels.flatMap(el=>{
       const r=el.getBoundingClientRect()
       return [r.left+r.width/2,r.top+r.height/2,r.width/2,r.height/2]
@@ -1179,7 +1178,7 @@ void main(){
     gl.drawArrays(gl.TRIANGLES,0,3)
     lastDraw=now
   }
-  // 背景动得很慢，30 帧足够，省电
+  // 液体流得很慢，30 帧足够，省电
   function loop(now){
     raf=requestAnimationFrame(loop)
     if(now-lastDraw>=33) draw(now)
@@ -1196,7 +1195,7 @@ void main(){
     stop()
     canvas.remove()
     document.documentElement.classList.remove("lg-webgl")
-    lottoBackdrop.start()
+    liquidBackdrop.start()
   })
   document.body.insertBefore(canvas,document.body.firstChild)
   resize()
@@ -1216,7 +1215,7 @@ void main(){
   })
   return true
 })()
-if(!liquidGlassOn) lottoBackdrop.start()
+if(!liquidGlassOn) liquidBackdrop.start()
 document.getElementById("generate-btn").onclick=generateRolling
 document.getElementById("save-btn").onclick=saveAsImage
 </script>
