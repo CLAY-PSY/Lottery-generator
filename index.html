@@ -40,18 +40,18 @@ SOFTWARE.
   --primary:#4f46e5;
   --red:#ef4444;
   --blue:#3b82f6;
-  /* 背景彩球：边缘清楚的色块，让玻璃的虚化看得出来 */
-  --orb-1:#ff6f7d;
-  --orb-2:#4f8dff;
-  --orb-3:#9a86ff;
-  --orb-4:#ff8fcf;
-  --orb-5:#ffbe5c;
-  --orb-hi:rgba(255,255,255,.45);
-  --orb-o:.85;
+  /* 背景波浪：边界清楚的色带，经过玻璃边缘时能看出折射 */
+  --wave-1:#ffb8c6;
+  --wave-2:#f49bd2;
+  --wave-3:#b59dff;
+  --wave-4:#86b1ff;
+  --wave-5:#5a90ff;
+  --wave-hi:rgba(255,255,255,.6);
+  --wave-shadow:rgba(60,30,110,.18);
   /* 液体玻璃材质（iOS 27）：透明度更低、虚化更强、外圈加深暗边、高光更亮 */
-  --glass-bg:rgba(255,255,255,.16);
+  --glass-bg:rgba(255,255,255,.08);
   --glass-bg-strong:rgba(255,255,255,.55);
-  --glass-blur:blur(20px) saturate(180%) brightness(1.06);
+  --glass-blur:blur(12px) saturate(180%) brightness(1.03);
   --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%);
   --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff);
   /* 不用扩散值（spread）：Safari 26 遇到大圆角 + 扩散值的阴影会在元素后面画出方形色块 */
@@ -85,16 +85,16 @@ SOFTWARE.
     --text-main:#f1f5f9;
     --text-sub:rgba(241,245,249,.6);
     --primary:#818cf8;
-    --orb-1:#c8323f;
-    --orb-2:#2563eb;
-    --orb-3:#5b45d6;
-    --orb-4:#b02a7f;
-    --orb-5:#b8741c;
-    --orb-hi:rgba(255,255,255,.18);
-    --orb-o:.75;
-    --glass-bg:rgba(34,38,56,.44);
+    --wave-1:#5a1640;
+    --wave-2:#8a2366;
+    --wave-3:#4b33b8;
+    --wave-4:#2552c8;
+    --wave-5:#1b3f9e;
+    --wave-hi:rgba(255,255,255,.2);
+    --wave-shadow:rgba(0,0,0,.45);
+    --glass-bg:rgba(34,38,56,.2);
     --glass-bg-strong:rgba(54,60,84,.74);
-    --glass-blur:blur(32px) saturate(170%);
+    --glass-blur:blur(16px) saturate(170%);
     --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
     --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55));
     --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55);
@@ -183,64 +183,10 @@ SOFTWARE.
   overflow:hidden;
   pointer-events:none;
 }
-.backdrop span {
-  --orb:var(--orb-1);
-  position:absolute;
-  border-radius:50%;
-  opacity:var(--orb-o);
-  background:
-    radial-gradient(circle at 36% 30%,var(--orb-hi),transparent 38%),
-    radial-gradient(circle,var(--orb) 0%,var(--orb) 54%,transparent 70%);
-  will-change:transform;
-  animation:drift 26s ease-in-out infinite alternate;
-}
-.backdrop span:nth-child(1) {
-  width:80vmin;
-  height:80vmin;
-  top:-10%;
-  left:-26vmin;
-}
-.backdrop span:nth-child(2) {
-  --orb:var(--orb-2);
-  width:90vmin;
-  height:90vmin;
-  bottom:2%;
-  right:-30vmin;
-  animation-duration:32s;
-  animation-direction:alternate-reverse;
-}
-.backdrop span:nth-child(3) {
-  --orb:var(--orb-3);
-  width:60vmin;
-  height:60vmin;
-  top:26%;
-  right:-20vmin;
-  animation-duration:38s;
-}
-.backdrop span:nth-child(4) {
-  --orb:var(--orb-4);
-  width:56vmin;
-  height:56vmin;
-  top:52%;
-  left:-20vmin;
-  animation-duration:29s;
-  animation-direction:alternate-reverse;
-}
-.backdrop span:nth-child(5) {
-  --orb:var(--orb-5);
-  width:36vmin;
-  height:36vmin;
-  top:9%;
-  right:4vmin;
-  animation-duration:34s;
-}
-@keyframes drift {
-  0% {transform:translate3d(0,0,0) scale(1);}
-  50% {transform:translate3d(6vmax,4vmax,0) scale(1.08);}
-  100% {transform:translate3d(-4vmax,8vmax,0) scale(.95);}
-}
-@media (prefers-reduced-motion: reduce) {
-  .backdrop span {animation:none;}
+.backdrop svg {
+  display:block;
+  width:100%;
+  height:100%;
 }
 /* WebGL 版：背景和玻璃面板由画布绘制，CSS 只保留边框、高光描边和触摸发光 */
 .lg-canvas {
@@ -255,10 +201,6 @@ SOFTWARE.
 }
 .lg-webgl .backdrop {
   visibility:hidden;
-}
-.lg-webgl .backdrop span {
-  animation-play-state:paused;
-  will-change:auto;
 }
 .lg-webgl .glass {
   background:transparent;
@@ -589,7 +531,7 @@ button:disabled {
 </style>
 </head>
 <body>
-<div class="backdrop" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+<div class="backdrop" aria-hidden="true"></div>
 <div class="container">
   <h1>双色球 / 大乐透 随机选号</h1>
   <div class="form-box glass">
@@ -924,6 +866,40 @@ function saveAsImage(){
     alert("图片生成失败，请重试")
   })
 }
+// 背景波浪：WebGL 版和 SVG 兜底共用这组参数。y 为屏幕高度比例，其余单位为 px、弧度、弧度/秒
+const waveShapes=[
+  {y:.13,slope:-.16,amp:[22,10],freq:[.012,.027],speed:[.12,-.08],phase:[0,1.7]},
+  {y:.3,slope:.12,amp:[26,12],freq:[.01,.024],speed:[-.1,.07],phase:[2.1,.4]},
+  {y:.47,slope:-.2,amp:[30,10],freq:[.009,.021],speed:[.09,-.06],phase:[4,2.6]},
+  {y:.65,slope:.14,amp:[24,12],freq:[.011,.025],speed:[-.08,.1],phase:[1.2,5.1]},
+  {y:.83,slope:-.1,amp:[20,10],freq:[.013,.028],speed:[.07,-.09],phase:[3.3,.9]}
+]
+function waveY(w,x,width,height){
+  return w.y*height+w.slope*(x-width/2)+w.amp[0]*Math.sin(w.freq[0]*x+w.phase[0])+w.amp[1]*Math.sin(w.freq[1]*x+w.phase[1])
+}
+;(function waveBackdrop(){
+  // 不用 WebGL 时，用 SVG 画同一组波浪（静止）
+  const backdrop=document.querySelector(".backdrop")
+  function draw(){
+    const width=backdrop.clientWidth
+    const height=backdrop.clientHeight
+    const cs=getComputedStyle(document.documentElement)
+    const xs=[]
+    for(let x=0;x<width;x+=8) xs.push(x)
+    xs.push(width)
+    let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"><filter id="wave-shadow" x="-5%" y="-50%" width="110%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>`
+    waveShapes.forEach((w,i)=>{
+      const edge=xs.map((x,j)=>`${j?"L":"M"}${x} ${waveY(w,x,width,height).toFixed(1)}`).join("")
+      svg+=`<path d="${edge}" fill="none" stroke="${cs.getPropertyValue("--wave-shadow").trim()}" stroke-width="12" filter="url(#wave-shadow)"/>`
+      svg+=`<path d="${edge}L${width} ${height}L0 ${height}Z" fill="${cs.getPropertyValue(`--wave-${i+1}`).trim()}"/>`
+      svg+=`<path d="${edge}" fill="none" stroke="${cs.getPropertyValue("--wave-hi").trim()}" stroke-width="1.5"/>`
+    })
+    backdrop.innerHTML=svg+"</svg>"
+  }
+  draw()
+  window.addEventListener("resize",draw)
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw)
+})()
 ;(function liquidGlassWebGL(){
   // 用 WebGL 画背景彩球和玻璃面板：边缘透镜折射、色散、磨砂、高光和投影
   // 不支持 WebGL 或系统要求降低透明度时，保留 CSS 版本
@@ -943,10 +919,11 @@ uniform vec2 uDir;
 uniform float uLen;
 uniform vec4 uStop;
 uniform vec3 uBase[4];
-uniform vec3 uOrb[5];
-uniform vec3 uOrbCol[5];
-uniform float uOrbO;
-uniform float uHiA;
+uniform vec4 uWave[5];
+uniform vec4 uWaveF[5];
+uniform vec3 uWaveCol[5];
+uniform vec4 uWaveHi;
+uniform vec4 uWaveSh;
 uniform vec4 uPanel[2];
 uniform float uPanelR[2];
 uniform int uPanelN;
@@ -957,8 +934,8 @@ uniform float uFrost;
 uniform float uSpec;
 uniform float uSheen;
 uniform vec4 uShadow;
-const float BEZEL=22.;
-const float REFRACT=22.;
+const float BEZEL=24.;
+const float REFRACT=28.;
 const float DISPERSE=.15;
 vec3 baseGrad(vec2 p){
   float t=clamp(dot(p-uView*.5,uDir)/uLen+.5,0.,1.);
@@ -966,18 +943,19 @@ vec3 baseGrad(vec2 p){
   c=mix(c,uBase[2],clamp((t-uStop.y)/max(uStop.z-uStop.y,1e-4),0.,1.));
   return mix(c,uBase[3],clamp((t-uStop.z)/max(uStop.w-uStop.z,1e-4),0.,1.));
 }
-// 背景：渐变底 + 彩球。blur 加宽彩球边缘，等效于磨砂模糊
+// 背景：渐变底 + 五层波浪。每层顶边一道细高光，并在上一层投下浅阴影
+// blur 加宽边界和阴影，等效于磨砂模糊
 vec3 scene(vec2 p,float blur){
   vec3 col=baseGrad(p);
   for(int i=0;i<5;i++){
-    vec2 c=uOrb[i].xy;
-    float R=uOrb[i].z;
-    float d=length(p-c);
-    float a=1.-smoothstep(.764*R-blur,.99*R+blur,d);
-    float h=uHiA*(1.-clamp(length(p-c-vec2(-.28,-.4)*R)/(.72*R+blur),0.,1.))*(1.-smoothstep(R-1.-blur,R+blur,d));
-    float la=a+h*(1.-a);
-    vec3 lc=(uOrbCol[i]*a*(1.-h)+vec3(h))/max(la,1e-4);
-    col=mix(col,lc,la*uOrbO);
+    vec4 w=uWave[i];
+    vec4 f=uWaveF[i];
+    float d=p.y-(w.x+w.y*(p.x-uView.x*.5)+w.z*sin(f.x*p.x+f.z)+w.w*sin(f.y*p.x+f.w));
+    float inside=smoothstep(-.6-blur,.6+blur,d);
+    col=mix(col,uWaveSh.rgb,uWaveSh.a*exp(-max(-d,0.)/(10.+blur))*(1.-inside));
+    vec3 lc=uWaveCol[i]*(1.-.12*clamp(d/280.,0.,1.));
+    lc=mix(lc,uWaveHi.rgb,uWaveHi.a*exp(-max(d,0.)/(1.5+blur*.5)));
+    col=mix(col,lc,inside);
   }
   return col;
 }
@@ -1050,15 +1028,12 @@ void main(){
   gl.enableVertexAttribArray(aLoc)
   gl.vertexAttribPointer(aLoc,2,gl.FLOAT,false,0,0)
   const u={}
-  ;["uRes","uDpr","uView","uDir","uLen","uStop","uBase","uOrb","uOrbCol","uOrbO","uHiA","uPanel","uPanelR","uPanelN","uTint","uSat","uBright","uFrost","uSpec","uSheen","uShadow"].forEach(name=>{
+  ;["uRes","uDpr","uView","uDir","uLen","uStop","uBase","uWave","uWaveF","uWaveCol","uWaveHi","uWaveSh","uPanel","uPanelR","uPanelN","uTint","uSat","uBright","uFrost","uSpec","uSheen","uShadow"].forEach(name=>{
     u[name]=gl.getUniformLocation(prog,name)
   })
   const panels=[...document.querySelectorAll(".glass")].slice(0,2)
-  const orbEls=[...document.querySelectorAll(".backdrop span")].slice(0,5)
   const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
   const darkScheme=matchMedia("(prefers-color-scheme: dark)")
-  let orbs=[]
-  let vmax=1
   let running=false
   let lastDraw=0
   function hex(s){
@@ -1069,7 +1044,7 @@ void main(){
     const v=(s.match(/[\d.]+/g)||[]).map(Number)
     return [(v[0]||0)/255,(v[1]||0)/255,(v[2]||0)/255,v.length>3?v[3]:1]
   }
-  // 颜色、彩球位置都从 CSS 读取，和 CSS 版保持一致
+  // 颜色从 CSS 读取；波浪形状和 SVG 兜底共用 waveShapes
   function readTheme(){
     const cs=getComputedStyle(document.documentElement)
     const bg=cs.getPropertyValue("--bg-canvas")
@@ -1081,29 +1056,17 @@ void main(){
     gl.uniform1f(u.uLen,Math.abs(w*Math.sin(angle))+Math.abs(h*Math.cos(angle)))
     gl.uniform4f(u.uStop,...stops.map(s=>s.t))
     gl.uniform3fv(u.uBase,stops.flatMap(s=>s.c))
-    gl.uniform1f(u.uOrbO,parseFloat(cs.getPropertyValue("--orb-o"))||.8)
-    gl.uniform1f(u.uHiA,rgba(cs.getPropertyValue("--orb-hi"))[3])
+    gl.uniform3fv(u.uWaveCol,waveShapes.flatMap((w,i)=>hex(cs.getPropertyValue(`--wave-${i+1}`))))
+    gl.uniform4f(u.uWaveHi,...rgba(cs.getPropertyValue("--wave-hi")))
+    gl.uniform4f(u.uWaveSh,...rgba(cs.getPropertyValue("--wave-shadow")))
     gl.uniform4f(u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
     const dark=darkScheme.matches
     gl.uniform1f(u.uSat,dark?1.7:1.8)
-    gl.uniform1f(u.uBright,dark?1:1.06)
-    gl.uniform1f(u.uFrost,dark?14:12)
-    gl.uniform1f(u.uSpec,dark?.3:.5)
-    gl.uniform1f(u.uSheen,dark?.12:.18)
+    gl.uniform1f(u.uBright,dark?1:1.03)
+    gl.uniform1f(u.uFrost,dark?6:5)
+    gl.uniform1f(u.uSpec,dark?.3:.38)
+    gl.uniform1f(u.uSheen,dark?.08:.12)
     gl.uniform4f(u.uShadow,...(dark?[0,0,0,.4]:[31/255,41/255,95/255,.14]))
-    orbs=orbEls.map(el=>{
-      const ocs=getComputedStyle(el)
-      return {
-        x:el.offsetLeft+el.offsetWidth/2,
-        y:el.offsetTop+el.offsetHeight/2,
-        r:el.offsetWidth/2,
-        dur:parseFloat(ocs.animationDuration)||30,
-        rev:ocs.animationDirection.indexOf("reverse")>-1,
-        col:hex(ocs.getPropertyValue("--orb"))
-      }
-    })
-    gl.uniform3fv(u.uOrbCol,orbs.flatMap(o=>o.col))
-    vmax=Math.max(w,h)/100
   }
   function resize(){
     const dpr=Math.min(window.devicePixelRatio||1,2)
@@ -1118,22 +1081,11 @@ void main(){
     readTheme()
     draw(performance.now())
   }
-  // 与 CSS 的 drift 关键帧相同：0% → 50% → 100%，交替往返
-  function drift(o,t){
-    if(reduceMotion.matches) return [0,0,1]
-    let f=(t/o.dur)%2
-    if(f>1) f=2-f
-    if(o.rev) f=1-f
-    const k=f<.5?[0,0,1,6,4,1.08,f*2]:[6,4,1.08,-4,8,.95,f*2-1]
-    const e=k[6]*k[6]*(3-2*k[6])
-    return [(k[0]+(k[3]-k[0])*e)*vmax,(k[1]+(k[4]-k[1])*e)*vmax,k[2]+(k[5]-k[2])*e]
-  }
   function draw(now){
-    const t=now/1000
-    gl.uniform3fv(u.uOrb,orbs.flatMap(o=>{
-      const [dx,dy,s]=drift(o,t)
-      return [o.x+dx,o.y+dy,o.r*s]
-    }))
+    const t=reduceMotion.matches?0:now/1000
+    const h=canvas.clientHeight
+    gl.uniform4fv(u.uWave,waveShapes.flatMap(w=>[w.y*h,w.slope,w.amp[0],w.amp[1]]))
+    gl.uniform4fv(u.uWaveF,waveShapes.flatMap(w=>[w.freq[0],w.freq[1],w.phase[0]+w.speed[0]*t,w.phase[1]+w.speed[1]*t]))
     gl.uniform4fv(u.uPanel,panels.flatMap(el=>{
       const r=el.getBoundingClientRect()
       return [r.left+r.width/2,r.top+r.height/2,r.width/2,r.height/2]
@@ -1141,7 +1093,7 @@ void main(){
     gl.drawArrays(gl.TRIANGLES,0,3)
     lastDraw=now
   }
-  // 背景漂得很慢，30 帧足够，省电
+  // 波浪流得很慢，30 帧足够，省电
   function loop(now){
     if(!running) return
     requestAnimationFrame(loop)
