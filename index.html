@@ -26,109 +26,65 @@ SOFTWARE.
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#f7f3ff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#07081a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#07081a">
 <title>双色球 / 大乐透 随机选号</title>
 <script src="./html2canvas.min.js"></script>
 <style>
 :root {
-  color-scheme: light dark;
-  --bg-page:#eef2ff;
-  --bg-canvas:linear-gradient(180deg,#f7f3ff 0%,#eef2ff 100%);
-  --text-main:#111827;
-  --text-sub:rgba(17,24,39,.6);
-  --primary:#4f46e5;
+  /* 只用深色模式，不跟随系统切换浅色 */
+  color-scheme: dark;
+  --bg-page:#0b1026;
+  --bg-canvas:linear-gradient(180deg,#07081a 0%,#0b1026 100%);
+  --text-main:#f1f5f9;
+  --text-sub:rgba(241,245,249,.6);
+  --primary:#818cf8;
   --red:#ef4444;
   --blue:#3b82f6;
   /* 液态背景：六种液体颜色 */
-  --liquid-1:#5b8cff;
-  --liquid-2:#a35bff;
-  --liquid-3:#ff6fb1;
-  --liquid-4:#ff9f45;
-  --liquid-5:#3fd0c9;
-  --liquid-6:#7b6cff;
-  --title-glow:0 0 14px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.8);
-  /* 液体玻璃材质（iOS 27）：透明度更低、虚化更强、外圈加深暗边、高光更亮 */
-  --glass-bg:rgba(255,255,255,.03);
-  --glass-bg-strong:rgba(255,255,255,.55);
-  --glass-blur:blur(4px) saturate(140%) brightness(1.02);
-  --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%);
-  --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff);
+  --liquid-1:#3d6bff;
+  --liquid-2:#8b3dff;
+  --liquid-3:#ff3d8f;
+  --liquid-4:#ff8a24;
+  --liquid-5:#1fb8b0;
+  --liquid-6:#5a4dff;
+  --title-glow:0 0 14px rgba(0,0,0,.7);
+  /* 液体玻璃材质（iOS 27 通透）：几乎全透，靠边缘高光、暗边和折射勾出轮廓 */
+  --glass-bg:rgba(20,22,40,.08);
+  --glass-bg-strong:rgba(54,60,84,.74);
+  --glass-blur:blur(5px) saturate(140%);
+  --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
+  --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55));
   /* 不用扩散值（spread）：Safari 26 遇到大圆角 + 扩散值的阴影会在元素后面画出方形色块 */
-  --glass-edge:0 0 .5px rgba(15,23,42,.3),0 0 .5px rgba(15,23,42,.3),0 0 2px rgba(15,23,42,.1);
-  --glass-border:rgba(15,23,42,.16);
+  --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55);
+  --glass-border:rgba(0,0,0,.6);
   --glass-inset:
-    inset 0 1px 0 rgba(255,255,255,.95),
-    inset 2px 2px 4px rgba(255,255,255,.6),
-    inset -2px -2px 4px rgba(255,255,255,.4),
-    inset 0 0 16px rgba(255,255,255,.2);
+    inset 0 1px 0 rgba(255,255,255,.3),
+    inset 2px 2px 4px rgba(255,255,255,.16),
+    inset -2px -2px 4px rgba(255,255,255,.08),
+    inset 0 0 16px rgba(255,255,255,.05);
   --glass-shadow:
     var(--glass-edge),
     var(--glass-inset),
-    0 12px 32px rgba(31,41,95,.14),
-    0 2px 6px rgba(31,41,95,.08);
+    0 12px 32px rgba(0,0,0,.4),
+    0 2px 6px rgba(0,0,0,.3);
   --rim-w:1.5px;
-  --glow:rgba(255,255,255,.8);
-  --tint-primary:rgba(79,70,229,.9);
-  --thumb-bg:rgba(255,255,255,.88);
-  --thumb-lens:rgba(255,255,255,.4);
-  --overlay-bg:rgba(15,23,42,.32);
+  --glow:rgba(255,255,255,.26);
+  --tint-primary:rgba(99,102,241,.72);
+  --thumb-bg:rgba(255,255,255,.22);
+  --thumb-lens:rgba(255,255,255,.1);
+  --overlay-bg:rgba(0,0,0,.45);
   /* 同心圆角：外圆角 = 控件半高 + 内边距 */
   --pad:10px;
   --ctl-h:46px;
   --radius-outer:calc(var(--ctl-h) / 2 + var(--pad));
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-page:#0b1026;
-    --bg-canvas:linear-gradient(180deg,#07081a 0%,#0b1026 100%);
-    --text-main:#f1f5f9;
-    --text-sub:rgba(241,245,249,.6);
-    --primary:#818cf8;
-    --liquid-1:#3d6bff;
-    --liquid-2:#8b3dff;
-    --liquid-3:#ff3d8f;
-    --liquid-4:#ff8a24;
-    --liquid-5:#1fb8b0;
-    --liquid-6:#5a4dff;
-    --title-glow:0 0 14px rgba(0,0,0,.7);
-    --glass-bg:rgba(20,22,40,.08);
-    --glass-bg-strong:rgba(54,60,84,.74);
-    --glass-blur:blur(5px) saturate(140%);
-    --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
-    --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55));
-    --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55);
-    --glass-border:rgba(0,0,0,.6);
-    --glass-inset:
-      inset 0 1px 0 rgba(255,255,255,.3),
-      inset 2px 2px 4px rgba(255,255,255,.16),
-      inset -2px -2px 4px rgba(255,255,255,.08),
-      inset 0 0 16px rgba(255,255,255,.05);
-    --glass-shadow:
-      var(--glass-edge),
-      var(--glass-inset),
-      0 12px 32px rgba(0,0,0,.4),
-      0 2px 6px rgba(0,0,0,.3);
-    --glow:rgba(255,255,255,.26);
-    --tint-primary:rgba(99,102,241,.72);
-    --thumb-bg:rgba(255,255,255,.22);
-    --thumb-lens:rgba(255,255,255,.1);
-    --overlay-bg:rgba(0,0,0,.45);
-  }
-}
 /* 系统“降低透明度”时改用实底材质 */
 @media (prefers-reduced-transparency: reduce) {
   :root {
-    --glass-bg:#ffffff;
-    --glass-bg-strong:#ffffff;
-    --glass-blur:none;
-    --glass-spec:none;
-  }
-}
-@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
-  :root {
     --glass-bg:#1e2333;
     --glass-bg-strong:#1e2333;
+    --glass-blur:none;
+    --glass-spec:none;
   }
 }
 * {box-sizing:border-box;}
@@ -868,11 +824,14 @@ function saveAsImage(){
     alert("图片生成失败，请重试")
   })
 }
-// 液态背景：几团彩色液体随机游动、靠近时相互融合（metaball），边缘清楚，经过玻璃边缘时能看出折射
+// 液态背景：十团彩色液体加六颗小液滴随机游动、靠近时相互融合（metaball），边缘清楚，经过玻璃边缘时能看出折射
 // 运动由随机力推动（带阻尼和回复力的随机游走），每次打开都不同，也不会循环重复
+// 着色公式在 WebGL 着色器和兜底的 2D 画法里各写了一份，改动时两边要保持一致
 const liquidBackdrop=(function(){
   const backdrop=document.querySelector(".backdrop")
   const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
+  // 兜底画法逐像素计算，每个画布像素对应 3 个 CSS 像素，没有 WebGL 的老设备也跑得动
+  const FALLBACK_SCALE=3
   const blobs=[]
   let width=backdrop.clientWidth
   let height=backdrop.clientHeight
@@ -880,21 +839,33 @@ const liquidBackdrop=(function(){
   let base=[]
   let canvas=null
   let ctx=null
-  let dpr=1
+  let image=null
   let raf=0
   let lastStep=0
   let lastDraw=0
   function rand(a,b){
     return a+Math.random()*(b-a)
   }
+  function hex(s){
+    s=s.trim().replace("#","")
+    return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16)/255)
+  }
   function readTheme(){
     const cs=getComputedStyle(document.documentElement)
-    colors=[1,2,3,4,5,6].map(i=>cs.getPropertyValue(`--liquid-${i}`).trim())
-    base=[...cs.getPropertyValue("--bg-canvas").matchAll(/#[0-9a-f]{6}/gi)].map(m=>m[0])
+    colors=[1,2,3,4,5,6].map(i=>hex(cs.getPropertyValue(`--liquid-${i}`)))
+    base=[...cs.getPropertyValue("--bg-canvas").matchAll(/#[0-9a-f]{6}/gi)].map(m=>hex(m[0]))
   }
-  // 六团大液体 + 两颗小液滴；r 为短边的百分比，位置随机
-  for(let i=0;i<8;i++){
-    const b={hx:rand(.12,.88),hy:rand(.08,.92),vx:0,vy:0,fx:0,fy:0,tx:0,ty:0,turn:0,r:i<6?rand(15,22):rand(5,8),breath:rand(0,6.28),breathRate:rand(.2,.5),color:i%6}
+  // 十团大液体按 2×5 网格分布再随机打散，避免挤在一起留下空白；六颗小液滴随机放。r 为短边的百分比
+  for(let i=0;i<16;i++){
+    const big=i<10
+    const b={
+      hx:Math.min(.92,Math.max(.08,big?(i%2+.5)/2+rand(-.18,.18):rand(.1,.9))),
+      hy:Math.min(.95,Math.max(.05,big?(Math.floor(i/2)+.5)/5+rand(-.07,.07):rand(.06,.94))),
+      vx:0,vy:0,fx:0,fy:0,tx:0,ty:0,turn:0,
+      r:big?rand(14,20):rand(4,8),
+      breath:rand(0,6.28),breathRate:rand(.2,.5),
+      color:i%6
+    }
     b.x=b.hx*width
     b.y=b.hy*height
     blobs.push(b)
@@ -914,8 +885,8 @@ const liquidBackdrop=(function(){
       }
       b.fx+=(b.tx-b.fx)*Math.min(1,dt*.8)
       b.fy+=(b.ty-b.fy)*Math.min(1,dt*.8)
-      b.hx=Math.min(.88,Math.max(.12,b.hx+rand(-1,1)*.02*dt))
-      b.hy=Math.min(.92,Math.max(.08,b.hy+rand(-1,1)*.02*dt))
+      b.hx=Math.min(.92,Math.max(.08,b.hx+rand(-1,1)*.02*dt))
+      b.hy=Math.min(.95,Math.max(.05,b.hy+rand(-1,1)*.02*dt))
       b.vx+=(b.fx-(b.x-b.hx*width)*.12-b.vx*.9)*dt
       b.vy+=(b.fy-(b.y-b.hy*height)*.12-b.vy*.9)*dt
       b.x+=b.vx*dt
@@ -937,32 +908,67 @@ const liquidBackdrop=(function(){
       b.x*=sx
       b.y*=sy
     })
-    readTheme()
     if(canvas){
-      dpr=Math.min(window.devicePixelRatio||1,2)
-      canvas.width=Math.round(width*dpr)
-      canvas.height=Math.round(height*dpr)
+      canvas.width=Math.ceil(width/FALLBACK_SCALE)
+      canvas.height=Math.ceil(height/FALLBACK_SCALE)
+      image=ctx.createImageData(canvas.width,canvas.height)
       drawFallback()
     }
   }
-  // 不支持 WebGL 时的简化画法：渐变底 + 带高光的液体圆团（不做融合）
+  // 不支持 WebGL 时，在 2D 画布上逐像素算出和着色器相同的融合液体，再由浏览器平滑放大
   function drawFallback(){
-    ctx.setTransform(dpr,0,0,dpr,0,0)
-    const bg=ctx.createLinearGradient(0,0,0,height)
-    bg.addColorStop(0,base[0])
-    bg.addColorStop(1,base[base.length-1])
-    ctx.fillStyle=bg
-    ctx.fillRect(0,0,width,height)
-    shapes().forEach(([x,y,r],i)=>{
-      const g=ctx.createRadialGradient(x-r*.3,y-r*.35,0,x,y,r)
-      g.addColorStop(0,"rgba(255,255,255,.35)")
-      g.addColorStop(.35,colors[blobs[i].color])
-      g.addColorStop(1,colors[blobs[i].color])
-      ctx.fillStyle=g
-      ctx.beginPath()
-      ctx.arc(x,y,r,0,Math.PI*2)
-      ctx.fill()
-    })
+    const cw=canvas.width
+    const ch=canvas.height
+    const data=image.data
+    const sh=shapes()
+    const n=sh.length
+    const cols=blobs.map(b=>colors[b.color])
+    const top=base[0]
+    const bottom=base[base.length-1]
+    const aa=FALLBACK_SCALE/2
+    let o=0
+    for(let j=0;j<ch;j++){
+      const y=(j+.5)*FALLBACK_SCALE
+      const ty=Math.min(1,y/height)
+      const br=top[0]+(bottom[0]-top[0])*ty
+      const bgc=top[1]+(bottom[1]-top[1])*ty
+      const bb=top[2]+(bottom[2]-top[2])*ty
+      for(let i=0;i<cw;i++){
+        const x=(i+.5)*FALLBACK_SCALE
+        let f=0,gx=0,gy=0,cr=0,cg=0,cb=0,w=0
+        for(let k=0;k<n;k++){
+          const s=sh[k]
+          const dx=x-s[0]
+          const dy=y-s[1]
+          const d2=Math.max(dx*dx+dy*dy,1)
+          const q=s[2]*s[2]/d2
+          const q2=2*q/d2
+          const qq=q*q
+          const c=cols[k]
+          f+=q
+          gx-=q2*dx
+          gy-=q2*dy
+          cr+=c[0]*qq
+          cg+=c[1]*qq
+          cb+=c[2]*qq
+          w+=qq
+        }
+        const gn=Math.max(Math.sqrt(gx*gx+gy*gy),1e-6)
+        const t=1/Math.sqrt(Math.max(f,1e-6))
+        const d=(1-t)/Math.max(.5*t*t*t*gn,1e-6)
+        const shade=.9+.18*Math.min(1,Math.max(0,d/90))
+        const rim=.4*Math.exp(-Math.max(d,0)/3)*Math.max((-gx*-.61-gy*-.79)/gn,0)
+        const e=Math.min(1,Math.max(0,(d+aa)/(2*aa)))
+        const m=e*e*(3-2*e)
+        w=Math.max(w,1e-6)
+        data[o]=255*(br+(Math.min(1,cr/w*shade+rim)-br)*m)
+        data[o+1]=255*(bgc+(Math.min(1,cg/w*shade+rim)-bgc)*m)
+        data[o+2]=255*(bb+(Math.min(1,cb/w*shade+rim)-bb)*m)
+        data[o+3]=255
+        o+=4
+      }
+    }
+    ctx.putImageData(image,0,0)
   }
   // 30 帧足够，省电
   function loop(now){
@@ -984,10 +990,6 @@ const liquidBackdrop=(function(){
   }
   readTheme()
   window.addEventListener("resize",resize)
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{
-    readTheme()
-    if(canvas) drawFallback()
-  })
   reduceMotion.addEventListener("change",()=>{
     if(!canvas) return
     cancelAnimationFrame(raf)
@@ -999,7 +1001,7 @@ const liquidBackdrop=(function(){
 })()
 const liquidGlassOn=(function liquidGlassWebGL(){
   // WebGL 直接计算液态背景，并画出玻璃面板：边缘透镜折射、色散、轻度磨砂、高光和投影
-  // 不支持 WebGL 或系统要求降低透明度时，保留 CSS 版本
+  // 不支持 WebGL 或系统要求降低透明度时，用 2D 兜底画法和 CSS 玻璃
   if(matchMedia("(prefers-reduced-transparency: reduce)").matches) return false
   const canvas=document.createElement("canvas")
   canvas.className="lg-canvas"
@@ -1013,30 +1015,30 @@ uniform vec2 uRes;
 uniform float uDpr;
 uniform vec2 uView;
 uniform vec3 uBase[2];
-uniform vec3 uBlob[8];
-uniform vec3 uBlobCol[8];
+uniform vec3 uBlob[16];
+uniform vec3 uBlobCol[16];
 uniform vec4 uPanel[2];
 uniform float uPanelR[2];
 uniform int uPanelN;
 uniform vec4 uTint;
-uniform float uSat;
-uniform float uBright;
-uniform float uFrost;
-uniform float uSpec;
-uniform float uSheen;
-uniform vec4 uShadow;
+const float SAT=1.1;
+const float FROST=2.5;
+const float SPEC=.3;
+const float SHEEN=.04;
+const vec4 SHADOW=vec4(0.,0.,0.,.25);
 const float BEZEL=24.;
 const float REFRACT=28.;
 const float DISPERSE=.15;
 const vec2 LIGHT=vec2(-.61,-.79);
-// 液态背景：metaball 场 f=Σr²/d²，f=1 处为液面。估算到液面的距离（px），
-// 边缘按这个距离抗锯齿；blur 加宽边缘，等效于磨砂。颜色按各团的贡献平滑混合
+// 液态背景：metaball 场 f=Σr²/d²，f=1 处为液面。用 t=1/√f 估算到液面的距离（px）：
+// 单团液体时 t=d/r，(1-t)/|∇t| 正好等于 r-d，在液体中心也准确。边缘按这个距离抗锯齿，
+// blur 加宽边缘，等效于磨砂。颜色按各团的贡献平滑混合
 vec3 liquid(vec2 p,float blur){
   float f=0.;
   vec2 g=vec2(0.);
   vec3 c=vec3(0.);
   float w=0.;
-  for(int i=0;i<8;i++){
+  for(int i=0;i<16;i++){
     vec2 dv=p-uBlob[i].xy;
     float d2=max(dot(dv,dv),1.);
     float k=uBlob[i].z*uBlob[i].z/d2;
@@ -1046,15 +1048,14 @@ vec3 liquid(vec2 p,float blur){
     w+=k*k;
   }
   c/=max(w,1e-6);
-  // 用 t=1/√f 估算距离：单团液体时 t=d/r，(1-t)/|∇t| 正好等于 r-d，在液体中心也准确
-  float t=inversesqrt(max(f,1e-6));
-  float d=(1.-t)/max(.5*t*t*t*length(g),1e-6);
   float gn=max(length(g),1e-6);
+  float t=inversesqrt(max(f,1e-6));
+  float d=(1.-t)/max(.5*t*t*t*gn,1e-6);
   vec3 back=mix(uBase[0],uBase[1],clamp(p.y/uView.y,0.,1.));
   // 液体表面：越往里越亮一点；迎光的边缘有一道细高光
   vec3 lc=c*(.9+.18*clamp(d/90.,0.,1.));
   lc+=.4*exp(-max(d,0.)/(3.+blur))*max(dot(-g/gn,LIGHT),0.);
-  return mix(back,lc,smoothstep(-.6-blur,.6+blur,d));
+  return mix(back,min(lc,1.),smoothstep(-.6-blur,.6+blur,d));
 }
 float sdBox(vec2 q,vec2 b,float r){
   vec2 k=abs(q)-b+r;
@@ -1066,7 +1067,7 @@ void main(){
   for(int i=0;i<2;i++){
     if(i>=uPanelN) break;
     float ds=sdBox(p-uPanel[i].xy-vec2(0.,12.),uPanel[i].zw,uPanelR[i]);
-    col=mix(col,uShadow.rgb,(1.-smoothstep(-14.,30.,ds))*uShadow.a);
+    col=mix(col,SHADOW.rgb,(1.-smoothstep(-14.,30.,ds))*SHADOW.a);
   }
   for(int i=0;i<2;i++){
     if(i>=uPanelN) break;
@@ -1082,19 +1083,19 @@ void main(){
     vec2 off=-n*REFRACT*lens;
     vec3 g;
     if(lens>.001){
-      g.r=liquid(p+off*(1.+DISPERSE),uFrost).r;
-      g.g=liquid(p+off,uFrost).g;
-      g.b=liquid(p+off*(1.-DISPERSE),uFrost).b;
+      g.r=liquid(p+off*(1.+DISPERSE),FROST).r;
+      g.g=liquid(p+off,FROST).g;
+      g.b=liquid(p+off*(1.-DISPERSE),FROST).b;
     }else{
-      g=liquid(p,uFrost);
+      g=liquid(p,FROST);
     }
     float l=dot(g,vec3(.2126,.7152,.0722));
-    g=clamp(mix(vec3(l),g,uSat)*uBright,0.,1.);
+    g=clamp(mix(vec3(l),g,SAT),0.,1.);
     g=mix(g,uTint.rgb,uTint.a);
-    g+=uSheen*(1.-clamp(length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b))/.55,0.,1.));
+    g+=SHEEN*(1.-clamp(length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b))/.55,0.,1.));
     // 高光：迎光的左上边缘最亮，右下边缘有反光
-    g+=uSpec*pow(e,3.)*(max(dot(n,LIGHT),0.)+.6*max(dot(n,-LIGHT),0.));
-    g=mix(g,vec3(1.),uSpec*.1*lens);
+    g+=SPEC*pow(e,3.)*(max(dot(n,LIGHT),0.)+.6*max(dot(n,-LIGHT),0.));
+    g=mix(g,vec3(1.),SPEC*.1*lens);
     col=mix(col,clamp(g,0.,1.),clamp(.5-d*uDpr,0.,1.));
   }
   gl_FragColor=vec4(col,1.);
@@ -1124,36 +1125,23 @@ void main(){
   gl.enableVertexAttribArray(aLoc)
   gl.vertexAttribPointer(aLoc,2,gl.FLOAT,false,0,0)
   const u={}
-  ;["uRes","uDpr","uView","uBase","uBlob","uBlobCol","uPanel","uPanelR","uPanelN","uTint","uSat","uBright","uFrost","uSpec","uSheen","uShadow"].forEach(name=>{
+  ;["uRes","uDpr","uView","uBase","uBlob","uBlobCol","uPanel","uPanelR","uPanelN","uTint"].forEach(name=>{
     u[name]=gl.getUniformLocation(prog,name)
   })
   const panels=[...document.querySelectorAll(".glass")].slice(0,2)
   const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
-  const darkScheme=matchMedia("(prefers-color-scheme: dark)")
   let raf=0
   let lastDraw=0
-  function hex(s){
-    s=s.trim().replace("#","")
-    return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16)/255)
-  }
   function rgba(s){
     const v=(s.match(/[\d.]+/g)||[]).map(Number)
     return [(v[0]||0)/255,(v[1]||0)/255,(v[2]||0)/255,v.length>3?v[3]:1]
   }
   function readTheme(){
-    const cs=getComputedStyle(document.documentElement)
-    const dark=darkScheme.matches
     const base=liquidBackdrop.base()
     const colors=liquidBackdrop.colors()
-    gl.uniform3fv(u.uBase,[...hex(base[0]),...hex(base[base.length-1])])
-    gl.uniform3fv(u.uBlobCol,[0,1,2,3,4,5,6,7].flatMap(i=>hex(colors[liquidBackdrop.blobColor(i)])))
-    gl.uniform4f(u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
-    gl.uniform1f(u.uSat,1.1)
-    gl.uniform1f(u.uBright,dark?1:1.02)
-    gl.uniform1f(u.uFrost,dark?2.5:2)
-    gl.uniform1f(u.uSpec,dark?.3:.38)
-    gl.uniform1f(u.uSheen,dark?.04:.05)
-    gl.uniform4f(u.uShadow,...(dark?[0,0,0,.25]:[40/255,30/255,90/255,.08]))
+    gl.uniform3fv(u.uBase,[...base[0],...base[base.length-1]])
+    gl.uniform3fv(u.uBlobCol,liquidBackdrop.shapes().flatMap((s,i)=>colors[liquidBackdrop.blobColor(i)]))
+    gl.uniform4f(u.uTint,...rgba(getComputedStyle(document.documentElement).getPropertyValue("--glass-bg")))
   }
   function resize(){
     const dpr=Math.min(window.devicePixelRatio||1,2)
@@ -1165,7 +1153,6 @@ void main(){
     gl.uniform2f(u.uView,canvas.clientWidth,canvas.clientHeight)
     gl.uniform1iv(u.uPanelN,[panels.length])
     gl.uniform1fv(u.uPanelR,panels.map(el=>parseFloat(getComputedStyle(el).borderTopLeftRadius)||0).concat([0,0]).slice(0,2))
-    readTheme()
     draw(performance.now())
   }
   function draw(now){
@@ -1198,16 +1185,13 @@ void main(){
     liquidBackdrop.start()
   })
   document.body.insertBefore(canvas,document.body.firstChild)
+  readTheme()
   resize()
   document.documentElement.classList.add("lg-webgl")
   start()
   window.addEventListener("resize",resize)
   if(window.visualViewport) visualViewport.addEventListener("resize",resize)
   if(window.ResizeObserver) new ResizeObserver(()=>draw(performance.now())).observe(document.querySelector(".container"))
-  darkScheme.addEventListener("change",()=>{
-    readTheme()
-    draw(performance.now())
-  })
   reduceMotion.addEventListener("change",()=>{
     stop()
     start()
