@@ -56,12 +56,15 @@ SOFTWARE.
   --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff);
   /* 不用扩散值（spread）：Safari 26 遇到大圆角 + 扩散值的阴影会在元素后面画出方形色块 */
   --glass-edge:0 0 .5px rgba(15,23,42,.3),0 0 .5px rgba(15,23,42,.3),0 0 2px rgba(15,23,42,.1);
-  --glass-shadow:
-    var(--glass-edge),
+  --glass-border:rgba(15,23,42,.16);
+  --glass-inset:
     inset 0 1px 0 rgba(255,255,255,.95),
     inset 2px 2px 4px rgba(255,255,255,.6),
     inset -2px -2px 4px rgba(255,255,255,.4),
-    inset 0 0 16px rgba(255,255,255,.2),
+    inset 0 0 16px rgba(255,255,255,.2);
+  --glass-shadow:
+    var(--glass-edge),
+    var(--glass-inset),
     0 12px 32px rgba(31,41,95,.14),
     0 2px 6px rgba(31,41,95,.08);
   --rim-w:1.5px;
@@ -95,12 +98,15 @@ SOFTWARE.
     --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
     --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55));
     --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55);
-    --glass-shadow:
-      var(--glass-edge),
+    --glass-border:rgba(0,0,0,.6);
+    --glass-inset:
       inset 0 1px 0 rgba(255,255,255,.3),
       inset 2px 2px 4px rgba(255,255,255,.16),
       inset -2px -2px 4px rgba(255,255,255,.08),
-      inset 0 0 16px rgba(255,255,255,.05),
+      inset 0 0 16px rgba(255,255,255,.05);
+    --glass-shadow:
+      var(--glass-edge),
+      var(--glass-inset),
       0 12px 32px rgba(0,0,0,.4),
       0 2px 6px rgba(0,0,0,.3);
     --glow:rgba(255,255,255,.26);
@@ -260,7 +266,10 @@ h1 {
   background:var(--glass-spec),var(--glass-bg);
   -webkit-backdrop-filter:var(--glass-blur);
   backdrop-filter:var(--glass-blur);
-  box-shadow:var(--glass-shadow);
+  /* 大面板不用外侧模糊投影：Safari 给大尺寸圆角元素画外侧模糊阴影时会分块拼贴，
+     圆角外会露出一块方形色块。深色细边改用边框画，内侧高光保留 */
+  border:.5px solid var(--glass-border);
+  box-shadow:var(--glass-inset);
 }
 .glass::before,
 button::before,
@@ -508,7 +517,8 @@ button:disabled {
   padding: 14px;
   background: var(--glass-spec), var(--glass-bg-strong);
   border-radius: 32px;
-  box-shadow: var(--glass-shadow), 0 20px 50px rgba(0, 0, 0, 0.25);
+  border: .5px solid var(--glass-border);
+  box-shadow: var(--glass-inset);
   display: flex;
   flex-direction: column;
   align-items: center;
