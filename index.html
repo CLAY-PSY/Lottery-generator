@@ -45,9 +45,9 @@ SOFTWARE.
   --lotto-spark:#f5b301;
   --lotto-ball-o:.92;
   /* 液体玻璃材质（iOS 27）：透明度更低、虚化更强、外圈加深暗边、高光更亮 */
-  --glass-bg:rgba(255,255,255,.08);
+  --glass-bg:rgba(255,255,255,.03);
   --glass-bg-strong:rgba(255,255,255,.55);
-  --glass-blur:blur(12px) saturate(180%) brightness(1.03);
+  --glass-blur:blur(4px) saturate(140%) brightness(1.02);
   --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%);
   --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff);
   /* 不用扩散值（spread）：Safari 26 遇到大圆角 + 扩散值的阴影会在元素后面画出方形色块 */
@@ -84,9 +84,9 @@ SOFTWARE.
     --lotto-glow:rgba(220,38,38,.3);
     --lotto-spark:#ffd166;
     --lotto-ball-o:.85;
-    --glass-bg:rgba(40,24,30,.22);
+    --glass-bg:rgba(40,24,30,.08);
     --glass-bg-strong:rgba(54,60,84,.74);
-    --glass-blur:blur(16px) saturate(170%);
+    --glass-blur:blur(5px) saturate(140%);
     --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
     --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55));
     --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55);
@@ -866,14 +866,14 @@ const lottoBalls=[
   {x:.86,y:.07,r:9,c:"b",n:"12"},
   {x:.54,y:.05,r:5,c:"g",n:"★"},
   {x:.36,y:.19,r:7,c:"r",n:"23"},
-  {x:.72,y:.21,r:6,c:"b",n:"05"},
+  {x:.9,y:.31,r:6,c:"b",n:"05"},
   {x:.97,y:.37,r:10,c:"r",n:"18"},
   {x:.03,y:.43,r:8,c:"b",n:"09"},
   {x:.5,y:.475,r:5,c:"r",n:"31"},
   {x:.92,y:.53,r:4,c:"g",n:"★"},
   {x:.01,y:.63,r:11,c:"b",n:"16"},
   {x:.99,y:.72,r:9,c:"r",n:"02"},
-  {x:.17,y:.88,r:12,c:"r",n:"26"},
+  {x:.2,y:.755,r:12,c:"r",n:"26"},
   {x:.82,y:.9,r:10,c:"b",n:"03"},
   {x:.5,y:.82,r:6,c:"g",n:"★"},
   {x:.62,y:.96,r:4,c:"r",n:"15"}
@@ -908,7 +908,7 @@ const lottoBackdrop=(function(){
     base=ctx.createLinearGradient(width/2-dx*half,height/2-dy*half,width/2+dx*half,height/2+dy*half)
     for(const m of bg.matchAll(/(#[0-9a-f]{6})\s+([\d.]+)%/gi)) base.addColorStop(parseFloat(m[2])/100,m[1])
     const glowColor=cs.getPropertyValue("--lotto-glow").trim()
-    glow=ctx.createRadialGradient(width/2,height*.56,0,width/2,height*.56,Math.max(width,height)*.55)
+    glow=ctx.createRadialGradient(width/2,height*.1,0,width/2,height*.1,Math.max(width,height)*.5)
     glow.addColorStop(0,glowColor)
     glow.addColorStop(1,glowColor.replace(/[\d.]+\)$/,"0)"))
     spark=cs.getPropertyValue("--lotto-spark").trim()
@@ -1097,7 +1097,7 @@ void main(){
     // 高光：迎光的左上边缘最亮，右下边缘有反光
     vec2 L=normalize(vec2(-1.,-1.3));
     g+=uSpec*pow(e,3.)*(max(dot(n,L),0.)+.6*max(dot(n,-L),0.));
-    g=mix(g,vec3(1.),uSpec*.18*lens);
+    g=mix(g,vec3(1.),uSpec*.1*lens);
     col=mix(col,clamp(g,0.,1.),clamp(.5-d*uDpr,0.,1.));
   }
   gl_FragColor=vec4(col,1.);
@@ -1149,12 +1149,12 @@ void main(){
     const cs=getComputedStyle(document.documentElement)
     const dark=darkScheme.matches
     gl.uniform4f(u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
-    gl.uniform1f(u.uSat,dark?1.5:1.25)
-    gl.uniform1f(u.uBright,dark?1:1.03)
-    gl.uniform1f(u.uFrost,dark?6:5)
+    gl.uniform1f(u.uSat,1.1)
+    gl.uniform1f(u.uBright,dark?1:1.02)
+    gl.uniform1f(u.uFrost,dark?2.5:2)
     gl.uniform1f(u.uSpec,dark?.3:.38)
-    gl.uniform1f(u.uSheen,dark?.08:.12)
-    gl.uniform4f(u.uShadow,...(dark?[0,0,0,.4]:[110/255,30/255,40/255,.14]))
+    gl.uniform1f(u.uSheen,dark?.04:.05)
+    gl.uniform4f(u.uShadow,...(dark?[0,0,0,.25]:[110/255,30/255,40/255,.08]))
   }
   function resize(){
     const dpr=Math.min(window.devicePixelRatio||1,2)
