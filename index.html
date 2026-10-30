@@ -36,7 +36,7 @@ SOFTWARE.
   --bg-page:#eef2ff; /* 页面加载前和背景画布出现前的底色 */
   --bg-canvas:linear-gradient(180deg,#f7f3ff 0%,#eef2ff 100%); /* 页面底层的渐变底色 */
   --text-main:#111827; /* 主要文字颜色 */
-  --text-sub:rgba(17,24,39,.6); /* 次要文字颜色（半透明） */
+  --text-sub:rgba(17,24,39,.78); /* 次要文字颜色（半透明）：分段控件未选中的选项，在彩色液体上也要看得清 */
   --primary:#4f46e5; /* 主题色：焦点框等 */
   /* 号码球：高光、主色、暗部（页面和导出图片共用） */
   --red-hi:#ff8a8a; /* 红球高光色 */
@@ -53,14 +53,15 @@ SOFTWARE.
   --liquid-5:#3fd0c9; /* 液体颜色 5：青 */
   --liquid-6:#7b6cff; /* 液体颜色 6：靛 */
   /* 整屏液体的调色：颜色倍率 混白比例 */
-  --liquid-tone:1 .28; /* 浅色：颜色倍率 1，混入 28% 白色，显得柔和 */
+  --liquid-tone:1 .12; /* 浅色：颜色倍率 1，混入 12% 白色：柔和但仍饱满，玻璃的折射和彩边才看得出来（混白太多整屏发粉、玻璃显得发白） */
   --title-glow:0 0 14px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.8); /* 标题外发光：白色光晕让标题在彩色液体上更清楚 */
+  --label-glow:0 0 8px rgba(255,255,255,.8),0 0 2px rgba(255,255,255,.6); /* 分段控件文字的光晕：液体颜色较深时也看得清 */
   /* 液体玻璃材质（iOS 27 通透）：几乎全透，靠边缘高光、暗边和折射勾出轮廓 */
   --glass-bg:rgba(255,255,255,.03); /* 玻璃底色：3% 白，几乎全透明 */
   --glass-bg-strong:rgba(255,255,255,.55); /* 较实的玻璃底色（普通按钮用） */
   --glass-blur:blur(4px) saturate(140%) brightness(1.02); /* CSS 玻璃的背景模糊、提饱和、提亮（不用 WebGL 时） */
   --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%); /* 玻璃左上角的镜面反光 */
-  --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.55) 20%,rgba(255,255,255,.3) 42%,rgba(255,255,255,.3) 62%,rgba(255,255,255,.55) 82%,#fff); /* 玻璃边缘高光描边的渐变：左上和右下最亮，中段保留 30% 白，右上角和左下角的描边不会断开 */
+  --glass-rim:linear-gradient(140deg,rgba(255,255,255,.9),rgba(255,255,255,.42) 20%,rgba(255,255,255,.22) 42%,rgba(255,255,255,.22) 62%,rgba(255,255,255,.42) 82%,rgba(255,255,255,.9)); /* 玻璃边缘高光描边的渐变：左上和右下最亮，中段保留 22% 白，右上角和左下角的描边不会断开；整体不用纯白，浅背景上不显得发白 */
   /* 不用扩散值（spread）：Safari 26 遇到大圆角 + 扩散值的阴影会在元素后面画出方形色块 */
   --glass-edge:0 0 .5px rgba(15,23,42,.3),0 0 .5px rgba(15,23,42,.3),0 0 2px rgba(15,23,42,.1); /* 玻璃外圈深色细边：两层 0.5px 模糊阴影叠加 */
   --glass-border:rgba(15,23,42,.16); /* 大面板的深色细边颜色（用 border 画） */
@@ -74,8 +75,10 @@ SOFTWARE.
     var(--glass-inset), /* 内侧高光 */
     0 12px 32px rgba(31,41,95,.14), /* 远处柔和投影 */
     0 2px 6px rgba(31,41,95,.08); /* 近处清晰投影 */
-  /* WebGL 玻璃：磨砂半径 高光 顶部反光 提亮；面板投影颜色 */
-  --gl-look:2 .38 .05 1.02; /* 浅色：磨砂半径 2、高光 0.38、顶部反光 0.05、提亮 1.02 */
+  /* WebGL 玻璃：磨砂半径 高光 顶部反光 提亮；玻璃底色；边缘反光的取色；面板投影颜色 */
+  --gl-look:2 .3 .035 1; /* 浅色：磨砂半径 2、高光 0.3、顶部反光 0.035、不提亮（提亮会让玻璃像一层乳白膜） */
+  --gl-tint:rgba(20,22,40,.03); /* 浅色 WebGL 玻璃底色：3% 深蓝灰，与深色模式同一思路，玻璃略深于背景，显得通透 */
+  --gl-sheen:.6; /* 浅色：边缘反光 60% 取玻璃里背景的颜色（在浅背景上纯白反光会把边缘洗成白雾） */
   --gl-shadow:rgba(40,30,90,.08); /* WebGL 画的面板投影颜色 */
   --rim-w:1.5px; /* 高光描边宽度 */
   --glow:rgba(255,255,255,.8); /* 触摸发光的颜色 */
@@ -102,7 +105,7 @@ SOFTWARE.
     --bg-page:#0b1026; /* 深色底色 */
     --bg-canvas:linear-gradient(180deg,#07081a 0%,#0b1026 100%); /* 深色渐变底色 */
     --text-main:#f1f5f9; /* 深色模式主要文字：近白 */
-    --text-sub:rgba(241,245,249,.6); /* 深色模式次要文字 */
+    --text-sub:rgba(241,245,249,.75); /* 深色模式次要文字：在彩色液体上也要看得清 */
     --primary:#818cf8; /* 深色模式主题色：浅靛 */
     --liquid-1:#3d6bff; /* 深色液体颜色 1：蓝 */
     --liquid-2:#8b3dff; /* 深色液体颜色 2：紫 */
@@ -112,6 +115,7 @@ SOFTWARE.
     --liquid-6:#5a4dff; /* 深色液体颜色 6：靛 */
     --liquid-tone:.65 0; /* 深色：颜色乘 0.65 压暗，不混白 */
     --title-glow:0 0 14px rgba(0,0,0,.7); /* 深色标题外发光：黑色光晕 */
+    --label-glow:0 0 8px rgba(0,0,0,.6),0 0 2px rgba(0,0,0,.4); /* 深色分段控件文字的光晕：黑色 */
     --glass-bg:rgba(20,22,40,.08); /* 深色玻璃底色：8% 深蓝灰 */
     --glass-bg-strong:rgba(54,60,84,.74); /* 深色较实的玻璃底色 */
     --glass-blur:blur(5px) saturate(140%); /* 深色 CSS 玻璃的模糊和提饱和 */
@@ -130,6 +134,8 @@ SOFTWARE.
       0 12px 32px rgba(0,0,0,.4), /* 远处投影（更深） */
       0 2px 6px rgba(0,0,0,.3); /* 近处投影 */
     --gl-look:2.5 .3 .04 1; /* 深色：磨砂 2.5、高光 0.3、顶部反光 0.04、不提亮 */
+    --gl-tint:rgba(20,22,40,.08); /* 深色 WebGL 玻璃底色：8% 深蓝灰 */
+    --gl-sheen:0; /* 深色：边缘反光用白光（暗背景上是一条清晰的亮线） */
     --gl-shadow:rgba(0,0,0,.25); /* 深色面板投影颜色 */
     --glow:rgba(255,255,255,.26); /* 深色触摸发光（更弱） */
     --tint-primary:rgba(99,102,241,.72); /* 深色主按钮底色 */
@@ -343,6 +349,7 @@ button::after, /* 按钮、 */
   font-size:1rem; /* 字号 */
   font-weight:500; /* 中等字重 */
   color:var(--text-sub); /* 未选中时用次要文字颜色 */
+  text-shadow:var(--label-glow); /* 文字光晕：液体随机流过时保证看得清 */
   cursor:pointer; /* 鼠标显示为手形 */
   transition:color .25s; /* 颜色变化 0.25 秒过渡 */
 }
@@ -1022,14 +1029,17 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
   const WARP=[[.9,1],[.6,1.45],[.42,2.1],[.3,3],[.2,4.3]] // 每层扭曲：[幅度, 频率]
   // 坐标缩放（每个短边长度内的波数）、配色条纹频率、配色锐度、丝绸褶皱的明暗幅度
   const SHAPE=[2.4,1.6,5,.1] // [坐标缩放, 条纹频率, 锐度, 褶皱幅度]
+  // 流动速度：每层扭曲、每种颜色条纹的相位速度（弧度/秒）在 ±最大值内随机
+  const WARP_SPEED=.6 // 扭曲的最大相位速度（原来 0.3，提高一倍）
+  const TINT_SPEED=.5 // 颜色条纹的最大相位速度（原来 0.25，提高一倍）
   const warps=WARP.map(()=>{ // 每层扭曲的运动状态
-    const tx=rand(-.3,.3) // 初始 x 方向速度，随机
-    const ty=rand(-.3,.3) // 初始 y 方向速度，随机
+    const tx=rand(-WARP_SPEED,WARP_SPEED) // 初始 x 方向速度，随机
+    const ty=rand(-WARP_SPEED,WARP_SPEED) // 初始 y 方向速度，随机
     return {px:rand(0,6.28),py:rand(0,6.28),vx:tx,vy:ty,tx,ty,turn:rand(3,7)} // 相位随机；当前速度、目标速度；距下次换方向 3～7 秒
   })
   const tints=[0,1,2,3,4,5].map(()=>{ // 六种颜色条纹的运动状态
     const a=rand(0,6.28) // 条纹方向随机
-    const tv=rand(-.25,.25) // 初始速度，随机
+    const tv=rand(-TINT_SPEED,TINT_SPEED) // 初始速度，随机
     return {dx:Math.cos(a),dy:Math.sin(a),p:rand(0,6.28),v:tv,tv,turn:rand(3,7)} // 方向向量、相位随机、当前速度、目标速度、距下次变速的时间
   })
   let width=backdrop.clientWidth // 背景宽度
@@ -1072,8 +1082,8 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
     warps.forEach(w=>{ // 每层扭曲
       w.turn-=dt // 倒计时
       if(w.turn<=0){ // 到时间了
-        w.tx=rand(-.3,.3) // 随机新的 x 方向目标速度
-        w.ty=rand(-.3,.3) // 随机新的 y 方向目标速度
+        w.tx=rand(-WARP_SPEED,WARP_SPEED) // 随机新的 x 方向目标速度
+        w.ty=rand(-WARP_SPEED,WARP_SPEED) // 随机新的 y 方向目标速度
         w.turn=rand(3,7) // 下次换方向在 3～7 秒后
       }
       w.vx+=(w.tx-w.vx)*ease // x 速度平滑靠向目标
@@ -1084,7 +1094,7 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
     tints.forEach(c=>{ // 每种颜色条纹
       c.turn-=dt // 倒计时
       if(c.turn<=0){ // 到时间了
-        c.tv=rand(-.25,.25) // 随机新的目标速度
+        c.tv=rand(-TINT_SPEED,TINT_SPEED) // 随机新的目标速度
         c.turn=rand(3,7) // 下次变速在 3～7 秒后
       }
       c.v+=(c.tv-c.v)*ease // 速度平滑靠向目标
@@ -1163,7 +1173,7 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
     }
     ctx.putImageData(image,0,0) // 整张写回画布
   }
-  // 30 帧足够，省电
+  // 兜底画法用 JS 逐像素计算，开销大（每帧约 10 毫秒），保持每秒 30 帧，不和按钮、号码滚动抢主线程
   function loop(now){ // 兜底画法的动画循环
     raf=requestAnimationFrame(loop) // 预约下一帧
     if(now-lastDraw<33) return // 距上次绘制不到 33 毫秒就跳过（每秒最多 30 帧）
@@ -1265,6 +1275,7 @@ uniform int uPanelN; // 面板数量
 uniform vec4 uTint; // 玻璃底色（RGB 和不透明度）
 uniform vec4 uLook; // 玻璃参数：磨砂半径、高光、顶部反光、提亮
 uniform vec4 uShadow; // 面板投影颜色（RGB 和不透明度）
+uniform float uSheen; // 边缘反光取玻璃里背景颜色的比例：0 为纯白光
 const float SAT=1.1; // 玻璃里的颜色饱和度倍数
 // 玻璃边缘是一圈超椭圆（squircle，与 Apple 液态玻璃相同）形的凸起斜面：边缘处几乎竖直，往里 28px 平滑变平；玻璃直接压在背景上
 // 斜面宽度不超过面板圆角（窄屏 29px），转角处的法线才连续
@@ -1324,10 +1335,12 @@ void main(){ // 每个屏幕像素
     float l=dot(g,vec3(.2126,.7152,.0722)); // 亮度
     g=clamp(mix(vec3(l),g,SAT)*uLook.w,0.,1.); // 略微提饱和，再按参数提亮
     g=mix(g,uTint.rgb,uTint.a); // 叠上玻璃底色
-    g+=uLook.z*(1.-smoothstep(0.,.55,length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b)))); // 左上角的顶部反光：椭圆形的柔光，边界平滑淡出（线性淡出会在面板中间留下一圈椭圆形的边）
+    // 反光的颜色：深色下为白光；浅色下带上玻璃里背景的颜色（同色相、最亮的那个颜色），提亮但不洗白
+    vec3 sheen=mix(vec3(1.),g/max(max(g.r,max(g.g,g.b)),.001),uSheen); // 反光颜色
+    g+=uLook.z*(1.-smoothstep(0.,.55,length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b))))*sheen; // 左上角的顶部反光：椭圆形的柔光，边界平滑淡出（线性淡出会在面板中间留下一圈椭圆形的边）
     // 高光：迎光的左上边缘最亮，右下边缘有反光，侧对光源的右上角和左下角也保留一圈底光，边缘不会断开
-    g+=uLook.y*pow(e,6.)*(.3+.7*max(dot(n,LIGHT),0.)+.3*max(dot(n,-LIGHT),0.)); // 边缘高光：只贴着边缘一窄条（不盖住折射），整圈 30% 底光，朝光源的一侧最亮，背光的一侧有反光
-    g=mix(g,vec3(1.),F*uLook.y*1.5); // 菲涅尔反射：最外一圈反射周围的亮光，表面越斜越亮
+    g+=uLook.y*pow(e,6.)*(.3+.7*max(dot(n,LIGHT),0.)+.3*max(dot(n,-LIGHT),0.))*sheen; // 边缘高光：只贴着边缘一窄条（不盖住折射），整圈 30% 底光，朝光源的一侧最亮，背光的一侧有反光
+    g=mix(g,sheen,F*uLook.y*1.5); // 菲涅尔反射：最外一圈反射周围的亮光，表面越斜越亮
     col=mix(col,clamp(g,0.,1.),clamp(.5-d*uDpr,0.,1.)); // 把玻璃颜色画到面板范围内，边缘按 1 个像素抗锯齿
   }
   // 轻微抖动，避免 8 位纹理放大后的平滑渐变出现色带
@@ -1362,7 +1375,7 @@ void main(){ // 每个屏幕像素
   const glassFs=compile(gl.FRAGMENT_SHADER,glassSrc) // 编译玻璃着色器
   if(!vs||!fieldFs||!glassFs) return null // 任一编译失败就返回 null
   const field=link(vs,fieldFs,["uFieldRes","uFieldScale","uShape","uWarp","uWarpP","uTintD","uTintP","uCol","uChroma","uTone"]) // 液体程序和它的 uniform
-  const glass=link(vs,glassFs,["uField","uFieldSize","uRes","uDpr","uPanel","uPanelR","uPanelN","uTint","uLook","uShadow"]) // 玻璃程序和它的 uniform
+  const glass=link(vs,glassFs,["uField","uFieldSize","uRes","uDpr","uPanel","uPanelR","uPanelN","uTint","uLook","uShadow","uSheen"]) // 玻璃程序和它的 uniform
   if(!field||!glass) return null // 任一链接失败就返回 null
   gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer()) // 新建顶点缓冲并绑定
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW) // 三个顶点组成一个盖住整个屏幕的大三角形
@@ -1386,7 +1399,6 @@ void main(){ // 每个屏幕像素
   const on={signal:listeners.signal} // 带上 signal 的监听选项
   const observers=[] // 尺寸观察器列表
   let raf=0 // 动画帧编号
-  let lastDraw=0 // 上一次绘制的时间
   let sizeW=0 // 画布当前的 CSS 宽度
   let sizeH=0 // 画布当前的 CSS 高度
   let sizeDpr=0 // 画布当前的像素密度
@@ -1409,9 +1421,10 @@ void main(){ // 每个屏幕像素
     gl.uniform1fv(field.u.uChroma,sp.chroma) // 颜色饱和度
     gl.uniform2fv(field.u.uTone,sp.tone) // 调色参数
     gl.useProgram(glass.prog) // 切换到玻璃程序
-    gl.uniform4f(glass.u.uTint,...rgba(cs.getPropertyValue("--glass-bg"))) // 玻璃底色
+    gl.uniform4f(glass.u.uTint,...rgba(cs.getPropertyValue("--gl-tint"))) // 玻璃底色
     gl.uniform4f(glass.u.uLook,...cs.getPropertyValue("--gl-look").trim().split(/\s+/).map(Number)) // 玻璃参数
     gl.uniform4f(glass.u.uShadow,...rgba(cs.getPropertyValue("--gl-shadow"))) // 面板投影颜色
+    gl.uniform1f(glass.u.uSheen,parseFloat(cs.getPropertyValue("--gl-sheen"))||0) // 边缘反光取背景颜色的比例
   }
   function resize(){ // 画布尺寸变化时重新设置
     const dpr=Math.min(window.devicePixelRatio||1,2) // 像素密度，最高 2 倍（再高看不出差别，只会更耗电）
@@ -1468,12 +1481,11 @@ void main(){ // 每个屏幕像素
       return [r.left+r.width/2,r.top+r.height/2,r.width/2,r.height/2] // 中心 x、中心 y、半宽、半高
     }).concat([0,0,0,0,0,0,0,0]).slice(0,8)) // 不足两块补 0
     gl.drawArrays(gl.TRIANGLES,0,3) // 画满整个屏幕
-    lastDraw=now // 记下绘制时间
   }
-  // 液体流得很慢，30 帧足够，省电
+  // 帧率不设上限：屏幕每刷新一次就画一帧（60Hz 屏 60 帧，高刷屏跟随浏览器给的刷新率）
   function loop(now){ // WebGL 的动画循环
     raf=requestAnimationFrame(loop) // 预约下一帧
-    if(now-lastDraw>=33) draw(now) // 距上次绘制满 33 毫秒才画（每秒最多 30 帧）
+    draw(now) // 画这一帧
   }
   function start(){ // 开始动画循环
     if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop) // 没在循环且没开减弱动态效果时才开始
