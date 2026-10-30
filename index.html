@@ -488,6 +488,13 @@ button:disabled {
     inset 0 -2px 3px rgba(0,0,0,.12),
     0 2px 5px rgba(15,23,42,.18);
 }
+/* 数字按字形居中：裁掉行框上下的字体留白，只留大写字母高度到基线（数字与大写字母同高），再由 flex 居中。
+   不裁剪时居中的是整个行框，留白上下不对称，数字会偏上或偏下（随字体和字号变化）；不支持 text-box 的旧浏览器保持原样 */
+.ball-num {
+  display:block;
+  text-box-trim:trim-both;
+  text-box-edge:cap alphabetic;
+}
 .red {background:radial-gradient(circle at 32% 26%,var(--red-hi) 0%,var(--red) 55%,var(--red-lo) 100%);}
 .blue {background:radial-gradient(circle at 32% 26%,var(--blue-hi) 0%,var(--blue) 55%,var(--blue-lo) 100%);}
 @media (max-width:360px) {
@@ -756,7 +763,10 @@ function randomNums(min,max,count){
 function createBall(n,color){
   const span=document.createElement("span")
   span.className=`ball ${color}`
-  span.textContent=String(n).padStart(2,"0")
+  const num=document.createElement("span")
+  num.className="ball-num"
+  num.textContent=String(n).padStart(2,"0")
+  span.appendChild(num)
   return span
 }
 function toggleButtons(disabled){
