@@ -1138,8 +1138,8 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
     width=backdrop.clientWidth // 新的宽度
     height=backdrop.clientHeight // 新的高度
     if(canvas&&active){ // 兜底画法在运行时
-      canvas.width=Math.ceil(width/FALLBACK_SCALE) // 画布宽度：缩小 6 倍
-      canvas.height=Math.ceil(height/FALLBACK_SCALE) // 画布高度：缩小 6 倍
+      canvas.width=Math.max(1,Math.ceil(width/FALLBACK_SCALE)) // 画布宽度：缩小 6 倍，至少 1（尺寸为 0 时 createImageData 会报错）
+      canvas.height=Math.max(1,Math.ceil(height/FALLBACK_SCALE)) // 画布高度：缩小 6 倍，至少 1
       image=ctx.createImageData(canvas.width,canvas.height) // 新建同尺寸的像素数据
       drawFallback() // 立即重画
     }
@@ -1316,14 +1316,15 @@ void main(){ // 每个屏幕像素
       g.r=frost(p-n*D.r,fr).r; // 红光折射最少（沿法线往里偏）
       g.g=frost(p-n*D.g,fr).g; // 绿光居中
       g.b=frost(p-n*D.b,fr).b; // 蓝光折射最多，三色错开形成彩边
-      F=.04+.96*pow(1.-cos(th),5.); // 菲涅尔反射率（Schlick 近似）：表面越斜反射越强，最外一圈接近全反射
+      // 只算倾斜带来的那部分反射：平面上为 0，与中间的平面连续。带上 4% 的基础反射时，斜面与平面交界处亮度会突变，深色下看得出一个方框
+      F=pow(1.-cos(th),5.); // 菲涅尔反射（Schlick 近似去掉基础值）：表面越斜反射越强，最外一圈接近全反射
     }else{ // 在中间的平面上
       g=frost(p,uLook.x); // 不折射，只做轻度磨砂
     }
     float l=dot(g,vec3(.2126,.7152,.0722)); // 亮度
     g=clamp(mix(vec3(l),g,SAT)*uLook.w,0.,1.); // 略微提饱和，再按参数提亮
     g=mix(g,uTint.rgb,uTint.a); // 叠上玻璃底色
-    g+=uLook.z*(1.-clamp(length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b))/.55,0.,1.)); // 左上角的顶部反光：椭圆形的柔光
+    g+=uLook.z*(1.-smoothstep(0.,.55,length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b)))); // 左上角的顶部反光：椭圆形的柔光，边界平滑淡出（线性淡出会在面板中间留下一圈椭圆形的边）
     // 高光：迎光的左上边缘最亮，右下边缘有反光，侧对光源的右上角和左下角也保留一圈底光，边缘不会断开
     g+=uLook.y*pow(e,6.)*(.3+.7*max(dot(n,LIGHT),0.)+.3*max(dot(n,-LIGHT),0.)); // 边缘高光：只贴着边缘一窄条（不盖住折射），整圈 30% 底光，朝光源的一侧最亮，背光的一侧有反光
     g=mix(g,vec3(1.),F*uLook.y*1.5); // 菲涅尔反射：最外一圈反射周围的亮光，表面越斜越亮
