@@ -29,7 +29,6 @@ SOFTWARE.
 <meta name="theme-color" content="#f7f3ff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#07081a" media="(prefers-color-scheme: dark)">
 <title>双色球 / 大乐透 随机选号</title>
-<script src="./html2canvas.min.js" defer></script>
 <style>
 :root {
   /* 浅色、深色跟随系统切换 */
@@ -39,8 +38,13 @@ SOFTWARE.
   --text-main:#111827;
   --text-sub:rgba(17,24,39,.6);
   --primary:#4f46e5;
+  /* 号码球：高光、主色、暗部（页面和导出图片共用） */
+  --red-hi:#ff8a8a;
   --red:#ef4444;
+  --red-lo:#d22f2f;
+  --blue-hi:#8ab8ff;
   --blue:#3b82f6;
+  --blue-lo:#2563d9;
   /* 液态背景：六种液体颜色 */
   --liquid-1:#5b8cff;
   --liquid-2:#a35bff;
@@ -484,15 +488,8 @@ button:disabled {
     inset 0 -2px 3px rgba(0,0,0,.12),
     0 2px 5px rgba(15,23,42,.18);
 }
-/* html2canvas 不能正确绘制内阴影，导出图片时去掉；导出的号码球固定大小，不随窄屏缩小 */
-.capture .ball {
-  width:28px;
-  height:28px;
-  font-size:.85rem;
-  box-shadow:none;
-}
-.red {background:radial-gradient(circle at 32% 26%,#ff8a8a 0%,var(--red) 55%,#d22f2f 100%);}
-.blue {background:radial-gradient(circle at 32% 26%,#8ab8ff 0%,var(--blue) 55%,#2563d9 100%);}
+.red {background:radial-gradient(circle at 32% 26%,var(--red-hi) 0%,var(--red) 55%,var(--red-lo) 100%);}
+.blue {background:radial-gradient(circle at 32% 26%,var(--blue-hi) 0%,var(--blue) 55%,var(--blue-lo) 100%);}
 @media (max-width:360px) {
   :root {--ctl-h:42px;--pad:8px;}
   .ball {width:24px;height:24px;font-size:.75rem;}
@@ -810,9 +807,93 @@ function formatDateLocal(date){
   const s=String(date.getSeconds()).padStart(2,"0")
   return `${y}-${m}-${d}_${h}${min}${s}`
 }
+// 导出图片直接用 Canvas 画：版式与原来的截图一致，配色随当前深浅模式。
+// 不用 html2canvas 截图：它按自己估算的字体基线画字，iPhone 的苹方、SF 字体上数字会明显偏下
+const EXPORT_LAYOUT={ball:28,gap:8,rowGap:12,padX:16,padY:20,titleSize:16,titleHeight:22,titleGap:16,numberSize:13.6}
+// 按字形实际的上下边界垂直居中，不依赖各字体不同的基线和行高
+function fillTextCentered(ctx,text,x,cy){
+  ctx.textBaseline="alphabetic"
+  const m=ctx.measureText(text)
+  if(m.actualBoundingBoxAscent!==undefined){
+    ctx.fillText(text,x,cy+(m.actualBoundingBoxAscent-m.actualBoundingBoxDescent)/2)
+  }else{
+    ctx.textBaseline="middle"
+    ctx.fillText(text,x,cy)
+  }
+}
+// 把 CSS 的 linear-gradient(角度, 颜色 位置%, ...) 换成 Canvas 渐变，渐变线长度与 CSS 的算法相同
+function canvasLinearGradient(ctx,css,width,height){
+  const angle=parseFloat((css.match(/([\d.]+)deg/)||[0,180])[1])*Math.PI/180
+  const dx=Math.sin(angle)
+  const dy=-Math.cos(angle)
+  const half=(Math.abs(width*dx)+Math.abs(height*dy))/2
+  const g=ctx.createLinearGradient(width/2-dx*half,height/2-dy*half,width/2+dx*half,height/2+dy*half)
+  for(const m of css.matchAll(/(#[0-9a-f]{3,8}|rgba?\([^)]*\))\s+([\d.]+)%/gi)) g.addColorStop(parseFloat(m[2])/100,m[1])
+  return g
+}
+// 与 .red、.blue 的 radial-gradient(circle at 32% 26%, ...) 相同，半径到最远的角；投影与页面上的号码球相同
+function drawExportBall(ctx,theme,scale,color,number,x,y,r){
+  const gx=x-r+2*r*.32
+  const gy=y-r+2*r*.26
+  const g=ctx.createRadialGradient(gx,gy,0,gx,gy,Math.hypot(x+r-gx,y+r-gy))
+  g.addColorStop(0,theme.getPropertyValue(`--${color}-hi`).trim())
+  g.addColorStop(.55,theme.getPropertyValue(`--${color}`).trim())
+  g.addColorStop(1,theme.getPropertyValue(`--${color}-lo`).trim())
+  ctx.save()
+  // Canvas 的阴影参数不随缩放变化，按导出倍数换算
+  ctx.shadowColor="rgba(15,23,42,.18)"
+  ctx.shadowOffsetY=2*scale
+  ctx.shadowBlur=5*scale
+  ctx.fillStyle=g
+  ctx.beginPath()
+  ctx.arc(x,y,r,0,Math.PI*2)
+  ctx.fill()
+  ctx.shadowColor="rgba(0,0,0,.18)"
+  ctx.shadowOffsetY=scale
+  ctx.shadowBlur=scale
+  ctx.fillStyle="#fff"
+  fillTextCentered(ctx,number,x,y)
+  ctx.restore()
+}
+function drawExportImage(title){
+  const L=EXPORT_LAYOUT
+  const theme=getComputedStyle(document.documentElement)
+  const font=getComputedStyle(document.body).fontFamily
+  const lines=[...resultInner.children].map(line=>[...line.children].map(ball=>({
+    number:ball.textContent,
+    color:ball.classList.contains("blue")?"blue":"red"
+  })))
+  // 至少 2 倍；iPhone 等 3 倍屏按 3 倍导出，图片更清晰
+  const scale=Math.min(Math.max(window.devicePixelRatio||1,2),3)
+  const canvas=document.createElement("canvas")
+  const ctx=canvas.getContext("2d")
+  const titleFont=`600 ${L.titleSize}px ${font}`
+  ctx.font=titleFont
+  const columns=Math.max(...lines.map(line=>line.length))
+  const width=Math.ceil(Math.max(columns*(L.ball+L.gap),ctx.measureText(title).width)+L.padX*2)
+  const height=L.padY*2+L.titleHeight+L.titleGap+lines.length*L.ball+(lines.length-1)*L.rowGap
+  canvas.width=width*scale
+  canvas.height=height*scale
+  ctx.scale(scale,scale)
+  ctx.fillStyle=theme.getPropertyValue("--export-base").trim()
+  ctx.fillRect(0,0,width,height)
+  ctx.fillStyle=canvasLinearGradient(ctx,theme.getPropertyValue("--export-bg"),width,height)
+  ctx.fillRect(0,0,width,height)
+  ctx.textAlign="center"
+  ctx.font=titleFont
+  ctx.fillStyle=theme.getPropertyValue("--export-title").trim()
+  fillTextCentered(ctx,title,width/2,L.padY+L.titleHeight/2)
+  ctx.font=`600 ${L.numberSize}px ${font}`
+  const top=L.padY+L.titleHeight+L.titleGap
+  lines.forEach((line,row)=>{
+    const left=(width-line.length*(L.ball+L.gap))/2+L.gap/2
+    line.forEach((ball,i)=>{
+      drawExportBall(ctx,theme,scale,ball.color,ball.number,left+i*(L.ball+L.gap)+L.ball/2,top+row*(L.ball+L.rowGap)+L.ball/2,L.ball/2)
+    })
+  })
+  return canvas
+}
 function saveAsImage(){
-  // 记下触发保存的元素，关闭弹窗后把焦点还给它（生成图片期间按钮被禁用，焦点会丢失）
-  const opener=document.activeElement
   if(isRolling){
     alert("请等待生成完成再保存")
     return
@@ -821,50 +902,44 @@ function saveAsImage(){
     alert("当前没有生成结果")
     return
   }
-  if(typeof html2canvas!=="function"){
-    alert("图片组件还没加载好，请稍后再试")
-    return
-  }
-  toggleButtons(true)
   const type=getType()
   const typeText=type==="ssq"?"双色球":"大乐透"
   const dateText=formatDateLocal(new Date())
-  // 导出图片的配色随当前深浅模式
-  const theme=getComputedStyle(document.documentElement)
-  const wrapper=document.createElement("div")
-  wrapper.className="capture"
-  wrapper.style.position="absolute"
-  wrapper.style.left="-9999px"
-  wrapper.style.top="0"
-  wrapper.style.background=theme.getPropertyValue("--export-bg").trim()
-  wrapper.style.padding="20px 16px"
-  wrapper.style.textAlign="center"
-  wrapper.style.borderRadius="12px"
-  const title=document.createElement("div")
-  title.style.fontSize="16px"
-  title.style.fontWeight="600"
-  title.style.marginBottom="16px"
-  title.style.color=theme.getPropertyValue("--export-title").trim()
-  title.textContent=`${dateText}  ${typeText}`
-  wrapper.appendChild(title)
-  ;[...resultInner.children].forEach(line=>{
-    const row=document.createElement("div")
-    row.style.display="flex"
-    row.style.justifyContent="center"
-    row.style.marginBottom="12px"
-    ;[...line.children].forEach(ball=>{
-      row.appendChild(ball.cloneNode(true))
-    })
-    wrapper.appendChild(row)
-  })
-  document.body.appendChild(wrapper)
-  html2canvas(wrapper,{
-    backgroundColor:theme.getPropertyValue("--export-base").trim(),
-    scale:2
-  }).then(canvas=>{
+  let canvas
+  try{
+    canvas=drawExportImage(`${dateText} ${typeText}`)
+  }catch(error){
+    console.error("保存图片失败:",error)
+    alert("图片生成失败，请重试")
+    return
+  }
   // iPadOS 默认伪装成 Mac 的 UA，用触摸点数区分
   const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1)
   if(isIOS){
+    showSavePreview(canvas.toDataURL("image/png"),`${typeText} ${dateText} 号码图片`)
+    return
+  }
+  canvas.toBlob(blob=>{
+    if(!blob){
+      alert("图片生成失败，请重试")
+      return
+    }
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement("a")
+    a.href=url
+    a.download=`lottery-${typeText}-${dateText}.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(()=>{
+      URL.revokeObjectURL(url)
+    },1000)
+  },"image/png")
+}
+// iOS 不能直接下载到相册：弹出预览，长按图片保存
+function showSavePreview(src,alt){
+  // 关闭后把焦点还给触发保存的按钮
+  const opener=document.activeElement
   const overlay=document.createElement("div")
   overlay.className="ios-save-overlay"
   const modal=document.createElement("div")
@@ -874,8 +949,8 @@ function saveAsImage(){
   modal.setAttribute("aria-label","保存图片")
   const preview=document.createElement("img")
   preview.className="ios-save-preview"
-  preview.alt=`${typeText} ${dateText} 号码图片`
-  preview.src=canvas.toDataURL("image/png")
+  preview.alt=alt
+  preview.src=src
   const tip=document.createElement("div")
   tip.className="ios-save-tip"
   tip.textContent="长按图片即可保存到相册"
@@ -900,62 +975,21 @@ function saveAsImage(){
     },230)
   }
   document.addEventListener("keydown",onKey)
-  closeBtn.addEventListener(
-    "click",
-    closePreview
-  )
-  overlay.addEventListener(
-    "click",
-    function(e){
-    if(e.target===overlay){
-        closePreview()
-      }
-    }
-  )
-  modal.addEventListener(
-    "click",
-    function(e){
-      e.stopPropagation()
-    }
-  )
+  closeBtn.addEventListener("click",closePreview)
+  overlay.addEventListener("click",e=>{
+    if(e.target===overlay) closePreview()
+  })
+  modal.addEventListener("click",e=>e.stopPropagation())
   modal.appendChild(preview)
   modal.appendChild(tip)
   modal.appendChild(closeBtn)
   overlay.appendChild(modal)
   document.body.appendChild(overlay)
+  requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>{
-    overlay.classList.add("show")
-    closeBtn.focus({preventScroll:true})
+      overlay.classList.add("show")
+      closeBtn.focus({preventScroll:true})
     })
-  })
- }else{
-      canvas.toBlob(blob=>{
-        if(!blob){
-          alert("图片生成失败，请重试")
-          return
-        }
-        const url=URL.createObjectURL(blob)
-        const a=document.createElement("a")
-        a.href=url
-        a.download=`lottery-${typeText}-${dateText}.png`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        setTimeout(()=>{
-          URL.revokeObjectURL(url)
-        },1000)
-      },"image/png")
-    }
-    document.body.removeChild(wrapper)
-    toggleButtons(false)
-    }).catch(error=>{
-    console.error("保存图片失败:",error)
-    if(document.body.contains(wrapper)){
-      document.body.removeChild(wrapper)
-    }
-    toggleButtons(false)
-    alert("图片生成失败，请重试")
   })
 }
 document.getElementById("save-btn").onclick=saveAsImage
