@@ -1029,14 +1029,17 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
   const WARP=[[.9,1],[.6,1.45],[.42,2.1],[.3,3],[.2,4.3]] // 每层扭曲：[幅度, 频率]
   // 坐标缩放（每个短边长度内的波数）、配色条纹频率、配色锐度、丝绸褶皱的明暗幅度
   const SHAPE=[2.4,1.6,5,.1] // [坐标缩放, 条纹频率, 锐度, 褶皱幅度]
+  // 流动速度：每层扭曲、每种颜色条纹的相位速度（弧度/秒）在 ±最大值内随机
+  const WARP_SPEED=.6 // 扭曲的最大相位速度（原来 0.3，提高一倍）
+  const TINT_SPEED=.5 // 颜色条纹的最大相位速度（原来 0.25，提高一倍）
   const warps=WARP.map(()=>{ // 每层扭曲的运动状态
-    const tx=rand(-.3,.3) // 初始 x 方向速度，随机
-    const ty=rand(-.3,.3) // 初始 y 方向速度，随机
+    const tx=rand(-WARP_SPEED,WARP_SPEED) // 初始 x 方向速度，随机
+    const ty=rand(-WARP_SPEED,WARP_SPEED) // 初始 y 方向速度，随机
     return {px:rand(0,6.28),py:rand(0,6.28),vx:tx,vy:ty,tx,ty,turn:rand(3,7)} // 相位随机；当前速度、目标速度；距下次换方向 3～7 秒
   })
   const tints=[0,1,2,3,4,5].map(()=>{ // 六种颜色条纹的运动状态
     const a=rand(0,6.28) // 条纹方向随机
-    const tv=rand(-.25,.25) // 初始速度，随机
+    const tv=rand(-TINT_SPEED,TINT_SPEED) // 初始速度，随机
     return {dx:Math.cos(a),dy:Math.sin(a),p:rand(0,6.28),v:tv,tv,turn:rand(3,7)} // 方向向量、相位随机、当前速度、目标速度、距下次变速的时间
   })
   let width=backdrop.clientWidth // 背景宽度
@@ -1079,8 +1082,8 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
     warps.forEach(w=>{ // 每层扭曲
       w.turn-=dt // 倒计时
       if(w.turn<=0){ // 到时间了
-        w.tx=rand(-.3,.3) // 随机新的 x 方向目标速度
-        w.ty=rand(-.3,.3) // 随机新的 y 方向目标速度
+        w.tx=rand(-WARP_SPEED,WARP_SPEED) // 随机新的 x 方向目标速度
+        w.ty=rand(-WARP_SPEED,WARP_SPEED) // 随机新的 y 方向目标速度
         w.turn=rand(3,7) // 下次换方向在 3～7 秒后
       }
       w.vx+=(w.tx-w.vx)*ease // x 速度平滑靠向目标
@@ -1091,7 +1094,7 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
     tints.forEach(c=>{ // 每种颜色条纹
       c.turn-=dt // 倒计时
       if(c.turn<=0){ // 到时间了
-        c.tv=rand(-.25,.25) // 随机新的目标速度
+        c.tv=rand(-TINT_SPEED,TINT_SPEED) // 随机新的目标速度
         c.turn=rand(3,7) // 下次变速在 3～7 秒后
       }
       c.v+=(c.tv-c.v)*ease // 速度平滑靠向目标
