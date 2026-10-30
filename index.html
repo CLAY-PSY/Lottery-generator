@@ -1266,9 +1266,12 @@ uniform vec4 uTint; // 玻璃底色（RGB 和不透明度）
 uniform vec4 uLook; // 玻璃参数：磨砂半径、高光、顶部反光、提亮
 uniform vec4 uShadow; // 面板投影颜色（RGB 和不透明度）
 const float SAT=1.1; // 玻璃里的颜色饱和度倍数
-const float BEZEL=24.; // 透镜边缘的宽度（px）：边缘这一圈会折射
-const float REFRACT=28.; // 边缘最大的折射位移（px）
-const float DISPERSE=.15; // 色散：红、蓝两色折射量的差别
+// 玻璃边缘是一圈凸起的圆滑斜面：最外侧倾斜 60°，往里 24px 逐渐变平；整块玻璃浮在背景上方
+const float BEZEL=24.; // 斜面宽度（px）：边缘这一圈会折射
+const float TILT=1.0472; // 斜面最外侧的倾角（60°）
+const float GAP=18.; // 玻璃底面到背景的距离（px）
+const float IOR=1.5; // 玻璃的折射率
+const vec3 DISP=vec3(.92,1.,1.085); // 色散：红、绿、蓝三色折射量之比（按折射率 1.46、1.5、1.54 算出），蓝光折得最多
 const vec2 LIGHT=vec2(-.61,-.79); // 光源方向：左上
 vec3 bg(vec2 p){ // 取背景纹理在 CSS 坐标 p 处的颜色
   return texture2D(uField,vec2(p.x/uFieldSize.x,1.-p.y/uFieldSize.y)).rgb; // 换算成纹理坐标（y 轴翻转）
@@ -1279,6 +1282,12 @@ vec3 frost(vec2 p,float r){ // 磨砂：在 p 周围半径 r 处取 8 个点加�
   vec2 b=vec2(.7071*r,.7071*r); // 右下对角偏移
   vec2 c=vec2(-b.x,b.y); // 左下对角偏移
   return bg(p)*.2+(bg(p+a)+bg(p-a)+bg(p+a.yx)+bg(p-a.yx)+bg(p+b)+bg(p-b)+bg(p+c)+bg(p-c))*.1; // 中心占 20%，周围 8 个点各占 10%
+}
+// 斯涅尔定律：竖直向下的视线在倾角 th 的玻璃表面折射，穿过玻璃和下面的空气间隙，算出落到背景上偏了多少（px）
+float bend(float th,float h){ // th 为表面倾角，h 为这里的玻璃厚度
+  float dev=th-asin(sin(th)/IOR); // 进入玻璃后，光线偏离竖直方向的角度
+  float sa=min(IOR*sin(dev),.97); // 从水平的玻璃底面射出后，与竖直方向夹角的正弦（限制在 .97 内，避免全反射）
+  return h*tan(dev)+GAP*sa/sqrt(1.-sa*sa); // 玻璃里走过的偏移 + 空气间隙里走过的偏移
 }
 float sdBox(vec2 q,vec2 b,float r){ // 圆角矩形的有向距离：q 相对中心的坐标，b 为半宽高，r 为圆角；里面为负、外面为正
   vec2 k=abs(q)-b+r; // 到圆角内收矩形的距离分量
@@ -1301,16 +1310,19 @@ void main(){ // 每个屏幕像素
     if(d>1.) continue; // 在面板外面就跳过
     vec2 n=normalize(vec2(sdBox(q+vec2(.5,0.),b,r)-sdBox(q-vec2(.5,0.),b,r),sdBox(q+vec2(0.,.5),b,r)-sdBox(q-vec2(0.,.5),b,r))+1e-6); // 边缘法线：距离函数在 x、y 方向的差分
     float e=1.-clamp(-d/BEZEL,0.,1.); // 离边缘多近：边缘处为 1，进入 24px 后为 0
-    float lens=e*e; // 透镜强度，越靠边缘越强
-    // 透镜：边缘光线向内弯折，看到的是更靠里的内容（放大），三色错开形成色散
-    vec2 off=-n*REFRACT*lens; // 折射位移：沿法线往里
+    float lens=e*e; // 透镜强度，越靠边缘越强（用于高光和泛白）
+    // 透镜：视线在斜面上向里弯折，看到的是更靠里的内容。偏移从边缘向里平滑减小，边缘内容被放大拉伸、不会翻转成镜像
+    float th=TILT*e; // 表面倾角：边缘 60°，向里线性减小到 0
     vec3 g; // 玻璃里看到的颜色
-    if(lens>.001){ // 在边缘透镜区内
-      g.r=frost(p+off*(1.+DISPERSE),uLook.x).r; // 红色通道折射多一点
-      g.g=frost(p+off,uLook.x).g; // 绿色通道正常折射
-      g.b=frost(p+off*(1.-DISPERSE),uLook.x).b; // 蓝色通道折射少一点，三色错开形成彩边
-    }else{ // 不在透镜区内
-      g=frost(p,uLook.x); // 只做轻度磨砂
+    if(th>.001){ // 在斜面上
+      float h=BEZEL/TILT*log(cos(th)/cos(TILT)); // 这里的玻璃厚度（对斜率积分）：边缘为 0，平面处约 16px
+      vec2 off=-n*bend(th,h); // 折射偏移：沿法线往里
+      float fr=uLook.x*(1.+.5*lens); // 越靠边缘斜面越陡，光线越发散，磨砂稍强
+      g.r=frost(p+off*DISP.r,fr).r; // 红光折射最少
+      g.g=frost(p+off,fr).g; // 绿光居中
+      g.b=frost(p+off*DISP.b,fr).b; // 蓝光折射最多，三色错开形成彩边
+    }else{ // 在中间的平面上
+      g=frost(p,uLook.x); // 不折射，只做轻度磨砂
     }
     float l=dot(g,vec3(.2126,.7152,.0722)); // 亮度
     g=clamp(mix(vec3(l),g,SAT)*uLook.w,0.,1.); // 略微提饱和，再按参数提亮
