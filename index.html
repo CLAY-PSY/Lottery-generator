@@ -1399,7 +1399,6 @@ void main(){ // 每个屏幕像素
   const on={signal:listeners.signal} // 带上 signal 的监听选项
   const observers=[] // 尺寸观察器列表
   let raf=0 // 动画帧编号
-  let lastDraw=0 // 上一次绘制的时间
   let sizeW=0 // 画布当前的 CSS 宽度
   let sizeH=0 // 画布当前的 CSS 高度
   let sizeDpr=0 // 画布当前的像素密度
@@ -1482,13 +1481,11 @@ void main(){ // 每个屏幕像素
       return [r.left+r.width/2,r.top+r.height/2,r.width/2,r.height/2] // 中心 x、中心 y、半宽、半高
     }).concat([0,0,0,0,0,0,0,0]).slice(0,8)) // 不足两块补 0
     gl.drawArrays(gl.TRIANGLES,0,3) // 画满整个屏幕
-    lastDraw=now // 记下绘制时间
   }
-  // 每秒最多 60 帧：120Hz 高刷屏上隔一帧画一次，不多耗电
-  const FRAME_MS=1000/60-2 // 两次绘制的最小间隔（毫秒），留 2 毫秒余量，60Hz 屏幕上计时稍有抖动也不会漏帧
+  // 帧率不设上限：屏幕每刷新一次就画一帧（60Hz 屏 60 帧，高刷屏跟随浏览器给的刷新率）
   function loop(now){ // WebGL 的动画循环
     raf=requestAnimationFrame(loop) // 预约下一帧
-    if(now-lastDraw>=FRAME_MS) draw(now) // 距上次绘制满一帧才画
+    draw(now) // 画这一帧
   }
   function start(){ // 开始动画循环
     if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop) // 没在循环且没开减弱动态效果时才开始
