@@ -60,7 +60,7 @@ SOFTWARE.
   --glass-bg-strong:rgba(255,255,255,.55); /* 较实的玻璃底色（普通按钮用） */
   --glass-blur:blur(4px) saturate(140%) brightness(1.02); /* CSS 玻璃的背景模糊、提饱和、提亮（不用 WebGL 时） */
   --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%); /* 玻璃左上角的镜面反光 */
-  --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff); /* 玻璃边缘高光描边的渐变：左上和右下最亮 */
+  --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.55) 20%,rgba(255,255,255,.3) 42%,rgba(255,255,255,.3) 62%,rgba(255,255,255,.55) 82%,#fff); /* 玻璃边缘高光描边的渐变：左上和右下最亮，中段保留 30% 白，右上角和左下角的描边不会断开 */
   /* 不用扩散值（spread）：Safari 26 遇到大圆角 + 扩散值的阴影会在元素后面画出方形色块 */
   --glass-edge:0 0 .5px rgba(15,23,42,.3),0 0 .5px rgba(15,23,42,.3),0 0 2px rgba(15,23,42,.1); /* 玻璃外圈深色细边：两层 0.5px 模糊阴影叠加 */
   --glass-border:rgba(15,23,42,.16); /* 大面板的深色细边颜色（用 border 画） */
@@ -116,7 +116,7 @@ SOFTWARE.
     --glass-bg-strong:rgba(54,60,84,.74); /* 深色较实的玻璃底色 */
     --glass-blur:blur(5px) saturate(140%); /* 深色 CSS 玻璃的模糊和提饱和 */
     --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%); /* 深色镜面反光（更弱） */
-    --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55)); /* 深色高光描边（更弱） */
+    --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.2) 20%,rgba(255,255,255,.1) 42%,rgba(255,255,255,.1) 62%,rgba(255,255,255,.18) 82%,rgba(255,255,255,.55)); /* 深色高光描边（更弱），中段保留 10% 白，描边不断开 */
     --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55); /* 深色外圈黑色细边 */
     --glass-border:rgba(0,0,0,.6); /* 深色大面板细边颜色 */
     --glass-inset: /* 深色内侧高光（多行取值） */
@@ -1154,9 +1154,9 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
       const y=(j+.5)*FALLBACK_SCALE*inv // 这一行中心对应的液体 y 坐标
       for(let i=0;i<canvas.width;i++){ // 这一行的每个像素
         const c=shade((i+.5)*FALLBACK_SCALE*inv,y) // 算出这个像素的颜色
-        data[o]=255*Math.min(1,Math.max(0,c[0])*mul*(1-white)+white) // 红：调色后写入（0～255）
-        data[o+1]=255*Math.min(1,Math.max(0,c[1])*mul*(1-white)+white) // 绿
-        data[o+2]=255*Math.min(1,Math.max(0,c[2])*mul*(1-white)+white) // 蓝
+        data[o]=255*Math.min(1,Math.max(0,c[0])*mul*(1-white)+white)+Math.random()-.5 // 红：调色后加 ±0.5 的抖动写入（0～255），放大后不出现色阶条纹
+        data[o+1]=255*Math.min(1,Math.max(0,c[1])*mul*(1-white)+white)+Math.random()-.5 // 绿
+        data[o+2]=255*Math.min(1,Math.max(0,c[2])*mul*(1-white)+white)+Math.random()-.5 // 蓝
         data[o+3]=255 // 不透明
         o+=4 // 下一个像素
       }
@@ -1213,8 +1213,8 @@ function createLiquidGlass(onLost){ // 创建 WebGL 液体玻璃
   canvas.setAttribute("aria-hidden","true") // 读屏软件忽略
   const gl=canvas.getContext("webgl",{alpha:false,antialias:false,depth:false,stencil:false,premultipliedAlpha:false,powerPreference:"low-power"}) // 取 WebGL 上下文：不透明、不抗锯齿、不需要深度和模板缓冲、优先省电
   if(!gl) return null // 不支持 WebGL 就返回 null
-  // 液体纹理每个像素对应 4 个 CSS 像素
-  const FIELD_SCALE=4 // 液体纹理的缩小倍数
+  // 液体纹理每个像素对应 2 个 CSS 像素：再粗的话，放大后能看出纹理像素的网格
+  const FIELD_SCALE=2 // 液体纹理的缩小倍数
   const vertSrc=`attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}` // 顶点着色器：一个盖住整个屏幕的三角形
   const fieldSrc=` // 液体着色器：把整屏液体画进低分辨率纹理
 precision highp float; // 使用高精度浮点数
@@ -1249,7 +1249,9 @@ void main(){ // 每个纹理像素
   float l=dot(c,LUMA); // 混合后的亮度
   vec3 dc=c-l; // 颜色相对亮度的偏移
   c=(l+dc*min(ch/w/max(length(dc),1e-4),2.5))*(1.+uShape.w*sin(q.x*2.3-q.y*1.7)); // 按平均饱和度放大偏移（最多 2.5 倍），再乘丝绸褶皱的明暗
-  gl_FragColor=vec4(clamp(mix(max(c,0.)*uTone.x,vec3(1.),uTone.y),0.,1.),1.); // 调色（乘倍率、混白），限制在 0～1 后输出
+  vec3 o=clamp(mix(max(c,0.)*uTone.x,vec3(1.),uTone.y),0.,1.); // 调色（乘倍率、混白），限制在 0～1
+  // 用 8 位纹理时每个颜色只有 256 级：缓慢的渐变会变成一级一级的台阶，放大后出现条纹和色块，写入前加抖动打散台阶
+  gl_FragColor=vec4(o+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.); // 加上 ±0.5/255 的随机抖动后输出
 }` // 液体着色器源码结束
   const glassSrc=` // 玻璃着色器：整屏背景加两块玻璃面板
 precision highp float; // 使用高精度浮点数
@@ -1314,8 +1316,8 @@ void main(){ // 每个屏幕像素
     g=clamp(mix(vec3(l),g,SAT)*uLook.w,0.,1.); // 略微提饱和，再按参数提亮
     g=mix(g,uTint.rgb,uTint.a); // 叠上玻璃底色
     g+=uLook.z*(1.-clamp(length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b))/.55,0.,1.)); // 左上角的顶部反光：椭圆形的柔光
-    // 高光：迎光的左上边缘最亮，右下边缘有反光
-    g+=uLook.y*pow(e,3.)*(max(dot(n,LIGHT),0.)+.6*max(dot(n,-LIGHT),0.)); // 边缘高光：朝光源的一侧亮，背光的一侧有 60% 的反光
+    // 高光：迎光的左上边缘最亮，右下边缘有反光，侧对光源的右上角和左下角也保留一圈底光，边缘不会断开
+    g+=uLook.y*pow(e,3.)*(.3+.7*max(dot(n,LIGHT),0.)+.3*max(dot(n,-LIGHT),0.)); // 边缘高光：整圈 30% 底光，朝光源的一侧最亮，背光的一侧有反光
     g=mix(g,vec3(1.),uLook.y*.1*lens); // 边缘透镜区稍微泛白
     col=mix(col,clamp(g,0.,1.),clamp(.5-d*uDpr,0.,1.)); // 把玻璃颜色画到面板范围内，边缘按 1 个像素抗锯齿
   }
@@ -1357,6 +1359,10 @@ void main(){ // 每个屏幕像素
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW) // 三个顶点组成一个盖住整个屏幕的大三角形
   gl.enableVertexAttribArray(0) // 启用位置 0 的顶点属性
   gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0) // 每个顶点 2 个浮点数
+  // 优先用半精度浮点纹理存液体：8 位纹理每个颜色只有 256 级，缓慢的渐变放大后会出现一圈圈台阶
+  const half=gl.getExtension("OES_texture_half_float") // 半精度浮点纹理扩展
+  let fieldType=half&&gl.getExtension("OES_texture_half_float_linear")?half.HALF_FLOAT_OES:gl.UNSIGNED_BYTE // 半精度纹理还能线性插值才用它，否则用 8 位纹理
+  gl.getExtension("EXT_color_buffer_half_float") // 开启渲染到半精度纹理（部分浏览器要先开启）
   const fieldTex=gl.createTexture() // 新建液体纹理
   gl.bindTexture(gl.TEXTURE_2D,fieldTex) // 绑定纹理
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR) // 缩小时线性插值
@@ -1408,9 +1414,13 @@ void main(){ // 每个屏幕像素
     fieldW=Math.max(1,Math.ceil(sizeW/FIELD_SCALE)) // 液体纹理宽度
     fieldH=Math.max(1,Math.ceil(sizeH/FIELD_SCALE)) // 液体纹理高度
     gl.bindTexture(gl.TEXTURE_2D,fieldTex) // 绑定液体纹理
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,fieldW,fieldH,0,gl.RGBA,gl.UNSIGNED_BYTE,null) // 按新尺寸分配纹理（不填内容）
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,fieldW,fieldH,0,gl.RGBA,fieldType,null) // 按新尺寸分配纹理（不填内容）
     gl.bindFramebuffer(gl.FRAMEBUFFER,fbo) // 绑定帧缓冲
     gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,fieldTex,0) // 把纹理接到帧缓冲上，之后画进帧缓冲就是画进纹理
+    if(fieldType!==gl.UNSIGNED_BYTE&&gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE){ // 设备不能渲染到半精度纹理时
+      fieldType=gl.UNSIGNED_BYTE // 改用 8 位纹理
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,fieldW,fieldH,0,gl.RGBA,fieldType,null) // 重新分配纹理
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER,null) // 恢复画到屏幕
     gl.useProgram(field.prog) // 切换到液体程序
     gl.uniform2f(field.u.uFieldRes,fieldW,fieldH) // 纹理尺寸
