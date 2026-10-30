@@ -29,7 +29,7 @@ SOFTWARE.
 <meta name="theme-color" content="#f7f3ff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#07081a" media="(prefers-color-scheme: dark)">
 <title>双色球 / 大乐透 随机选号</title>
-<script src="./html2canvas.min.js"></script>
+<script src="./html2canvas.min.js" defer></script>
 <style>
 :root {
   /* 浅色、深色跟随系统切换 */
@@ -272,7 +272,10 @@ button::before,
 .ios-save-modal::before {
   content:"";
   position:absolute;
-  inset:0;
+  top:0;
+  right:0;
+  bottom:0;
+  left:0;
   border-radius:inherit;
   padding:var(--rim-w);
   background:var(--glass-rim);
@@ -287,7 +290,10 @@ button::after,
 .segmented-thumb::after {
   content:"";
   position:absolute;
-  inset:0;
+  top:0;
+  right:0;
+  bottom:0;
+  left:0;
   z-index:-1;
   border-radius:inherit;
   background:radial-gradient(circle var(--glow-size,90px) at var(--lx,50%) var(--ly,50%),var(--glow),transparent);
@@ -428,6 +434,10 @@ button:active {
   transform:scale(1.07);
   filter:brightness(1.1) saturate(1.1);
 }
+button:focus-visible {
+  outline:2px solid var(--primary);
+  outline-offset:2px;
+}
 /* 生成过程中只禁止点击，外观保持不变 */
 button:disabled {
   opacity:1;
@@ -474,8 +484,13 @@ button:disabled {
     inset 0 -2px 3px rgba(0,0,0,.12),
     0 2px 5px rgba(15,23,42,.18);
 }
-/* html2canvas 不能正确绘制内阴影，导出图片时去掉 */
-.capture .ball {box-shadow:none;}
+/* html2canvas 不能正确绘制内阴影，导出图片时去掉；导出的号码球固定大小，不随窄屏缩小 */
+.capture .ball {
+  width:28px;
+  height:28px;
+  font-size:.85rem;
+  box-shadow:none;
+}
 .red {background:radial-gradient(circle at 32% 26%,#ff8a8a 0%,var(--red) 55%,#d22f2f 100%);}
 .blue {background:radial-gradient(circle at 32% 26%,#8ab8ff 0%,var(--blue) 55%,#2563d9 100%);}
 @media (max-width:360px) {
@@ -484,9 +499,29 @@ button:disabled {
   button,
   .segmented label {font-size:.9rem;}
 }
+/* 横屏时高度不够放下上下排列的内容（页面不能滚动），改为标题在上、选择和结果左右并排 */
+@media (orientation:landscape) and (max-height:520px) {
+  .container {
+    max-width:820px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    align-items:center;
+    gap:12px 16px;
+    padding-top:max(12px, env(safe-area-inset-top));
+    padding-bottom:max(12px, env(safe-area-inset-bottom));
+  }
+  h1 {
+    grid-column:1 / -1;
+    font-size:1.25rem;
+    margin:0;
+  }
+}
 .ios-save-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 99999;
   display: flex;
   align-items: center;
@@ -553,13 +588,13 @@ button:disabled {
   text-align: center;
 }
 .ios-save-close {
+  --glow: rgba(255, 255, 255, 0.35);
   flex: none;
   width: 100%;
   margin-top: 10px;
   background: var(--glass-spec), var(--tint-primary);
   color: #fff;
   font-size: 15px;
-  -webkit-tap-highlight-color: transparent;
 }
 </style>
 </head>
@@ -576,12 +611,12 @@ button:disabled {
       <label for="type-dlt">大乐透</label>
     </div>
     <div class="button-group">
-      <button id="generate-btn" class="prominent">生成号码</button>
-      <button id="save-btn" class="prominent">保存图片</button>
+      <button type="button" id="generate-btn" class="prominent">生成号码</button>
+      <button type="button" id="save-btn" class="prominent">保存图片</button>
     </div>
   </div>
   <div class="result-box glass">
-    <div class="result-inner" id="result-inner"></div>
+    <div class="result-inner" id="result-inner" aria-live="polite" aria-label="生成的号码"></div>
   </div>
 </div>
 <script>
@@ -701,21 +736,17 @@ segmentedThumb.addEventListener("animationend",()=>segmentedThumb.classList.remo
   document.addEventListener("pointerup",release)
   document.addEventListener("pointercancel",release)
 })()
+// 取 [0,max) 内的无偏随机整数：crypto 生成 32 位随机数，丢弃尾部不能整除的部分（拒绝采样）
+const randomWord=new Uint32Array(1)
 function randomIntUnbiased(max){
-  if(max<=0) throw new Error("max must be positive")
-  const bytes=new Uint8Array(128)
-  const maxBig=BigInt(max)
-  const range=1n<<1024n
-  const limit=range-(range%maxBig)
+  if(!(max>0&&max<=0x100000000)) throw new Error("max must be in (0, 2^32]")
+  const limit=0x100000000-0x100000000%max
   let x
   do{
-    crypto.getRandomValues(bytes)
-    x=0n
-    for(const b of bytes){
-      x=(x<<8n)|BigInt(b)
-    }
+    crypto.getRandomValues(randomWord)
+    x=randomWord[0]
   }while(x>=limit)
-  return Number(x%maxBig)
+  return x%max
 }
 function randomNums(min,max,count){
   const pool=Array.from({length:max-min+1},(_,i)=>i+min)
@@ -742,6 +773,7 @@ function generateRolling(){
   const count=5
   isRolling=true
   toggleButtons(true)
+  resultInner.setAttribute("aria-busy","true")
   const duration=10000
   const start=performance.now()
   function frame(now){
@@ -762,11 +794,13 @@ function generateRolling(){
       requestAnimationFrame(frame)
     }else{
       isRolling=false
+      resultInner.removeAttribute("aria-busy")
       toggleButtons(false)
     }
   }
   requestAnimationFrame(frame)
 }
+document.getElementById("generate-btn").onclick=generateRolling
 function formatDateLocal(date){
   const y=date.getFullYear()
   const m=String(date.getMonth()+1).padStart(2,"0")
@@ -777,12 +811,18 @@ function formatDateLocal(date){
   return `${y}-${m}-${d}_${h}${min}${s}`
 }
 function saveAsImage(){
+  // 记下触发保存的元素，关闭弹窗后把焦点还给它（生成图片期间按钮被禁用，焦点会丢失）
+  const opener=document.activeElement
   if(isRolling){
     alert("请等待生成完成再保存")
     return
   }
   if(!resultInner.innerHTML.trim()){
     alert("当前没有生成结果")
+    return
+  }
+  if(typeof html2canvas!=="function"){
+    alert("图片组件还没加载好，请稍后再试")
     return
   }
   toggleButtons(true)
@@ -822,32 +862,44 @@ function saveAsImage(){
     backgroundColor:theme.getPropertyValue("--export-base").trim(),
     scale:2
   }).then(canvas=>{
-  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)
+  // iPadOS 默认伪装成 Mac 的 UA，用触摸点数区分
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1)
   if(isIOS){
   const overlay=document.createElement("div")
   overlay.className="ios-save-overlay"
   const modal=document.createElement("div")
   modal.className="ios-save-modal"
+  modal.setAttribute("role","dialog")
+  modal.setAttribute("aria-modal","true")
+  modal.setAttribute("aria-label","保存图片")
   const preview=document.createElement("img")
   preview.className="ios-save-preview"
+  preview.alt=`${typeText} ${dateText} 号码图片`
   preview.src=canvas.toDataURL("image/png")
   const tip=document.createElement("div")
   tip.className="ios-save-tip"
   tip.textContent="长按图片即可保存到相册"
   const closeBtn=document.createElement("button")
+  closeBtn.type="button"
   closeBtn.className="ios-save-close"
   closeBtn.textContent="关闭"
   let closing=false
+  function onKey(e){
+    if(e.key==="Escape") closePreview()
+  }
   function closePreview(){
     if(closing) return
     closing=true
+    document.removeEventListener("keydown",onKey)
     overlay.classList.remove("show")
     setTimeout(()=>{
       if(overlay.parentNode){
         overlay.parentNode.removeChild(overlay)
       }
+      if(opener&&opener.focus) opener.focus()
     },230)
   }
+  document.addEventListener("keydown",onKey)
   closeBtn.addEventListener(
     "click",
     closePreview
@@ -874,10 +926,15 @@ function saveAsImage(){
     requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
     overlay.classList.add("show")
+    closeBtn.focus({preventScroll:true})
     })
   })
  }else{
       canvas.toBlob(blob=>{
+        if(!blob){
+          alert("图片生成失败，请重试")
+          return
+        }
         const url=URL.createObjectURL(blob)
         const a=document.createElement("a")
         a.href=url
@@ -900,6 +957,12 @@ function saveAsImage(){
     toggleButtons(false)
     alert("图片生成失败，请重试")
   })
+}
+document.getElementById("save-btn").onclick=saveAsImage
+// 监听系统设置（深浅模式、减弱动态效果、降低透明度）的变化；iOS 13 及更早只有 addListener
+function onMediaChange(mql,fn,options){
+  if(mql.addEventListener) mql.addEventListener("change",fn,options)
+  else if(mql.addListener) mql.addListener(fn)
 }
 // 液态背景：整屏流动的彩色液体。多层正弦扭曲坐标（domain warp）做出丝绸般的流动，
 // 六种颜色按扭曲后的坐标平滑混合，任何时刻都铺满全屏，没有液滴的边界
@@ -928,7 +991,9 @@ const liquidBackdrop=(function(){
   let width=backdrop.clientWidth
   let height=backdrop.clientHeight
   let colors=[]
+  let chroma=[]
   let tone=[1,0]
+  let active=false
   let canvas=null
   let ctx=null
   let image=null
@@ -945,7 +1010,15 @@ const liquidBackdrop=(function(){
   function readTheme(){
     const cs=getComputedStyle(document.documentElement)
     colors=[1,2,3,4,5,6].map(i=>hex(cs.getPropertyValue(`--liquid-${i}`)))
+    // 每种颜色的饱和度（到同亮度灰色的距离），混色后用来补回饱和度
+    chroma=colors.map(c=>{
+      const l=luma(c)
+      return Math.hypot(c[0]-l,c[1]-l,c[2]-l)
+    })
     tone=cs.getPropertyValue("--liquid-tone").trim().split(/\s+/).map(Number)
+  }
+  function luma(c){
+    return c[0]*.2126+c[1]*.7152+c[2]*.0722
   }
   function step(now){
     const dt=Math.min((now-lastStep)/1000,.1)
@@ -981,13 +1054,14 @@ const liquidBackdrop=(function(){
       tintDir:tints.flatMap(c=>[c.dx,c.dy]),
       shape:SHAPE,
       colors:colors.flat(),
+      chroma,
       tone
     }
   }
   function phases(){
     return {warp:warps.flatMap(w=>[w.px,w.py]),tint:tints.map(c=>c.p)}
   }
-  // 与着色器 fieldSrc 相同：扭曲坐标 → 六色按条纹平滑混合 → 丝绸褶皱的明暗（未做深浅调色）
+  // 与着色器 fieldSrc 相同：扭曲坐标 → 六色按条纹平滑混合 → 补回饱和度 → 丝绸褶皱的明暗（未做深浅调色）
   function shade(qx,qy){
     for(let i=0;i<WARP.length;i++){
       const [a,f]=WARP[i]
@@ -995,7 +1069,7 @@ const liquidBackdrop=(function(){
       qy+=a*Math.sin(qx*f+warps[i].py)
       qx=nx
     }
-    let r=0,g=0,b=0,w=0
+    let r=0,g=0,b=0,w=0,ch=0
     for(let k=0;k<6;k++){
       const t=tints[k]
       const s=Math.pow(Math.max(.5+.5*Math.sin((qx*t.dx+qy*t.dy)*SHAPE[1]+t.p),0),SHAPE[2])
@@ -1003,15 +1077,23 @@ const liquidBackdrop=(function(){
       r+=c[0]*s
       g+=c[1]*s
       b+=c[2]*s
+      ch+=chroma[k]*s
       w+=s
     }
-    const fold=(1+SHAPE[3]*Math.sin(qx*2.3-qy*1.7))/Math.max(w,1e-6)
-    return [r*fold,g*fold,b*fold]
+    w=Math.max(w,1e-6)
+    r/=w
+    g/=w
+    b/=w
+    // 互补色平均会互相抵消、发灰（橙 + 蓝 ≈ 灰），按参与混合的颜色的平均饱和度补回来
+    const l=luma([r,g,b])
+    const boost=Math.min(ch/w/Math.max(Math.hypot(r-l,g-l,b-l),1e-4),2.5)
+    const fold=1+SHAPE[3]*Math.sin(qx*2.3-qy*1.7)
+    return [(l+(r-l)*boost)*fold,(l+(g-l)*boost)*fold,(l+(b-l)*boost)*fold]
   }
   function resize(){
     width=backdrop.clientWidth
     height=backdrop.clientHeight
-    if(canvas){
+    if(canvas&&active){
       canvas.width=Math.ceil(width/FALLBACK_SCALE)
       canvas.height=Math.ceil(height/FALLBACK_SCALE)
       image=ctx.createImageData(canvas.width,canvas.height)
@@ -1028,9 +1110,9 @@ const liquidBackdrop=(function(){
       const y=(j+.5)*FALLBACK_SCALE*inv
       for(let i=0;i<canvas.width;i++){
         const c=shade((i+.5)*FALLBACK_SCALE*inv,y)
-        data[o]=255*Math.min(1,c[0]*mul*(1-white)+white)
-        data[o+1]=255*Math.min(1,c[1]*mul*(1-white)+white)
-        data[o+2]=255*Math.min(1,c[2]*mul*(1-white)+white)
+        data[o]=255*Math.min(1,Math.max(0,c[0])*mul*(1-white)+white)
+        data[o+1]=255*Math.min(1,Math.max(0,c[1])*mul*(1-white)+white)
+        data[o+2]=255*Math.min(1,Math.max(0,c[2])*mul*(1-white)+white)
         data[o+3]=255
         o+=4
       }
@@ -1046,14 +1128,20 @@ const liquidBackdrop=(function(){
     drawFallback()
   }
   function start(){
+    active=true
     if(!canvas){
       canvas=document.createElement("canvas")
       backdrop.appendChild(canvas)
       ctx=canvas.getContext("2d")
-      resize()
     }
+    resize()
     lastStep=performance.now()
     if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop)
+  }
+  function stop(){
+    active=false
+    cancelAnimationFrame(raf)
+    raf=0
   }
   readTheme()
   window.addEventListener("resize",resize)
@@ -1061,29 +1149,26 @@ const liquidBackdrop=(function(){
   if(window.ResizeObserver) new ResizeObserver(()=>{
     if(backdrop.clientWidth!==width||backdrop.clientHeight!==height) resize()
   }).observe(backdrop)
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{
+  onMediaChange(matchMedia("(prefers-color-scheme: dark)"),()=>{
     readTheme()
-    if(canvas) drawFallback()
+    if(active) drawFallback()
   })
-  reduceMotion.addEventListener("change",()=>{
-    if(!canvas) return
-    cancelAnimationFrame(raf)
-    raf=0
+  onMediaChange(reduceMotion,()=>{
+    if(!active) return
+    stop()
     start()
-    drawFallback()
   })
-  return {step,spec,phases,start,readTheme}
+  return {step,spec,phases,start,stop,readTheme}
 })()
-const liquidGlassOn=(function liquidGlassWebGL(){
-  // WebGL 先在低分辨率纹理里算出液态背景，再整屏放大，并画出玻璃面板：
-  // 边缘透镜折射、色散、轻度磨砂、高光和投影
-  // 不支持 WebGL 或系统要求降低透明度时，用 2D 兜底画法和 CSS 玻璃
-  if(matchMedia("(prefers-reduced-transparency: reduce)").matches) return false
+// WebGL 先在低分辨率纹理里算出液态背景，再整屏放大，并画出玻璃面板：
+// 边缘透镜折射、色散、轻度磨砂、高光和投影
+// 创建失败时返回 null；成功时返回 {destroy}，WebGL 上下文丢失时调用 onLost
+function createLiquidGlass(onLost){
   const canvas=document.createElement("canvas")
   canvas.className="lg-canvas"
   canvas.setAttribute("aria-hidden","true")
   const gl=canvas.getContext("webgl",{alpha:false,antialias:false,depth:false,stencil:false,premultipliedAlpha:false,powerPreference:"low-power"})
-  if(!gl) return false
+  if(!gl) return null
   // 液体纹理每个像素对应 4 个 CSS 像素
   const FIELD_SCALE=4
   const vertSrc=`attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}`
@@ -1097,7 +1182,9 @@ uniform vec2 uWarpP[5];
 uniform vec2 uTintD[6];
 uniform float uTintP[6];
 uniform vec3 uCol[6];
+uniform float uChroma[6];
 uniform vec2 uTone;
+const vec3 LUMA=vec3(.2126,.7152,.0722);
 void main(){
   vec2 q=vec2(gl_FragCoord.x,uFieldRes.y-gl_FragCoord.y)*uFieldScale*uShape.x;
   for(int i=0;i<5;i++){
@@ -1105,13 +1192,20 @@ void main(){
   }
   vec3 c=vec3(0.);
   float w=0.;
+  float ch=0.;
   for(int k=0;k<6;k++){
     float s=pow(max(.5+.5*sin(dot(q,uTintD[k])*uShape.y+uTintP[k]),0.),uShape.z);
     c+=uCol[k]*s;
+    ch+=uChroma[k]*s;
     w+=s;
   }
-  c*=(1.+uShape.w*sin(q.x*2.3-q.y*1.7))/max(w,1e-6);
-  gl_FragColor=vec4(clamp(mix(c*uTone.x,vec3(1.),uTone.y),0.,1.),1.);
+  w=max(w,1e-6);
+  c/=w;
+  // 互补色平均会互相抵消、发灰（橙 + 蓝 ≈ 灰），按参与混合的颜色的平均饱和度补回来
+  float l=dot(c,LUMA);
+  vec3 dc=c-l;
+  c=(l+dc*min(ch/w/max(length(dc),1e-4),2.5))*(1.+uShape.w*sin(q.x*2.3-q.y*1.7));
+  gl_FragColor=vec4(clamp(mix(max(c,0.)*uTone.x,vec3(1.),uTone.y),0.,1.),1.);
 }`
   const glassSrc=`
 precision highp float;
@@ -1211,10 +1305,10 @@ void main(){
   const vs=compile(gl.VERTEX_SHADER,vertSrc)
   const fieldFs=compile(gl.FRAGMENT_SHADER,fieldSrc)
   const glassFs=compile(gl.FRAGMENT_SHADER,glassSrc)
-  if(!vs||!fieldFs||!glassFs) return false
-  const field=link(vs,fieldFs,["uFieldRes","uFieldScale","uShape","uWarp","uWarpP","uTintD","uTintP","uCol","uTone"])
+  if(!vs||!fieldFs||!glassFs) return null
+  const field=link(vs,fieldFs,["uFieldRes","uFieldScale","uShape","uWarp","uWarpP","uTintD","uTintP","uCol","uChroma","uTone"])
   const glass=link(vs,glassFs,["uField","uFieldSize","uRes","uDpr","uPanel","uPanelR","uPanelN","uTint","uLook","uShadow"])
-  if(!field||!glass) return false
+  if(!field||!glass) return null
   gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer())
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW)
   gl.enableVertexAttribArray(0)
@@ -1228,6 +1322,10 @@ void main(){
   const fbo=gl.createFramebuffer()
   const panels=[...document.querySelectorAll(".glass")].slice(0,2)
   const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
+  // 销毁时一次性移除所有监听
+  const listeners=new AbortController()
+  const on={signal:listeners.signal}
+  const observers=[]
   let raf=0
   let lastDraw=0
   let sizeW=0
@@ -1249,6 +1347,7 @@ void main(){
     gl.uniform2fv(field.u.uWarp,sp.warp)
     gl.uniform2fv(field.u.uTintD,sp.tintDir)
     gl.uniform3fv(field.u.uCol,sp.colors)
+    gl.uniform1fv(field.u.uChroma,sp.chroma)
     gl.uniform2fv(field.u.uTone,sp.tone)
     gl.useProgram(glass.prog)
     gl.uniform4f(glass.u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
@@ -1320,6 +1419,15 @@ void main(){
     cancelAnimationFrame(raf)
     raf=0
   }
+  function destroy(){
+    stop()
+    listeners.abort()
+    observers.forEach(o=>o.disconnect())
+    canvas.remove()
+    document.documentElement.classList.remove("lg-webgl")
+    const lose=gl.getExtension("WEBGL_lose_context")
+    if(lose&&!gl.isContextLost()) lose.loseContext()
+  }
   document.body.insertBefore(canvas,document.body.firstChild)
   resize()
   // 极少数设备不能渲染到纹理，此时改用 2D 兜底画法
@@ -1327,38 +1435,80 @@ void main(){
   const fboOk=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE
   gl.bindFramebuffer(gl.FRAMEBUFFER,null)
   if(!fboOk){
-    canvas.remove()
-    return false
+    destroy()
+    return null
   }
-  canvas.addEventListener("webglcontextlost",e=>{
-    e.preventDefault()
-    stop()
-    canvas.remove()
-    document.documentElement.classList.remove("lg-webgl")
-    liquidBackdrop.start()
-  })
+  canvas.addEventListener("webglcontextlost",()=>{
+    destroy()
+    onLost()
+  },on)
   document.documentElement.classList.add("lg-webgl")
   start()
-  window.addEventListener("resize",resize)
-  if(window.visualViewport) visualViewport.addEventListener("resize",resize)
+  window.addEventListener("resize",resize,on)
+  if(window.visualViewport) visualViewport.addEventListener("resize",resize,on)
   if(window.ResizeObserver){
-    new ResizeObserver(()=>draw(performance.now())).observe(document.querySelector(".container"))
-    new ResizeObserver(()=>draw(performance.now())).observe(canvas)
+    ;[document.querySelector(".container"),canvas].forEach(el=>{
+      const o=new ResizeObserver(()=>draw(performance.now()))
+      o.observe(el)
+      observers.push(o)
+    })
   }
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{
+  // 旧版 Safari 不支持用 signal 移除监听，所以回调里先确认 WebGL 仍在使用
+  onMediaChange(matchMedia("(prefers-color-scheme: dark)"),()=>{
+    if(listeners.signal.aborted) return
     readTheme()
     draw(performance.now())
-  })
-  reduceMotion.addEventListener("change",()=>{
+  },on)
+  onMediaChange(reduceMotion,()=>{
+    if(listeners.signal.aborted) return
     stop()
     start()
     draw(performance.now())
+  },on)
+  return {destroy}
+}
+// 优先用 WebGL；不支持、上下文丢失或系统要求降低透明度时，用 2D 兜底背景和 CSS 玻璃。
+// "降低透明度"可以随时切换，切换后立即生效。
+// iOS Safari 常在页面切到后台后回收 WebGL 上下文，回到前台时重新创建
+;(function liquidGlassController(){
+  const reduceTransparency=matchMedia("(prefers-reduced-transparency: reduce)")
+  let webgl=null
+  let unsupported=false
+  function fallback(){
+    webgl=null
+    liquidBackdrop.start()
+  }
+  function create(){
+    try{
+      return createLiquidGlass(fallback)
+    }catch(error){
+      console.warn("液体玻璃初始化失败:",error)
+      document.querySelectorAll(".lg-canvas").forEach(c=>c.remove())
+      document.documentElement.classList.remove("lg-webgl")
+      return null
+    }
+  }
+  function apply(){
+    if(reduceTransparency.matches){
+      if(webgl) webgl.destroy()
+      fallback()
+      return
+    }
+    if(webgl||unsupported) return
+    webgl=create()
+    if(webgl){
+      liquidBackdrop.stop()
+    }else{
+      unsupported=true
+      liquidBackdrop.start()
+    }
+  }
+  apply()
+  onMediaChange(reduceTransparency,apply)
+  document.addEventListener("visibilitychange",()=>{
+    if(document.visibilityState==="visible") apply()
   })
-  return true
 })()
-if(!liquidGlassOn) liquidBackdrop.start()
-document.getElementById("generate-btn").onclick=generateRolling
-document.getElementById("save-btn").onclick=saveAsImage
 </script>
 </body>
 </html>
