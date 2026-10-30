@@ -1173,7 +1173,7 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
     }
     ctx.putImageData(image,0,0) // 整张写回画布
   }
-  // 30 帧足够，省电
+  // 兜底画法用 JS 逐像素计算，开销大（每帧约 10 毫秒），保持每秒 30 帧，不和按钮、号码滚动抢主线程
   function loop(now){ // 兜底画法的动画循环
     raf=requestAnimationFrame(loop) // 预约下一帧
     if(now-lastDraw<33) return // 距上次绘制不到 33 毫秒就跳过（每秒最多 30 帧）
@@ -1484,10 +1484,11 @@ void main(){ // 每个屏幕像素
     gl.drawArrays(gl.TRIANGLES,0,3) // 画满整个屏幕
     lastDraw=now // 记下绘制时间
   }
-  // 液体流得很慢，30 帧足够，省电
+  // 每秒最多 60 帧：120Hz 高刷屏上隔一帧画一次，不多耗电
+  const FRAME_MS=1000/60-2 // 两次绘制的最小间隔（毫秒），留 2 毫秒余量，60Hz 屏幕上计时稍有抖动也不会漏帧
   function loop(now){ // WebGL 的动画循环
     raf=requestAnimationFrame(loop) // 预约下一帧
-    if(now-lastDraw>=33) draw(now) // 距上次绘制满 33 毫秒才画（每秒最多 30 帧）
+    if(now-lastDraw>=FRAME_MS) draw(now) // 距上次绘制满一帧才画
   }
   function start(){ // 开始动画循环
     if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop) // 没在循环且没开减弱动态效果时才开始
