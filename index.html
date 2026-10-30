@@ -21,1538 +21,1538 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 -->
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#f7f3ff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#07081a" media="(prefers-color-scheme: dark)">
-<title>双色球 / 大乐透 随机选号</title>
-<style>
-:root {
+<!DOCTYPE html> <!-- 声明文档类型为 HTML5 -->
+<html lang="zh-CN"> <!-- 根元素，页面语言为简体中文 -->
+<head> <!-- 文档头：放元信息和样式 -->
+<meta charset="UTF-8"> <!-- 字符编码使用 UTF-8 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"> <!-- 视口：宽度等于设备宽度，禁止缩放，内容延伸到刘海和圆角区域 -->
+<meta name="theme-color" content="#f7f3ff" media="(prefers-color-scheme: light)"> <!-- 浅色模式下浏览器状态栏的颜色 -->
+<meta name="theme-color" content="#07081a" media="(prefers-color-scheme: dark)"> <!-- 深色模式下浏览器状态栏的颜色 -->
+<title>双色球 / 大乐透 随机选号</title> <!-- 页面标题 -->
+<style> /* 页面样式开始 */
+:root { /* 全局变量（浅色模式的默认值） */
   /* 浅色、深色跟随系统切换 */
-  color-scheme: light dark;
-  --bg-page:#eef2ff;
-  --bg-canvas:linear-gradient(180deg,#f7f3ff 0%,#eef2ff 100%);
-  --text-main:#111827;
-  --text-sub:rgba(17,24,39,.6);
-  --primary:#4f46e5;
+  color-scheme: light dark; /* 让浏览器自带控件也跟随系统深浅模式 */
+  --bg-page:#eef2ff; /* 页面加载前和背景画布出现前的底色 */
+  --bg-canvas:linear-gradient(180deg,#f7f3ff 0%,#eef2ff 100%); /* 页面底层的渐变底色 */
+  --text-main:#111827; /* 主要文字颜色 */
+  --text-sub:rgba(17,24,39,.6); /* 次要文字颜色（半透明） */
+  --primary:#4f46e5; /* 主题色：焦点框等 */
   /* 号码球：高光、主色、暗部（页面和导出图片共用） */
-  --red-hi:#ff8a8a;
-  --red:#ef4444;
-  --red-lo:#d22f2f;
-  --blue-hi:#8ab8ff;
-  --blue:#3b82f6;
-  --blue-lo:#2563d9;
+  --red-hi:#ff8a8a; /* 红球高光色 */
+  --red:#ef4444; /* 红球主色 */
+  --red-lo:#d22f2f; /* 红球暗部色 */
+  --blue-hi:#8ab8ff; /* 蓝球高光色 */
+  --blue:#3b82f6; /* 蓝球主色 */
+  --blue-lo:#2563d9; /* 蓝球暗部色 */
   /* 液态背景：六种液体颜色 */
-  --liquid-1:#5b8cff;
-  --liquid-2:#a35bff;
-  --liquid-3:#ff6fb1;
-  --liquid-4:#ff9f45;
-  --liquid-5:#3fd0c9;
-  --liquid-6:#7b6cff;
+  --liquid-1:#5b8cff; /* 液体颜色 1：蓝 */
+  --liquid-2:#a35bff; /* 液体颜色 2：紫 */
+  --liquid-3:#ff6fb1; /* 液体颜色 3：粉 */
+  --liquid-4:#ff9f45; /* 液体颜色 4：橙 */
+  --liquid-5:#3fd0c9; /* 液体颜色 5：青 */
+  --liquid-6:#7b6cff; /* 液体颜色 6：靛 */
   /* 整屏液体的调色：颜色倍率 混白比例 */
-  --liquid-tone:1 .28;
-  --title-glow:0 0 14px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.8);
+  --liquid-tone:1 .28; /* 浅色：颜色倍率 1，混入 28% 白色，显得柔和 */
+  --title-glow:0 0 14px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.8); /* 标题外发光：白色光晕让标题在彩色液体上更清楚 */
   /* 液体玻璃材质（iOS 27 通透）：几乎全透，靠边缘高光、暗边和折射勾出轮廓 */
-  --glass-bg:rgba(255,255,255,.03);
-  --glass-bg-strong:rgba(255,255,255,.55);
-  --glass-blur:blur(4px) saturate(140%) brightness(1.02);
-  --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%);
-  --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff);
+  --glass-bg:rgba(255,255,255,.03); /* 玻璃底色：3% 白，几乎全透明 */
+  --glass-bg-strong:rgba(255,255,255,.55); /* 较实的玻璃底色（普通按钮用） */
+  --glass-blur:blur(4px) saturate(140%) brightness(1.02); /* CSS 玻璃的背景模糊、提饱和、提亮（不用 WebGL 时） */
+  --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%); /* 玻璃左上角的镜面反光 */
+  --glass-rim:linear-gradient(140deg,#fff,rgba(255,255,255,.4) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.45) 82%,#fff); /* 玻璃边缘高光描边的渐变：左上和右下最亮 */
   /* 不用扩散值（spread）：Safari 26 遇到大圆角 + 扩散值的阴影会在元素后面画出方形色块 */
-  --glass-edge:0 0 .5px rgba(15,23,42,.3),0 0 .5px rgba(15,23,42,.3),0 0 2px rgba(15,23,42,.1);
-  --glass-border:rgba(15,23,42,.16);
-  --glass-inset:
-    inset 0 1px 0 rgba(255,255,255,.95),
-    inset 2px 2px 4px rgba(255,255,255,.6),
-    inset -2px -2px 4px rgba(255,255,255,.4),
-    inset 0 0 16px rgba(255,255,255,.2);
-  --glass-shadow:
-    var(--glass-edge),
-    var(--glass-inset),
-    0 12px 32px rgba(31,41,95,.14),
-    0 2px 6px rgba(31,41,95,.08);
+  --glass-edge:0 0 .5px rgba(15,23,42,.3),0 0 .5px rgba(15,23,42,.3),0 0 2px rgba(15,23,42,.1); /* 玻璃外圈深色细边：两层 0.5px 模糊阴影叠加 */
+  --glass-border:rgba(15,23,42,.16); /* 大面板的深色细边颜色（用 border 画） */
+  --glass-inset: /* 玻璃内侧高光（多行取值，下面每行一层） */
+    inset 0 1px 0 rgba(255,255,255,.95), /* 顶部一条 1px 白色亮线 */
+    inset 2px 2px 4px rgba(255,255,255,.6), /* 左上内侧透镜光带 */
+    inset -2px -2px 4px rgba(255,255,255,.4), /* 右下内侧透镜光带 */
+    inset 0 0 16px rgba(255,255,255,.2); /* 内侧整圈柔光 */
+  --glass-shadow: /* 小控件的完整玻璃阴影（多行取值） */
+    var(--glass-edge), /* 深色细边 */
+    var(--glass-inset), /* 内侧高光 */
+    0 12px 32px rgba(31,41,95,.14), /* 远处柔和投影 */
+    0 2px 6px rgba(31,41,95,.08); /* 近处清晰投影 */
   /* WebGL 玻璃：磨砂半径 高光 顶部反光 提亮；面板投影颜色 */
-  --gl-look:2 .38 .05 1.02;
-  --gl-shadow:rgba(40,30,90,.08);
-  --rim-w:1.5px;
-  --glow:rgba(255,255,255,.8);
-  --tint-primary:rgba(79,70,229,.9);
-  --thumb-bg:rgba(255,255,255,.88);
-  --thumb-lens:rgba(255,255,255,.4);
+  --gl-look:2 .38 .05 1.02; /* 浅色：磨砂半径 2、高光 0.38、顶部反光 0.05、提亮 1.02 */
+  --gl-shadow:rgba(40,30,90,.08); /* WebGL 画的面板投影颜色 */
+  --rim-w:1.5px; /* 高光描边宽度 */
+  --glow:rgba(255,255,255,.8); /* 触摸发光的颜色 */
+  --tint-primary:rgba(79,70,229,.9); /* 主按钮的靛蓝底色 */
+  --thumb-bg:rgba(255,255,255,.88); /* 分段控件滑块的底色 */
+  --thumb-lens:rgba(255,255,255,.4); /* 按住滑块时的透镜底色（更透） */
   /* 保存弹窗：遮罩、玻璃底色、背景模糊、提示文字 */
-  --overlay-bg:rgba(15,23,42,.25);
-  --glass-modal:rgba(255,255,255,.22);
-  --modal-filter:blur(12px) saturate(160%) brightness(1.08);
-  --modal-tip:rgba(17,24,39,.78);
-  --modal-tip-shadow:0 1px 6px rgba(255,255,255,.7);
+  --overlay-bg:rgba(15,23,42,.25); /* 保存弹窗遮罩的颜色 */
+  --glass-modal:rgba(255,255,255,.22); /* 保存弹窗的玻璃底色 */
+  --modal-filter:blur(12px) saturate(160%) brightness(1.08); /* 保存弹窗的背景模糊、提饱和、提亮 */
+  --modal-tip:rgba(17,24,39,.78); /* 弹窗提示文字颜色 */
+  --modal-tip-shadow:0 1px 6px rgba(255,255,255,.7); /* 弹窗提示文字的光晕 */
   /* 导出图片：背景、画布底色、标题颜色 */
-  --export-bg:linear-gradient(160deg,#ffffff 0%,#f4f2ff 55%,#eef3ff 100%);
-  --export-base:#f4f2ff;
-  --export-title:#111827;
+  --export-bg:linear-gradient(160deg,#ffffff 0%,#f4f2ff 55%,#eef3ff 100%); /* 导出图片的背景渐变 */
+  --export-base:#f4f2ff; /* 导出图片的画布底色 */
+  --export-title:#111827; /* 导出图片标题颜色 */
   /* 同心圆角：外圆角 = 控件半高 + 内边距 */
-  --pad:10px;
-  --ctl-h:46px;
-  --radius-outer:calc(var(--ctl-h) / 2 + var(--pad));
+  --pad:10px; /* 卡片内边距 */
+  --ctl-h:46px; /* 按钮、分段控件的高度 */
+  --radius-outer:calc(var(--ctl-h) / 2 + var(--pad)); /* 卡片外圆角 = 控件半高 + 内边距，内外圆角同心 */
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-page:#0b1026;
-    --bg-canvas:linear-gradient(180deg,#07081a 0%,#0b1026 100%);
-    --text-main:#f1f5f9;
-    --text-sub:rgba(241,245,249,.6);
-    --primary:#818cf8;
-    --liquid-1:#3d6bff;
-    --liquid-2:#8b3dff;
-    --liquid-3:#ff3d8f;
-    --liquid-4:#ff8a24;
-    --liquid-5:#1fb8b0;
-    --liquid-6:#5a4dff;
-    --liquid-tone:.65 0;
-    --title-glow:0 0 14px rgba(0,0,0,.7);
-    --glass-bg:rgba(20,22,40,.08);
-    --glass-bg-strong:rgba(54,60,84,.74);
-    --glass-blur:blur(5px) saturate(140%);
-    --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%);
-    --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55));
-    --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55);
-    --glass-border:rgba(0,0,0,.6);
-    --glass-inset:
-      inset 0 1px 0 rgba(255,255,255,.3),
-      inset 2px 2px 4px rgba(255,255,255,.16),
-      inset -2px -2px 4px rgba(255,255,255,.08),
-      inset 0 0 16px rgba(255,255,255,.05);
-    --glass-shadow:
-      var(--glass-edge),
-      var(--glass-inset),
-      0 12px 32px rgba(0,0,0,.4),
-      0 2px 6px rgba(0,0,0,.3);
-    --gl-look:2.5 .3 .04 1;
-    --gl-shadow:rgba(0,0,0,.25);
-    --glow:rgba(255,255,255,.26);
-    --tint-primary:rgba(99,102,241,.72);
-    --thumb-bg:rgba(255,255,255,.22);
-    --thumb-lens:rgba(255,255,255,.1);
-    --overlay-bg:rgba(0,0,0,.4);
-    --glass-modal:rgba(20,22,40,.16);
-    --modal-filter:blur(12px) saturate(160%) brightness(1.3);
-    --modal-tip:rgba(241,245,249,.85);
-    --modal-tip-shadow:0 1px 6px rgba(0,0,0,.5);
-    --export-bg:linear-gradient(160deg,#151b3d 0%,#0b1026 55%,#1c1033 100%);
-    --export-base:#0b1026;
-    --export-title:#f1f5f9;
+@media (prefers-color-scheme: dark) { /* 系统为深色模式时覆盖下面的变量 */
+  :root { /* 深色模式的变量 */
+    --bg-page:#0b1026; /* 深色底色 */
+    --bg-canvas:linear-gradient(180deg,#07081a 0%,#0b1026 100%); /* 深色渐变底色 */
+    --text-main:#f1f5f9; /* 深色模式主要文字：近白 */
+    --text-sub:rgba(241,245,249,.6); /* 深色模式次要文字 */
+    --primary:#818cf8; /* 深色模式主题色：浅靛 */
+    --liquid-1:#3d6bff; /* 深色液体颜色 1：蓝 */
+    --liquid-2:#8b3dff; /* 深色液体颜色 2：紫 */
+    --liquid-3:#ff3d8f; /* 深色液体颜色 3：玫红 */
+    --liquid-4:#ff8a24; /* 深色液体颜色 4：橙 */
+    --liquid-5:#1fb8b0; /* 深色液体颜色 5：青 */
+    --liquid-6:#5a4dff; /* 深色液体颜色 6：靛 */
+    --liquid-tone:.65 0; /* 深色：颜色乘 0.65 压暗，不混白 */
+    --title-glow:0 0 14px rgba(0,0,0,.7); /* 深色标题外发光：黑色光晕 */
+    --glass-bg:rgba(20,22,40,.08); /* 深色玻璃底色：8% 深蓝灰 */
+    --glass-bg-strong:rgba(54,60,84,.74); /* 深色较实的玻璃底色 */
+    --glass-blur:blur(5px) saturate(140%); /* 深色 CSS 玻璃的模糊和提饱和 */
+    --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%); /* 深色镜面反光（更弱） */
+    --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.14) 20%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 62%,rgba(255,255,255,.12) 82%,rgba(255,255,255,.55)); /* 深色高光描边（更弱） */
+    --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55); /* 深色外圈黑色细边 */
+    --glass-border:rgba(0,0,0,.6); /* 深色大面板细边颜色 */
+    --glass-inset: /* 深色内侧高光（多行取值） */
+      inset 0 1px 0 rgba(255,255,255,.3), /* 顶部亮线（更弱） */
+      inset 2px 2px 4px rgba(255,255,255,.16), /* 左上透镜光带 */
+      inset -2px -2px 4px rgba(255,255,255,.08), /* 右下透镜光带 */
+      inset 0 0 16px rgba(255,255,255,.05); /* 内侧柔光 */
+    --glass-shadow: /* 深色小控件的玻璃阴影（多行取值） */
+      var(--glass-edge), /* 深色细边 */
+      var(--glass-inset), /* 内侧高光 */
+      0 12px 32px rgba(0,0,0,.4), /* 远处投影（更深） */
+      0 2px 6px rgba(0,0,0,.3); /* 近处投影 */
+    --gl-look:2.5 .3 .04 1; /* 深色：磨砂 2.5、高光 0.3、顶部反光 0.04、不提亮 */
+    --gl-shadow:rgba(0,0,0,.25); /* 深色面板投影颜色 */
+    --glow:rgba(255,255,255,.26); /* 深色触摸发光（更弱） */
+    --tint-primary:rgba(99,102,241,.72); /* 深色主按钮底色 */
+    --thumb-bg:rgba(255,255,255,.22); /* 深色滑块底色 */
+    --thumb-lens:rgba(255,255,255,.1); /* 深色按住滑块时的透镜底色 */
+    --overlay-bg:rgba(0,0,0,.4); /* 深色弹窗遮罩 */
+    --glass-modal:rgba(20,22,40,.16); /* 深色弹窗玻璃底色 */
+    --modal-filter:blur(12px) saturate(160%) brightness(1.3); /* 深色弹窗背景模糊，提亮更多 */
+    --modal-tip:rgba(241,245,249,.85); /* 深色弹窗提示文字 */
+    --modal-tip-shadow:0 1px 6px rgba(0,0,0,.5); /* 深色弹窗提示文字的阴影 */
+    --export-bg:linear-gradient(160deg,#151b3d 0%,#0b1026 55%,#1c1033 100%); /* 深色导出图片背景渐变 */
+    --export-base:#0b1026; /* 深色导出图片画布底色 */
+    --export-title:#f1f5f9; /* 深色导出图片标题颜色 */
   }
 }
 /* 系统“降低透明度”时改用实底材质 */
-@media (prefers-reduced-transparency: reduce) {
-  :root {
-    --glass-bg:#ffffff;
-    --glass-bg-strong:#ffffff;
-    --glass-modal:#ffffff;
-    --glass-blur:none;
-    --glass-spec:none;
+@media (prefers-reduced-transparency: reduce) { /* 系统开启“降低透明度”时 */
+  :root { /* 覆盖玻璃变量 */
+    --glass-bg:#ffffff; /* 玻璃改为白色实底 */
+    --glass-bg-strong:#ffffff; /* 较实的玻璃也改为白色实底 */
+    --glass-modal:#ffffff; /* 弹窗改为白色实底 */
+    --glass-blur:none; /* 不做背景模糊 */
+    --glass-spec:none; /* 去掉镜面反光 */
   }
 }
-@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
-  :root {
-    --glass-bg:#1e2333;
-    --glass-bg-strong:#1e2333;
-    --glass-modal:#1e2333;
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) { /* 降低透明度且为深色模式时 */
+  :root { /* 覆盖玻璃变量 */
+    --glass-bg:#1e2333; /* 玻璃改为深色实底 */
+    --glass-bg-strong:#1e2333; /* 较实的玻璃改为深色实底 */
+    --glass-modal:#1e2333; /* 弹窗改为深色实底 */
   }
 }
-* {box-sizing:border-box;}
-  html,
-  body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
+* {box-sizing:border-box;} /* 所有元素的宽高包含内边距和边框 */
+  html, /* 根元素和 */
+  body { /* 页面主体的共同样式 */
+  margin: 0; /* 去掉默认外边距 */
+  padding: 0; /* 去掉默认内边距 */
+  width: 100%; /* 宽度铺满窗口 */
+  height: 100%; /* 高度铺满窗口 */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", "Helvetica Neue", Arial, sans-serif; /* 字体：优先苹果系统字体和苹方 */
+  -webkit-font-smoothing: antialiased; /* 苹果设备上字体平滑 */
+  color: var(--text-main); /* 默认文字颜色 */
+  display: flex; /* 用 flex 布局 */
+  align-items: center; /* 内容垂直居中 */
+  justify-content: center; /* 内容水平居中 */
+  overflow: hidden; /* 页面不滚动 */
+  touch-action: none; /* 禁止浏览器默认的触摸手势（缩放、滚动） */
+  -webkit-user-select: none; /* 禁止选中文字（Safari） */
+  user-select: none; /* 禁止选中文字 */
+  -webkit-touch-callout: none; /* 禁止长按弹出菜单（Safari） */
   }
-  html {
-  background-color: var(--bg-page);
-  background-image: var(--bg-canvas);
-  background-repeat: no-repeat;
-  background-size: 100% 100vh;
-  background-size: 100% 100lvh;
+  html { /* 根元素单独的样式 */
+  background-color: var(--bg-page); /* 底色 */
+  background-image: var(--bg-canvas); /* 渐变底色 */
+  background-repeat: no-repeat; /* 渐变不重复 */
+  background-size: 100% 100vh; /* 渐变高度等于视口高度（旧浏览器） */
+  background-size: 100% 100lvh; /* 渐变高度等于大视口高度，盖住 iOS 工具栏区域 */
   }
-  * {
-  -webkit-tap-highlight-color: transparent;
+  * { /* 所有元素 */
+  -webkit-tap-highlight-color: transparent; /* 去掉点击时的灰色高亮 */
   }
-  .container,
-  .form-box,
-  .result-box,
-  .result-inner,
-  .result-line,
-  h1,
-  button,
-  .segmented,
-  .segmented label {
-  touch-action: none;
-  -ms-touch-action: none;
+  .container, /* 容器、 */
+  .form-box, /* 表单卡片、 */
+  .result-box, /* 结果卡片、 */
+  .result-inner, /* 结果内容、 */
+  .result-line, /* 每行号码、 */
+  h1, /* 标题、 */
+  button, /* 按钮、 */
+  .segmented, /* 分段控件、 */
+  .segmented label { /* 分段控件的选项文字： */
+  touch-action: none; /* 禁止浏览器默认的触摸手势 */
+  -ms-touch-action: none; /* 旧版 IE/Edge 的同一属性 */
 }
-.backdrop {
-  position:fixed;
-  top:0;
-  left:0;
-  right:0;
-  height:100vh;
-  height:100lvh;
-  z-index:0;
-  overflow:hidden;
-  pointer-events:none;
+.backdrop { /* 2D 兜底背景的容器 */
+  position:fixed; /* 固定在视口上，不随内容移动 */
+  top:0; /* 贴住顶部 */
+  left:0; /* 贴住左边 */
+  right:0; /* 贴住右边 */
+  height:100vh; /* 高度等于视口（旧浏览器） */
+  height:100lvh; /* 高度等于大视口，盖住 iOS 工具栏区域 */
+  z-index:0; /* 放在内容下面 */
+  overflow:hidden; /* 超出部分裁掉 */
+  pointer-events:none; /* 不接收点击 */
 }
-.backdrop canvas {
-  display:block;
-  width:100%;
-  height:100%;
+.backdrop canvas { /* 兜底背景的画布 */
+  display:block; /* 块级显示，去掉行内元素底部的空隙 */
+  width:100%; /* 宽度铺满（低分辨率画布由浏览器放大） */
+  height:100%; /* 高度铺满 */
 }
 /* WebGL 版：背景和玻璃面板由画布绘制，CSS 只保留边框、高光描边和触摸发光 */
-.lg-canvas {
-  position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100vh;
-  height:100lvh;
-  z-index:0;
-  pointer-events:none;
+.lg-canvas { /* WebGL 画布 */
+  position:fixed; /* 固定在视口上 */
+  top:0; /* 贴住顶部 */
+  left:0; /* 贴住左边 */
+  width:100%; /* 宽度铺满 */
+  height:100vh; /* 高度等于视口（旧浏览器） */
+  height:100lvh; /* 高度等于大视口 */
+  z-index:0; /* 放在内容下面 */
+  pointer-events:none; /* 不接收点击 */
 }
-.lg-webgl .backdrop {
-  visibility:hidden;
+.lg-webgl .backdrop { /* WebGL 生效时，隐藏 2D 兜底背景 */
+  visibility:hidden; /* 隐藏但保留布局 */
 }
-.lg-webgl .glass {
-  background:transparent;
-  -webkit-backdrop-filter:none;
-  backdrop-filter:none;
-  box-shadow:none;
+.lg-webgl .glass { /* WebGL 生效时，CSS 玻璃面板 */
+  background:transparent; /* 去掉 CSS 底色（由 WebGL 画） */
+  -webkit-backdrop-filter:none; /* 去掉 CSS 背景模糊（Safari） */
+  backdrop-filter:none; /* 去掉 CSS 背景模糊 */
+  box-shadow:none; /* 去掉内侧高光（由 WebGL 画） */
 }
-.container {
-  position:relative;
-  z-index:1;
-  width:100%;
-  max-width:480px;
-  display:flex;
-  flex-direction:column;
-  gap:16px;
-  padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+.container { /* 页面内容容器 */
+  position:relative; /* 建立定位上下文 */
+  z-index:1; /* 放在背景画布上面 */
+  width:100%; /* 宽度铺满 */
+  max-width:480px; /* 最宽 480px */
+  display:flex; /* 用 flex 布局 */
+  flex-direction:column; /* 纵向排列：标题、表单、结果 */
+  gap:16px; /* 各块之间的间距 */
+  padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); /* 四周留白，至少 24px，并避开刘海和圆角安全区 */
 }
-h1 {
-  text-align:center;
-  font-size:1.5rem;
-  font-weight:700;
-  letter-spacing:-.01em;
-  margin:0 0 4px;
+h1 { /* 标题 */
+  text-align:center; /* 文字居中 */
+  font-size:1.5rem; /* 字号 1.5 倍 */
+  font-weight:700; /* 粗体 */
+  letter-spacing:-.01em; /* 字距稍微收紧 */
+  margin:0 0 4px; /* 底部留 4px */
   /* 液体随机流过标题后面时，保证文字清楚 */
-  text-shadow:var(--title-glow);
+  text-shadow:var(--title-glow); /* 标题外发光 */
 }
 /* 液体玻璃基础材质：半透明 + 背景模糊增饱和 + 镜面高光 + 高光边缘 */
-.glass {
-  position:relative;
-  isolation:isolate;
-  background:var(--glass-spec),var(--glass-bg);
-  -webkit-backdrop-filter:var(--glass-blur);
-  backdrop-filter:var(--glass-blur);
+.glass { /* 玻璃面板 */
+  position:relative; /* 建立定位上下文，供伪元素定位 */
+  isolation:isolate; /* 新建层叠上下文，让触摸发光层留在面板内容下面 */
+  background:var(--glass-spec),var(--glass-bg); /* 镜面反光叠在玻璃底色上 */
+  -webkit-backdrop-filter:var(--glass-blur); /* 背景模糊（Safari） */
+  backdrop-filter:var(--glass-blur); /* 背景模糊 */
   /* 大面板不用外侧模糊投影：Safari 给大尺寸圆角元素画外侧模糊阴影时会分块拼贴，
      圆角外会露出一块方形色块。深色细边改用边框画，内侧高光保留 */
-  border:.5px solid var(--glass-border);
-  box-shadow:var(--glass-inset);
+  border:.5px solid var(--glass-border); /* 0.5px 深色细边 */
+  box-shadow:var(--glass-inset); /* 内侧高光 */
 }
-.glass::before,
-button::before,
-.segmented-thumb::before,
-.ios-save-modal::before {
-  content:"";
-  position:absolute;
-  top:0;
-  right:0;
-  bottom:0;
-  left:0;
-  border-radius:inherit;
-  padding:var(--rim-w);
-  background:var(--glass-rim);
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor;
-  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
-  pointer-events:none;
+.glass::before, /* 玻璃面板、 */
+button::before, /* 按钮、 */
+.segmented-thumb::before, /* 分段控件滑块、 */
+.ios-save-modal::before { /* 保存弹窗的高光描边层： */
+  content:""; /* 伪元素必须有 content 才会显示 */
+  position:absolute; /* 绝对定位 */
+  top:0; /* 贴住顶部 */
+  right:0; /* 贴住右边 */
+  bottom:0; /* 贴住底部 */
+  left:0; /* 贴住左边 */
+  border-radius:inherit; /* 圆角跟随父元素 */
+  padding:var(--rim-w); /* 内边距等于描边宽度 */
+  background:var(--glass-rim); /* 描边的渐变 */
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0); /* 用两层遮罩相减，只留下内边距那一圈（Safari） */
+  -webkit-mask-composite:xor; /* 两层遮罩做异或（Safari） */
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0); /* 两层遮罩相减，只留下一圈描边 */
+  pointer-events:none; /* 不接收点击 */
 }
 /* 触摸发光：光从手指处向外扩散，并带亮所在的玻璃面板 */
-.glass::after,
-button::after,
-.segmented-thumb::after {
-  content:"";
-  position:absolute;
-  top:0;
-  right:0;
-  bottom:0;
-  left:0;
-  z-index:-1;
-  border-radius:inherit;
-  background:radial-gradient(circle var(--glow-size,90px) at var(--lx,50%) var(--ly,50%),var(--glow),transparent);
-  opacity:0;
-  transition:opacity .6s ease;
-  pointer-events:none;
+.glass::after, /* 玻璃面板、 */
+button::after, /* 按钮、 */
+.segmented-thumb::after { /* 分段控件滑块的触摸发光层： */
+  content:""; /* 伪元素必须有 content 才会显示 */
+  position:absolute; /* 绝对定位 */
+  top:0; /* 贴住顶部 */
+  right:0; /* 贴住右边 */
+  bottom:0; /* 贴住底部 */
+  left:0; /* 贴住左边 */
+  z-index:-1; /* 放在元素内容下面 */
+  border-radius:inherit; /* 圆角跟随父元素 */
+  background:radial-gradient(circle var(--glow-size,90px) at var(--lx,50%) var(--ly,50%),var(--glow),transparent); /* 以手指位置为中心的圆形光晕（--lx、--ly 由 JS 设置） */
+  opacity:0; /* 平时不显示 */
+  transition:opacity .6s ease; /* 松手后 0.6 秒淡出 */
+  pointer-events:none; /* 不接收点击 */
 }
-.glass::after {
-  --glow-size:150px;
+.glass::after { /* 玻璃面板的发光层 */
+  --glow-size:150px; /* 光晕更大 */
 }
-.lit::after {
-  opacity:1;
-  transition-duration:.15s;
+.lit::after { /* 按下时的发光层 */
+  opacity:1; /* 显示光晕 */
+  transition-duration:.15s; /* 按下时 0.15 秒快速亮起 */
 }
-.glass.lit::after {
-  opacity:.55;
+.glass.lit::after { /* 玻璃面板被带亮时 */
+  opacity:.55; /* 光晕只亮到 55% */
 }
-.form-box {
-  border-radius:var(--radius-outer);
-  padding:var(--pad);
+.form-box { /* 表单卡片 */
+  border-radius:var(--radius-outer); /* 外圆角（与控件圆角同心） */
+  padding:var(--pad); /* 内边距 */
 }
-.segmented {
-  position:relative;
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  height:var(--ctl-h);
-  padding:4px;
-  border-radius:calc(var(--ctl-h) / 2);
-  background:rgba(118,118,128,.14);
-  box-shadow:inset 0 1px 2px rgba(0,0,0,.06);
+.segmented { /* 分段控件（彩种切换） */
+  position:relative; /* 建立定位上下文，供滑块定位 */
+  display:grid; /* 用网格布局 */
+  grid-template-columns:1fr 1fr; /* 两个选项各占一半 */
+  height:var(--ctl-h); /* 高度 */
+  padding:4px; /* 内边距 4px，滑块与边缘留缝 */
+  border-radius:calc(var(--ctl-h) / 2); /* 胶囊形圆角 */
+  background:rgba(118,118,128,.14); /* 灰色半透明底槽 */
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.06); /* 底槽内侧淡淡的凹陷阴影 */
 }
-.segmented input {
-  position:absolute;
-  opacity:0;
-  pointer-events:none;
+.segmented input { /* 隐藏的单选框 */
+  position:absolute; /* 绝对定位，不占布局 */
+  opacity:0; /* 完全透明 */
+  pointer-events:none; /* 不接收点击（点击由 label 处理） */
 }
-.segmented label {
-  position:relative;
-  z-index:1;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:1rem;
-  font-weight:500;
-  color:var(--text-sub);
-  cursor:pointer;
-  transition:color .25s;
+.segmented label { /* 选项文字 */
+  position:relative; /* 建立定位上下文 */
+  z-index:1; /* 放在滑块上面 */
+  display:flex; /* 用 flex 布局 */
+  align-items:center; /* 文字垂直居中 */
+  justify-content:center; /* 文字水平居中 */
+  font-size:1rem; /* 字号 */
+  font-weight:500; /* 中等字重 */
+  color:var(--text-sub); /* 未选中时用次要文字颜色 */
+  cursor:pointer; /* 鼠标显示为手形 */
+  transition:color .25s; /* 颜色变化 0.25 秒过渡 */
 }
-#type-ssq:checked ~ label[for="type-ssq"],
-#type-dlt:checked ~ label[for="type-dlt"] {
-  color:var(--text-main);
-  font-weight:600;
+#type-ssq:checked ~ label[for="type-ssq"], /* 选中“双色球”时它的文字、 */
+#type-dlt:checked ~ label[for="type-dlt"] { /* 选中“大乐透”时它的文字： */
+  color:var(--text-main); /* 用主要文字颜色 */
+  font-weight:600; /* 加粗 */
 }
-.segmented-thumb {
-  position:absolute;
-  top:4px;
-  bottom:4px;
-  left:4px;
-  width:calc(50% - 4px);
-  border-radius:calc(var(--ctl-h) / 2 - 4px);
-  isolation:isolate;
-  background-image:var(--glass-spec);
-  background-color:var(--thumb-bg);
-  box-shadow:
-    var(--glass-edge),
-    inset 0 1px 0 rgba(255,255,255,.8),
-    0 3px 10px rgba(0,0,0,.12),
-    0 1px 2px rgba(0,0,0,.08);
-  translate:var(--thumb-x,0) 0;
-  scale:var(--thumb-s,1);
-  transition:translate .5s cubic-bezier(.34,1.56,.64,1),scale .4s cubic-bezier(.34,1.56,.64,1),background-color .25s,box-shadow .25s,opacity .25s;
+.segmented-thumb { /* 分段控件的滑块 */
+  position:absolute; /* 绝对定位 */
+  top:4px; /* 距顶部 4px */
+  bottom:4px; /* 距底部 4px */
+  left:4px; /* 距左边 4px */
+  width:calc(50% - 4px); /* 宽度为一半 */
+  border-radius:calc(var(--ctl-h) / 2 - 4px); /* 圆角与底槽同心 */
+  isolation:isolate; /* 新建层叠上下文，让发光层留在滑块里 */
+  background-image:var(--glass-spec); /* 镜面反光 */
+  background-color:var(--thumb-bg); /* 滑块底色 */
+  box-shadow: /* 滑块阴影（多行取值） */
+    var(--glass-edge), /* 深色细边 */
+    inset 0 1px 0 rgba(255,255,255,.8), /* 顶部 1px 亮线 */
+    0 3px 10px rgba(0,0,0,.12), /* 远处投影 */
+    0 1px 2px rgba(0,0,0,.08); /* 近处投影 */
+  translate:var(--thumb-x,0) 0; /* 水平位移（--thumb-x 控制左右） */
+  scale:var(--thumb-s,1); /* 缩放（--thumb-s 控制按住时放大） */
+  transition:translate .5s cubic-bezier(.34,1.56,.64,1),scale .4s cubic-bezier(.34,1.56,.64,1),background-color .25s,box-shadow .25s,opacity .25s; /* 位移、缩放用带回弹的曲线，颜色和阴影平滑过渡 */
 }
-@supports not (translate:0) {
-  .segmented-thumb {
-    transform:translateX(var(--thumb-x,0)) scale(var(--thumb-s,1));
-    transition:transform .5s cubic-bezier(.34,1.56,.64,1),background-color .25s,opacity .25s;
+@supports not (translate:0) { /* 不支持独立的 translate 属性的旧浏览器 */
+  .segmented-thumb { /* 滑块 */
+    transform:translateX(var(--thumb-x,0)) scale(var(--thumb-s,1)); /* 改用 transform 实现位移和缩放 */
+    transition:transform .5s cubic-bezier(.34,1.56,.64,1),background-color .25s,opacity .25s; /* 改用 transform 做过渡 */
   }
 }
-@supports (translate:0) {
-  .segmented-thumb.morph {
-    animation:lg-morph .55s ease;
+@supports (translate:0) { /* 支持独立的 translate 属性时 */
+  .segmented-thumb.morph { /* 切换彩种时的滑块 */
+    animation:lg-morph .55s ease; /* 播放液态拉伸动画 */
   }
 }
-@keyframes lg-morph {
-  0% {transform:none;}
-  35% {transform:scale(1.1,.9);}
-  70% {transform:scale(.98,1.03);}
-  100% {transform:none;}
+@keyframes lg-morph { /* 液态拉伸动画 */
+  0% {transform:none;} /* 开始：原样 */
+  35% {transform:scale(1.1,.9);} /* 35%：横向拉长、纵向压扁 */
+  70% {transform:scale(.98,1.03);} /* 70%：轻微回弹 */
+  100% {transform:none;} /* 结束：原样 */
 }
-#type-dlt:checked ~ .segmented-thumb {
-  --thumb-x:100%;
+#type-dlt:checked ~ .segmented-thumb { /* 选中“大乐透”时的滑块 */
+  --thumb-x:100%; /* 移到右半边 */
 }
-.segmented:active input:enabled ~ .segmented-thumb {
-  --thumb-s:1.1;
-  background-color:var(--thumb-lens);
-  box-shadow:
-    var(--glass-edge),
-    inset 0 1px 0 rgba(255,255,255,.9),
-    inset 2px 2px 4px rgba(255,255,255,.55),
-    inset -2px -2px 4px rgba(255,255,255,.4),
-    0 8px 20px rgba(0,0,0,.16);
+.segmented:active input:enabled ~ .segmented-thumb { /* 按住分段控件（且未禁用）时的滑块 */
+  --thumb-s:1.1; /* 放大 1.1 倍，像透镜 */
+  background-color:var(--thumb-lens); /* 底色更透 */
+  box-shadow: /* 透镜阴影（多行取值） */
+    var(--glass-edge), /* 深色细边 */
+    inset 0 1px 0 rgba(255,255,255,.9), /* 顶部亮线 */
+    inset 2px 2px 4px rgba(255,255,255,.55), /* 左上透镜光带 */
+    inset -2px -2px 4px rgba(255,255,255,.4), /* 右下透镜光带 */
+    0 8px 20px rgba(0,0,0,.16); /* 更远更明显的投影 */
 }
-.segmented input:focus-visible ~ .segmented-thumb {
-  outline:2px solid var(--primary);
-  outline-offset:2px;
+.segmented input:focus-visible ~ .segmented-thumb { /* 单选框获得键盘焦点时的滑块 */
+  outline:2px solid var(--primary); /* 显示焦点框 */
+  outline-offset:2px; /* 焦点框离滑块 2px */
 }
-.segmented input:disabled ~ label {
-  cursor:not-allowed;
+.segmented input:disabled ~ label { /* 单选框禁用（生成中）时的选项文字 */
+  cursor:not-allowed; /* 鼠标显示为禁止 */
 }
-.button-group {
-  display:flex;
-  gap:var(--pad);
-  margin-top:var(--pad);
+.button-group { /* 按钮组 */
+  display:flex; /* 横向排列 */
+  gap:var(--pad); /* 按钮之间的间距 */
+  margin-top:var(--pad); /* 与上方分段控件的间距 */
 }
-button {
-  position:relative;
-  isolation:isolate;
-  flex:1;
-  height:var(--ctl-h);
-  padding:0 12px;
-  font-size:1rem;
-  font-weight:600;
-  font-family:inherit;
-  border-radius:calc(var(--ctl-h) / 2);
-  border:none;
-  background:var(--glass-spec),var(--glass-bg-strong);
-  color:var(--primary);
-  cursor:pointer;
-  box-shadow:var(--glass-shadow);
-  transition:transform .35s cubic-bezier(.34,1.56,.64,1),filter .25s,opacity .25s,background-color .25s;
+button { /* 按钮 */
+  position:relative; /* 建立定位上下文，供伪元素定位 */
+  isolation:isolate; /* 新建层叠上下文，让发光层留在文字下面 */
+  flex:1; /* 平分剩余宽度 */
+  height:var(--ctl-h); /* 高度 */
+  padding:0 12px; /* 左右内边距 */
+  font-size:1rem; /* 字号 */
+  font-weight:600; /* 粗体 */
+  font-family:inherit; /* 字体跟随页面（按钮默认不继承） */
+  border-radius:calc(var(--ctl-h) / 2); /* 胶囊形圆角 */
+  border:none; /* 去掉默认边框 */
+  background:var(--glass-spec),var(--glass-bg-strong); /* 镜面反光叠在较实的玻璃底色上 */
+  color:var(--primary); /* 文字用主题色 */
+  cursor:pointer; /* 鼠标显示为手形 */
+  box-shadow:var(--glass-shadow); /* 完整玻璃阴影 */
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1),filter .25s,opacity .25s,background-color .25s; /* 按下放大用带回弹的曲线，滤镜、透明度、底色平滑过渡 */
 }
-button.prominent {
-  --glow:rgba(255,255,255,.35);
-  background:var(--glass-spec),var(--tint-primary);
-  color:#fff;
+button.prominent { /* 主按钮（生成号码、保存图片） */
+  --glow:rgba(255,255,255,.35); /* 触摸发光调弱，避免盖住白字 */
+  background:var(--glass-spec),var(--tint-primary); /* 镜面反光叠在靛蓝底色上 */
+  color:#fff; /* 白色文字 */
 }
-button:active {
-  transform:scale(1.07);
-  filter:brightness(1.1) saturate(1.1);
+button:active { /* 按下按钮时 */
+  transform:scale(1.07); /* 像凝胶一样放大 */
+  filter:brightness(1.1) saturate(1.1); /* 提亮、提饱和 */
 }
-button:focus-visible {
-  outline:2px solid var(--primary);
-  outline-offset:2px;
+button:focus-visible { /* 按钮获得键盘焦点时 */
+  outline:2px solid var(--primary); /* 显示焦点框 */
+  outline-offset:2px; /* 焦点框离按钮 2px */
 }
 /* 生成过程中只禁止点击，外观保持不变 */
-button:disabled {
-  opacity:1;
-  filter:none;
-  transform:none;
-  cursor:not-allowed;
+button:disabled { /* 禁用的按钮 */
+  opacity:1; /* 不变淡 */
+  filter:none; /* 不变灰 */
+  transform:none; /* 不放大 */
+  cursor:not-allowed; /* 鼠标显示为禁止 */
 }
-.result-box {
-  border-radius:var(--radius-outer);
-  padding:14px;
-  width:100%;
-  height:210px;
-  overflow-y:hidden;
-  flex-shrink:0;
+.result-box { /* 结果卡片 */
+  border-radius:var(--radius-outer); /* 外圆角 */
+  padding:14px; /* 内边距 */
+  width:100%; /* 宽度铺满 */
+  height:210px; /* 固定高度，正好放下 5 行号码 */
+  overflow-y:hidden; /* 超出部分裁掉 */
+  flex-shrink:0; /* 不被压缩 */
 }
-.result-inner {
-  display:flex;
-  flex-direction:column;
-  justify-content:flex-start;
-  align-items:center;
-  width:100%;
-  gap:10px;
+.result-inner { /* 结果内容 */
+  display:flex; /* 用 flex 布局 */
+  flex-direction:column; /* 纵向排列每行号码 */
+  justify-content:flex-start; /* 从顶部开始排 */
+  align-items:center; /* 每行水平居中 */
+  width:100%; /* 宽度铺满 */
+  gap:10px; /* 行间距 */
 }
-.result-line {
-  display:flex;
-  justify-content:center;
-  height:28px;
+.result-line { /* 每行号码 */
+  display:flex; /* 用 flex 布局 */
+  justify-content:center; /* 号码球水平居中 */
+  height:28px; /* 行高等于球的直径 */
 }
 /* 号码球：带高光的着色玻璃珠 */
-.ball {
-  width:28px;
-  height:28px;
-  margin:0 4px;
-  border-radius:50%;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  font-size:.85rem;
-  font-weight:600;
-  color:#fff;
-  text-shadow:0 1px 1px rgba(0,0,0,.18);
-  box-shadow:
-    inset 0 1px 1px rgba(255,255,255,.6),
-    inset 0 -2px 3px rgba(0,0,0,.12),
-    0 2px 5px rgba(15,23,42,.18);
+.ball { /* 号码球 */
+  width:28px; /* 宽度 */
+  height:28px; /* 高度 */
+  margin:0 4px; /* 左右各留 4px */
+  border-radius:50%; /* 圆形 */
+  display:inline-flex; /* 行内 flex，让数字居中 */
+  align-items:center; /* 垂直居中 */
+  justify-content:center; /* 水平居中 */
+  font-size:.85rem; /* 字号 */
+  font-weight:600; /* 粗体 */
+  color:#fff; /* 白色数字 */
+  text-shadow:0 1px 1px rgba(0,0,0,.18); /* 数字下方淡淡的阴影 */
+  box-shadow: /* 球的立体感（多行取值） */
+    inset 0 1px 1px rgba(255,255,255,.6), /* 顶部内侧高光 */
+    inset 0 -2px 3px rgba(0,0,0,.12), /* 底部内侧暗部 */
+    0 2px 5px rgba(15,23,42,.18); /* 球下方的投影 */
 }
 /* 数字按字形居中：裁掉行框上下的字体留白，只留大写字母高度到基线（数字与大写字母同高），再由 flex 居中。
    不裁剪时居中的是整个行框，留白上下不对称，数字会偏上或偏下（随字体和字号变化）；不支持 text-box 的旧浏览器保持原样 */
-.ball-num {
-  display:block;
-  text-box-trim:trim-both;
-  text-box-edge:cap alphabetic;
+.ball-num { /* 号码数字 */
+  display:block; /* 块级显示（text-box 裁剪只对块级容器生效） */
+  text-box-trim:trim-both; /* 裁掉首行上方和末行下方的字体留白 */
+  text-box-edge:cap alphabetic; /* 上边裁到大写字母顶端，下边裁到字母基线 */
 }
-.red {background:radial-gradient(circle at 32% 26%,var(--red-hi) 0%,var(--red) 55%,var(--red-lo) 100%);}
-.blue {background:radial-gradient(circle at 32% 26%,var(--blue-hi) 0%,var(--blue) 55%,var(--blue-lo) 100%);}
-@media (max-width:360px) {
-  :root {--ctl-h:42px;--pad:8px;}
-  .ball {width:24px;height:24px;font-size:.75rem;}
-  button,
-  .segmented label {font-size:.9rem;}
+.red {background:radial-gradient(circle at 32% 26%,var(--red-hi) 0%,var(--red) 55%,var(--red-lo) 100%);} /* 红球：左上偏高光的径向渐变 */
+.blue {background:radial-gradient(circle at 32% 26%,var(--blue-hi) 0%,var(--blue) 55%,var(--blue-lo) 100%);} /* 蓝球：左上偏高光的径向渐变 */
+@media (max-width:360px) { /* 屏幕宽度不超过 360px 时 */
+  :root {--ctl-h:42px;--pad:8px;} /* 控件和内边距缩小 */
+  .ball {width:24px;height:24px;font-size:.75rem;} /* 号码球缩小到 24px */
+  button, /* 按钮、 */
+  .segmented label {font-size:.9rem;} /* 选项文字的字号缩小 */
 }
 /* 横屏时高度不够放下上下排列的内容（页面不能滚动），改为标题在上、选择和结果左右并排 */
-@media (orientation:landscape) and (max-height:520px) {
-  .container {
-    max-width:820px;
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    align-items:center;
-    gap:12px 16px;
-    padding-top:max(12px, env(safe-area-inset-top));
-    padding-bottom:max(12px, env(safe-area-inset-bottom));
+@media (orientation:landscape) and (max-height:520px) { /* 横屏且高度不超过 520px 时 */
+  .container { /* 内容容器 */
+    max-width:820px; /* 最宽 820px */
+    display:grid; /* 改用网格布局 */
+    grid-template-columns:1fr 1fr; /* 两栏等宽 */
+    align-items:center; /* 两栏垂直居中对齐 */
+    gap:12px 16px; /* 行间距 12px，列间距 16px */
+    padding-top:max(12px, env(safe-area-inset-top)); /* 上方留白减小，并避开安全区 */
+    padding-bottom:max(12px, env(safe-area-inset-bottom)); /* 下方留白减小，并避开安全区 */
   }
-  h1 {
-    grid-column:1 / -1;
-    font-size:1.25rem;
-    margin:0;
+  h1 { /* 标题 */
+    grid-column:1 / -1; /* 横跨两栏 */
+    font-size:1.25rem; /* 字号缩小 */
+    margin:0; /* 去掉外边距 */
   }
 }
-.ios-save-overlay {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
+.ios-save-overlay { /* 保存图片弹窗的遮罩 */
+  position: fixed; /* 固定在视口上 */
+  top: 0; /* 贴住顶部 */
+  right: 0; /* 贴住右边 */
+  bottom: 0; /* 贴住底部 */
+  left: 0; /* 贴住左边 */
+  z-index: 99999; /* 放在所有内容上面 */
+  display: flex; /* 用 flex 布局 */
+  align-items: center; /* 弹窗垂直居中 */
+  justify-content: center; /* 弹窗水平居中 */
+  padding: 20px; /* 四周留白 */
   /* 遮罩只压暗、不模糊，并用背景色淡入：遮罩带模糊或透明度小于 1 时，弹窗自己的背景模糊看不到后面的页面 */
-  background: rgba(0, 0, 0, 0);
-  transition: background-color 0.22s ease;
-  isolation: isolate;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-  touch-action: none;
+  background: rgba(0, 0, 0, 0); /* 初始完全透明 */
+  transition: background-color 0.22s ease; /* 遮罩颜色 0.22 秒淡入淡出 */
+  isolation: isolate; /* 新建层叠上下文 */
+  -webkit-transform: translateZ(0); /* 开启 GPU 合成（Safari） */
+  transform: translateZ(0); /* 开启 GPU 合成 */
+  touch-action: none; /* 禁止触摸手势 */
 }
-.ios-save-overlay.show {
-  background: var(--overlay-bg);
+.ios-save-overlay.show { /* 显示时的遮罩 */
+  background: var(--overlay-bg); /* 压暗背后的页面 */
 }
-.ios-save-modal {
-  position: relative;
-  width: min(340px, 85vw);
-  max-height: 80vh;
-  padding: 14px;
+.ios-save-modal { /* 保存图片弹窗 */
+  position: relative; /* 建立定位上下文，供高光描边定位 */
+  width: min(340px, 85vw); /* 宽 340px，屏幕窄时为屏幕宽度的 85% */
+  max-height: 80vh; /* 最高为屏幕高度的 80% */
+  padding: 14px; /* 内边距 */
   /* 通透玻璃：透过弹窗看到后面模糊的液体，比压暗的背景亮一些 */
-  background: var(--glass-spec), var(--glass-modal);
-  -webkit-backdrop-filter: var(--modal-filter);
-  backdrop-filter: var(--modal-filter);
-  border-radius: 32px;
-  border: .5px solid var(--glass-border);
-  box-shadow: var(--glass-inset);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  overflow: hidden;
-  -webkit-transform: translateZ(0) scale(.9);
-  transform: translateZ(0) scale(.9);
-  -webkit-filter: blur(10px);
-  filter: blur(10px);
-  opacity: 0;
-  transition: transform .45s cubic-bezier(.34,1.56,.64,1), filter .3s ease, -webkit-filter .3s ease, opacity .22s ease;
+  background: var(--glass-spec), var(--glass-modal); /* 镜面反光叠在玻璃底色上 */
+  -webkit-backdrop-filter: var(--modal-filter); /* 背景模糊（Safari） */
+  backdrop-filter: var(--modal-filter); /* 背景模糊 */
+  border-radius: 32px; /* 圆角 */
+  border: .5px solid var(--glass-border); /* 深色细边 */
+  box-shadow: var(--glass-inset); /* 内侧高光 */
+  display: flex; /* 用 flex 布局 */
+  flex-direction: column; /* 纵向排列：图片、提示、关闭按钮 */
+  align-items: center; /* 水平居中 */
+  overflow: hidden; /* 超出部分裁掉 */
+  -webkit-transform: translateZ(0) scale(.9); /* 初始缩小到 90%（Safari） */
+  transform: translateZ(0) scale(.9); /* 初始缩小到 90% */
+  -webkit-filter: blur(10px); /* 初始模糊（Safari） */
+  filter: blur(10px); /* 初始模糊 */
+  opacity: 0; /* 初始透明 */
+  transition: transform .45s cubic-bezier(.34,1.56,.64,1), filter .3s ease, -webkit-filter .3s ease, opacity .22s ease; /* 缩放带回弹，模糊和透明度平滑过渡 */
 }
-.ios-save-overlay.show .ios-save-modal {
-  -webkit-transform: translateZ(0) scale(1);
-  transform: translateZ(0) scale(1);
-  -webkit-filter: none;
-  filter: none;
-  opacity: 1;
+.ios-save-overlay.show .ios-save-modal { /* 显示时的弹窗 */
+  -webkit-transform: translateZ(0) scale(1); /* 恢复原大小（Safari） */
+  transform: translateZ(0) scale(1); /* 恢复原大小 */
+  -webkit-filter: none; /* 变清晰（Safari） */
+  filter: none; /* 变清晰 */
+  opacity: 1; /* 完全不透明 */
 }
-.ios-save-preview {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-height: 65vh;
-  object-fit: contain;
-  border-radius: 18px;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: default;
+.ios-save-preview { /* 弹窗里的预览图 */
+  display: block; /* 块级显示 */
+  width: 100%; /* 宽度铺满弹窗 */
+  height: auto; /* 高度按比例 */
+  max-height: 65vh; /* 最高为屏幕高度的 65% */
+  object-fit: contain; /* 完整显示图片，不裁剪 */
+  border-radius: 18px; /* 圆角 */
+  -webkit-user-select: none; /* 禁止选中（Safari） */
+  user-select: none; /* 禁止选中 */
+  -webkit-touch-callout: default; /* 允许长按弹出“存储到照片”菜单 */
 }
-.ios-save-tip {
-  margin-top: 10px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--modal-tip);
-  text-shadow: var(--modal-tip-shadow);
-  text-align: center;
+.ios-save-tip { /* 弹窗提示文字 */
+  margin-top: 10px; /* 与图片的间距 */
+  font-size: 13px; /* 字号 */
+  line-height: 20px; /* 行高 */
+  color: var(--modal-tip); /* 文字颜色 */
+  text-shadow: var(--modal-tip-shadow); /* 文字光晕，让它在彩色液体上也清楚 */
+  text-align: center; /* 居中 */
 }
-.ios-save-close {
-  --glow: rgba(255, 255, 255, 0.35);
-  flex: none;
-  width: 100%;
-  margin-top: 10px;
-  background: var(--glass-spec), var(--tint-primary);
-  color: #fff;
-  font-size: 15px;
+.ios-save-close { /* 弹窗的关闭按钮 */
+  --glow: rgba(255, 255, 255, 0.35); /* 触摸发光调弱，避免盖住白字 */
+  flex: none; /* 不伸缩（按钮默认会平分宽度） */
+  width: 100%; /* 宽度铺满弹窗 */
+  margin-top: 10px; /* 与提示文字的间距 */
+  background: var(--glass-spec), var(--tint-primary); /* 镜面反光叠在靛蓝底色上 */
+  color: #fff; /* 白色文字 */
+  font-size: 15px; /* 字号 */
 }
-</style>
-</head>
-<body>
-<div class="backdrop" aria-hidden="true"></div>
-<div class="container">
-  <h1>双色球 / 大乐透 随机选号</h1>
-  <div class="form-box glass">
-    <div class="segmented" role="radiogroup" aria-label="彩种">
-      <input type="radio" name="type" id="type-ssq" value="ssq" checked>
-      <input type="radio" name="type" id="type-dlt" value="dlt">
-      <span class="segmented-thumb" aria-hidden="true"></span>
-      <label for="type-ssq">双色球</label>
-      <label for="type-dlt">大乐透</label>
-    </div>
-    <div class="button-group">
-      <button type="button" id="generate-btn" class="prominent">生成号码</button>
-      <button type="button" id="save-btn" class="prominent">保存图片</button>
-    </div>
-  </div>
-  <div class="result-box glass">
-    <div class="result-inner" id="result-inner" aria-live="polite" aria-label="生成的号码"></div>
-  </div>
-</div>
-<script>
-  (function disableZoom() {
-  let lastTouchEnd = 0;
-  document.addEventListener(
-    "gesturestart",
-    function (e) {
-      e.preventDefault();
+</style> <!-- 页面样式结束 -->
+</head> <!-- 文档头结束 -->
+<body> <!-- 页面主体开始 -->
+<div class="backdrop" aria-hidden="true"></div> <!-- 2D 兜底背景的容器（读屏软件忽略） -->
+<div class="container"> <!-- 页面内容容器 -->
+  <h1>双色球 / 大乐透 随机选号</h1> <!-- 页面标题 -->
+  <div class="form-box glass"> <!-- 表单卡片（玻璃） -->
+    <div class="segmented" role="radiogroup" aria-label="彩种"> <!-- 分段控件，读屏软件当作一组单选按钮 -->
+      <input type="radio" name="type" id="type-ssq" value="ssq" checked> <!-- “双色球”单选框，默认选中 -->
+      <input type="radio" name="type" id="type-dlt" value="dlt"> <!-- “大乐透”单选框 -->
+      <span class="segmented-thumb" aria-hidden="true"></span> <!-- 滑块（纯装饰，读屏软件忽略） -->
+      <label for="type-ssq">双色球</label> <!-- “双色球”选项文字，点击选中对应单选框 -->
+      <label for="type-dlt">大乐透</label> <!-- “大乐透”选项文字，点击选中对应单选框 -->
+    </div> <!-- 分段控件结束 -->
+    <div class="button-group"> <!-- 按钮组 -->
+      <button type="button" id="generate-btn" class="prominent">生成号码</button> <!-- “生成号码”按钮 -->
+      <button type="button" id="save-btn" class="prominent">保存图片</button> <!-- “保存图片”按钮 -->
+    </div> <!-- 按钮组结束 -->
+  </div> <!-- 表单卡片结束 -->
+  <div class="result-box glass"> <!-- 结果卡片（玻璃） -->
+    <div class="result-inner" id="result-inner" aria-live="polite" aria-label="生成的号码"></div> <!-- 结果内容，生成结束后读屏软件会播报 -->
+  </div> <!-- 结果卡片结束 -->
+</div> <!-- 页面内容容器结束 -->
+<script> // 脚本开始
+  (function disableZoom() { // 立即执行：禁止页面缩放
+  let lastTouchEnd = 0; // 上一次手指离开屏幕的时间
+  document.addEventListener( // 监听
+    "gesturestart", // Safari 的双指缩放开始事件
+    function (e) { // 事件处理函数
+      e.preventDefault(); // 阻止缩放
     },
-    { passive: false }
+    { passive: false } // 不设为被动监听，才能调用 preventDefault
   );
-  document.addEventListener(
-    "gesturechange",
-    function (e) {
-      e.preventDefault();
+  document.addEventListener( // 监听
+    "gesturechange", // Safari 的双指缩放进行中事件
+    function (e) { // 事件处理函数
+      e.preventDefault(); // 阻止缩放
     },
-    { passive: false }
+    { passive: false } // 不设为被动监听
   );
-  document.addEventListener(
-    "gestureend",
-    function (e) {
-      e.preventDefault();
+  document.addEventListener( // 监听
+    "gestureend", // Safari 的双指缩放结束事件
+    function (e) { // 事件处理函数
+      e.preventDefault(); // 阻止缩放
     },
-    { passive: false }
+    { passive: false } // 不设为被动监听
   );
-  document.addEventListener(
-    "touchstart",
-    function (e) {
-      if (e.touches.length > 1) {
-        e.preventDefault();
-        return;
+  document.addEventListener( // 监听
+    "touchstart", // 手指按下事件
+    function (e) { // 事件处理函数
+      if (e.touches.length > 1) { // 两根及以上手指
+        e.preventDefault(); // 阻止（防止双指缩放）
+        return; // 不再往下处理
       }
-      const now = Date.now();
-      if (now - lastTouchEnd < 350) {
-        e.preventDefault();
-      }
-    },
-    { passive: false }
-  );
-  document.addEventListener(
-    "touchmove",
-    function (e) {
-      if (e.touches.length > 1) {
-        e.preventDefault();
-        return;
-      }
-      if (
-        typeof isRolling !== "undefined" &&
-        isRolling
-      ) {
-        e.preventDefault();
+      const now = Date.now(); // 当前时间
+      if (now - lastTouchEnd < 350) { // 距上次松手不到 350 毫秒（双击）
+        e.preventDefault(); // 阻止（防止双击放大）
       }
     },
-    { passive: false }
+    { passive: false } // 不设为被动监听
   );
-  document.addEventListener(
-    "touchend",
-    function () {
-      lastTouchEnd = Date.now();
+  document.addEventListener( // 监听
+    "touchmove", // 手指移动事件
+    function (e) { // 事件处理函数
+      if (e.touches.length > 1) { // 两根及以上手指
+        e.preventDefault(); // 阻止（防止双指缩放）
+        return; // 不再往下处理
+      }
+      if ( // 如果
+        typeof isRolling !== "undefined" && // isRolling 已定义
+        isRolling // 并且正在生成号码
+      ) { // 条件结束，满足时
+        e.preventDefault(); // 阻止页面拖动
+      }
     },
-    { passive: false }
+    { passive: false } // 不设为被动监听
   );
-  document.addEventListener(
-    "dblclick",
-    function (e) {
-      e.preventDefault();
+  document.addEventListener( // 监听
+    "touchend", // 手指离开事件
+    function () { // 事件处理函数
+      lastTouchEnd = Date.now(); // 记下松手时间，用于判断双击
     },
-    { passive: false }
+    { passive: false } // 不设为被动监听
   );
-})();
-const resultInner=document.getElementById("result-inner")
-const typeInputs=document.querySelectorAll('input[name="type"]')
-let isRolling=false
-function getType(){
-  return document.querySelector('input[name="type"]:checked').value
+  document.addEventListener( // 监听
+    "dblclick", // 鼠标双击事件
+    function (e) { // 事件处理函数
+      e.preventDefault(); // 阻止双击放大
+    },
+    { passive: false } // 不设为被动监听
+  );
+})(); // 立即执行函数结束
+const resultInner=document.getElementById("result-inner") // 结果内容元素
+const typeInputs=document.querySelectorAll('input[name="type"]') // 两个彩种单选框
+let isRolling=false // 是否正在生成号码
+function getType(){ // 取当前选中的彩种
+  return document.querySelector('input[name="type"]:checked').value // 返回选中单选框的值：ssq 或 dlt
 }
-const segmentedThumb=document.querySelector(".segmented-thumb")
-typeInputs.forEach(input=>input.addEventListener('change',()=>{
-  segmentedThumb.classList.remove("morph")
-  void segmentedThumb.offsetWidth
-  segmentedThumb.classList.add("morph")
-  if(!isRolling){
-    resultInner.innerHTML=''
+const segmentedThumb=document.querySelector(".segmented-thumb") // 分段控件的滑块
+typeInputs.forEach(input=>input.addEventListener('change',()=>{ // 每个单选框切换时
+  segmentedThumb.classList.remove("morph") // 先去掉拉伸动画的类
+  void segmentedThumb.offsetWidth // 读取一次布局，强制浏览器应用上一步，才能重新播放动画
+  segmentedThumb.classList.add("morph") // 加回类，播放液态拉伸动画
+  if(!isRolling){ // 不在生成中时
+    resultInner.innerHTML='' // 清空结果（换了彩种，旧号码不再有效）
   }
 }))
-segmentedThumb.addEventListener("animationend",()=>segmentedThumb.classList.remove("morph"))
-;(function liquidGlassTouchLight(){
-  let lit=[]
-  function place(el,e){
-    const r=el.getBoundingClientRect()
-    el.style.setProperty("--lx",`${e.clientX-r.left}px`)
-    el.style.setProperty("--ly",`${e.clientY-r.top}px`)
+segmentedThumb.addEventListener("animationend",()=>segmentedThumb.classList.remove("morph")) // 拉伸动画播完后去掉类
+;(function liquidGlassTouchLight(){ // 立即执行：触摸发光
+  let lit=[] // 当前亮着的元素
+  function place(el,e){ // 把光晕移到手指位置
+    const r=el.getBoundingClientRect() // 元素在屏幕上的位置
+    el.style.setProperty("--lx",`${e.clientX-r.left}px`) // 手指相对元素左边的距离
+    el.style.setProperty("--ly",`${e.clientY-r.top}px`) // 手指相对元素上边的距离
   }
-  function release(){
-    lit.forEach(el=>el.classList.remove("lit"))
-    lit=[]
+  function release(){ // 熄灭所有光晕
+    lit.forEach(el=>el.classList.remove("lit")) // 去掉 lit 类
+    lit=[] // 清空列表
   }
-  document.addEventListener("pointerdown",e=>{
-    release()
-    const ctl=e.target.closest("button,.segmented")
-    if(!ctl) return
-    if(ctl.matches(".segmented")&&typeInputs[0].disabled) return
-    if(ctl.disabled) return
-    const surface=ctl.matches(".segmented")?segmentedThumb:ctl
-    lit=[surface]
-    const panel=ctl.closest(".glass")
-    if(panel) lit.push(panel)
-    lit.forEach(el=>{
-      place(el,e)
-      el.classList.add("lit")
+  document.addEventListener("pointerdown",e=>{ // 按下时
+    release() // 先熄灭上一次的
+    const ctl=e.target.closest("button,.segmented") // 找到按下的按钮或分段控件
+    if(!ctl) return // 不是控件就不处理
+    if(ctl.matches(".segmented")&&typeInputs[0].disabled) return // 分段控件禁用时不发光
+    if(ctl.disabled) return // 按钮禁用时不发光
+    const surface=ctl.matches(".segmented")?segmentedThumb:ctl // 分段控件让滑块发光，按钮让自己发光
+    lit=[surface] // 记入列表
+    const panel=ctl.closest(".glass") // 所在的玻璃面板
+    if(panel) lit.push(panel) // 面板也一起带亮
+    lit.forEach(el=>{ // 每个要亮的元素
+      place(el,e) // 光晕移到手指位置
+      el.classList.add("lit") // 亮起
     })
   })
-  document.addEventListener("pointermove",e=>{
-    lit.forEach(el=>place(el,e))
+  document.addEventListener("pointermove",e=>{ // 手指移动时
+    lit.forEach(el=>place(el,e)) // 光晕跟着手指走
   })
-  document.addEventListener("pointerup",release)
-  document.addEventListener("pointercancel",release)
-})()
+  document.addEventListener("pointerup",release) // 松手时熄灭
+  document.addEventListener("pointercancel",release) // 触摸被系统打断时熄灭
+})() // 立即执行函数结束
 // 取 [0,max) 内的无偏随机整数：crypto 生成 32 位随机数，丢弃尾部不能整除的部分（拒绝采样）
-const randomWord=new Uint32Array(1)
-function randomIntUnbiased(max){
-  if(!(max>0&&max<=0x100000000)) throw new Error("max must be in (0, 2^32]")
-  const limit=0x100000000-0x100000000%max
-  let x
-  do{
-    crypto.getRandomValues(randomWord)
-    x=randomWord[0]
-  }while(x>=limit)
-  return x%max
+const randomWord=new Uint32Array(1) // 存放一个 32 位随机数的缓冲区，重复使用
+function randomIntUnbiased(max){ // 取 [0,max) 内的无偏随机整数
+  if(!(max>0&&max<=0x100000000)) throw new Error("max must be in (0, 2^32]") // max 必须在 1 到 2^32 之间
+  const limit=0x100000000-0x100000000%max // 不超过 2^32 的最大的 max 整数倍，超出部分会造成偏差
+  let x // 随机数
+  do{ // 循环
+    crypto.getRandomValues(randomWord) // 用浏览器的加密随机数生成器填充
+    x=randomWord[0] // 取出这个 32 位随机数
+  }while(x>=limit) // 落在尾部不能整除的区间就重取
+  return x%max // 取余，得到 [0,max) 的无偏结果
 }
-function randomNums(min,max,count){
-  const pool=Array.from({length:max-min+1},(_,i)=>i+min)
-  for(let i=pool.length-1;i>0;i--){
-    const j=randomIntUnbiased(i+1)
-    ;[pool[i],pool[j]]=[pool[j],pool[i]]
+function randomNums(min,max,count){ // 从 min 到 max 中随机取 count 个不重复的数，从小到大排序
+  const pool=Array.from({length:max-min+1},(_,i)=>i+min) // 号码池：min, min+1, ..., max
+  for(let i=pool.length-1;i>0;i--){ // 从后往前洗牌（Fisher–Yates）
+    const j=randomIntUnbiased(i+1) // 在 [0,i] 中随机选一个位置
+    ;[pool[i],pool[j]]=[pool[j],pool[i]] // 与当前位置交换
   }
-  return pool.slice(0,count).sort((a,b)=>a-b)
+  return pool.slice(0,count).sort((a,b)=>a-b) // 取前 count 个并从小到大排序
 }
-function createBall(n,color){
-  const span=document.createElement("span")
-  span.className=`ball ${color}`
-  const num=document.createElement("span")
-  num.className="ball-num"
-  num.textContent=String(n).padStart(2,"0")
-  span.appendChild(num)
-  return span
+function createBall(n,color){ // 创建一个号码球
+  const span=document.createElement("span") // 外层：球
+  span.className=`ball ${color}` // 球的样式：ball 加颜色（red 或 blue）
+  const num=document.createElement("span") // 内层：数字
+  num.className="ball-num" // 数字的样式（按字形居中）
+  num.textContent=String(n).padStart(2,"0") // 补零成两位数
+  span.appendChild(num) // 数字放进球里
+  return span // 返回这个球
 }
-function toggleButtons(disabled){
-  document.getElementById("generate-btn").disabled=disabled
-  document.getElementById("save-btn").disabled=disabled
-  typeInputs.forEach(input=>input.disabled=disabled)
+function toggleButtons(disabled){ // 统一禁用或启用按钮和彩种切换
+  document.getElementById("generate-btn").disabled=disabled // “生成号码”按钮
+  document.getElementById("save-btn").disabled=disabled // “保存图片”按钮
+  typeInputs.forEach(input=>input.disabled=disabled) // 两个彩种单选框
 }
-function generateRolling(){
-  if(isRolling) return
-  const type=getType()
-  const count=5
-  isRolling=true
-  toggleButtons(true)
-  resultInner.setAttribute("aria-busy","true")
-  const duration=10000
-  const start=performance.now()
-  function frame(now){
-    resultInner.innerHTML=''
-    for(let i=0;i<count;i++){
-      const line=document.createElement("div")
-      line.className="result-line"
-      if(type==="ssq"){
-        randomNums(1,33,6).forEach(n=>line.appendChild(createBall(n,"red")))
-        line.appendChild(createBall(randomNums(1,16,1)[0],"blue"))
-      }else{
-        randomNums(1,35,5).forEach(n=>line.appendChild(createBall(n,"red")))
-        randomNums(1,12,2).forEach(n=>line.appendChild(createBall(n,"blue")))
+function generateRolling(){ // 生成号码（滚动 10 秒后停下）
+  if(isRolling) return // 正在生成就忽略
+  const type=getType() // 记下开始时的彩种
+  const count=5 // 生成 5 注
+  isRolling=true // 标记为生成中
+  toggleButtons(true) // 禁用按钮和彩种切换
+  resultInner.setAttribute("aria-busy","true") // 告诉读屏软件内容正在变化，先不播报
+  const duration=10000 // 滚动 10 秒
+  const start=performance.now() // 开始时间
+  function frame(now){ // 每一帧
+    resultInner.innerHTML='' // 清空上一帧的号码
+    for(let i=0;i<count;i++){ // 生成 5 行
+      const line=document.createElement("div") // 一行
+      line.className="result-line" // 行的样式
+      if(type==="ssq"){ // 双色球
+        randomNums(1,33,6).forEach(n=>line.appendChild(createBall(n,"red"))) // 6 个红球：1～33 中不重复
+        line.appendChild(createBall(randomNums(1,16,1)[0],"blue")) // 1 个蓝球：1～16
+      }else{ // 大乐透
+        randomNums(1,35,5).forEach(n=>line.appendChild(createBall(n,"red"))) // 5 个红球：1～35 中不重复
+        randomNums(1,12,2).forEach(n=>line.appendChild(createBall(n,"blue"))) // 2 个蓝球：1～12 中不重复
       }
-      resultInner.appendChild(line)
+      resultInner.appendChild(line) // 这一行加到结果里
     }
-    if(now-start<duration){
-      requestAnimationFrame(frame)
-    }else{
-      isRolling=false
-      resultInner.removeAttribute("aria-busy")
-      toggleButtons(false)
+    if(now-start<duration){ // 还没到 10 秒
+      requestAnimationFrame(frame) // 下一帧继续滚动
+    }else{ // 到 10 秒了
+      isRolling=false // 标记为生成结束，最后一帧就是结果
+      resultInner.removeAttribute("aria-busy") // 读屏软件播报最终号码
+      toggleButtons(false) // 恢复按钮和彩种切换
     }
   }
-  requestAnimationFrame(frame)
+  requestAnimationFrame(frame) // 开始第一帧
 }
-document.getElementById("generate-btn").onclick=generateRolling
-function formatDateLocal(date){
-  const y=date.getFullYear()
-  const m=String(date.getMonth()+1).padStart(2,"0")
-  const d=String(date.getDate()).padStart(2,"0")
-  const h=String(date.getHours()).padStart(2,"0")
-  const min=String(date.getMinutes()).padStart(2,"0")
-  const s=String(date.getSeconds()).padStart(2,"0")
-  return `${y}-${m}-${d}_${h}${min}${s}`
+document.getElementById("generate-btn").onclick=generateRolling // 点击“生成号码”时生成
+function formatDateLocal(date){ // 时间格式化为 2026-10-30_123456
+  const y=date.getFullYear() // 年
+  const m=String(date.getMonth()+1).padStart(2,"0") // 月，补零
+  const d=String(date.getDate()).padStart(2,"0") // 日，补零
+  const h=String(date.getHours()).padStart(2,"0") // 时，补零
+  const min=String(date.getMinutes()).padStart(2,"0") // 分，补零
+  const s=String(date.getSeconds()).padStart(2,"0") // 秒，补零
+  return `${y}-${m}-${d}_${h}${min}${s}` // 拼成字符串
 }
 // 导出图片直接用 Canvas 画：版式与原来的截图一致，配色随当前深浅模式。
 // 不用 html2canvas 截图：它按自己估算的字体基线画字，iPhone 的苹方、SF 字体上数字会明显偏下
-const EXPORT_LAYOUT={ball:28,gap:8,rowGap:12,padX:16,padY:20,titleSize:16,titleHeight:22,titleGap:16,numberSize:13.6}
+const EXPORT_LAYOUT={ball:28,gap:8,rowGap:12,padX:16,padY:20,titleSize:16,titleHeight:22,titleGap:16,numberSize:13.6} // 导出图片的版式：球直径、球间距、行间距、左右留白、上下留白、标题字号、标题行高、标题与号码的间距、数字字号
 // 按字形实际的上下边界垂直居中，不依赖各字体不同的基线和行高
-function fillTextCentered(ctx,text,x,cy){
-  ctx.textBaseline="alphabetic"
-  const m=ctx.measureText(text)
-  if(m.actualBoundingBoxAscent!==undefined){
-    ctx.fillText(text,x,cy+(m.actualBoundingBoxAscent-m.actualBoundingBoxDescent)/2)
-  }else{
-    ctx.textBaseline="middle"
-    ctx.fillText(text,x,cy)
+function fillTextCentered(ctx,text,x,cy){ // 在 (x, cy) 处画文字，按字形上下边界垂直居中
+  ctx.textBaseline="alphabetic" // 以字母基线为准
+  const m=ctx.measureText(text) // 量出文字的尺寸
+  if(m.actualBoundingBoxAscent!==undefined){ // 浏览器支持字形的实际上下边界时
+    ctx.fillText(text,x,cy+(m.actualBoundingBoxAscent-m.actualBoundingBoxDescent)/2) // 基线下移半个（上沿高度 − 下沿深度），让字形正好居中
+  }else{ // 不支持时
+    ctx.textBaseline="middle" // 退回以行框中线为准
+    ctx.fillText(text,x,cy) // 画文字
   }
 }
 // 把 CSS 的 linear-gradient(角度, 颜色 位置%, ...) 换成 Canvas 渐变，渐变线长度与 CSS 的算法相同
-function canvasLinearGradient(ctx,css,width,height){
-  const angle=parseFloat((css.match(/([\d.]+)deg/)||[0,180])[1])*Math.PI/180
-  const dx=Math.sin(angle)
-  const dy=-Math.cos(angle)
-  const half=(Math.abs(width*dx)+Math.abs(height*dy))/2
-  const g=ctx.createLinearGradient(width/2-dx*half,height/2-dy*half,width/2+dx*half,height/2+dy*half)
-  for(const m of css.matchAll(/(#[0-9a-f]{3,8}|rgba?\([^)]*\))\s+([\d.]+)%/gi)) g.addColorStop(parseFloat(m[2])/100,m[1])
-  return g
+function canvasLinearGradient(ctx,css,width,height){ // CSS 线性渐变 → Canvas 渐变
+  const angle=parseFloat((css.match(/([\d.]+)deg/)||[0,180])[1])*Math.PI/180 // 取角度并换成弧度，没写时默认 180 度（从上到下）
+  const dx=Math.sin(angle) // 渐变方向的 x 分量（CSS 0 度朝上，顺时针）
+  const dy=-Math.cos(angle) // 渐变方向的 y 分量
+  const half=(Math.abs(width*dx)+Math.abs(height*dy))/2 // 渐变线的半长：让渐变刚好覆盖整个矩形的角
+  const g=ctx.createLinearGradient(width/2-dx*half,height/2-dy*half,width/2+dx*half,height/2+dy*half) // 从中心沿方向往两边各延伸半长，建立渐变
+  for(const m of css.matchAll(/(#[0-9a-f]{3,8}|rgba?\([^)]*\))\s+([\d.]+)%/gi)) g.addColorStop(parseFloat(m[2])/100,m[1]) // 逐个取出“颜色 位置%”，加为色标
+  return g // 返回渐变
 }
 // 与 .red、.blue 的 radial-gradient(circle at 32% 26%, ...) 相同，半径到最远的角；投影与页面上的号码球相同
-function drawExportBall(ctx,theme,scale,color,number,x,y,r){
-  const gx=x-r+2*r*.32
-  const gy=y-r+2*r*.26
-  const g=ctx.createRadialGradient(gx,gy,0,gx,gy,Math.hypot(x+r-gx,y+r-gy))
-  g.addColorStop(0,theme.getPropertyValue(`--${color}-hi`).trim())
-  g.addColorStop(.55,theme.getPropertyValue(`--${color}`).trim())
-  g.addColorStop(1,theme.getPropertyValue(`--${color}-lo`).trim())
-  ctx.save()
+function drawExportBall(ctx,theme,scale,color,number,x,y,r){ // 画一个导出图片里的号码球
+  const gx=x-r+2*r*.32 // 高光中心 x：球左边 + 32% 直径
+  const gy=y-r+2*r*.26 // 高光中心 y：球上边 + 26% 直径
+  const g=ctx.createRadialGradient(gx,gy,0,gx,gy,Math.hypot(x+r-gx,y+r-gy)) // 径向渐变，半径到最远的角（右下角）
+  g.addColorStop(0,theme.getPropertyValue(`--${color}-hi`).trim()) // 0%：高光色
+  g.addColorStop(.55,theme.getPropertyValue(`--${color}`).trim()) // 55%：主色
+  g.addColorStop(1,theme.getPropertyValue(`--${color}-lo`).trim()) // 100%：暗部色
+  ctx.save() // 保存画布状态（阴影设置之后恢复）
   // Canvas 的阴影参数不随缩放变化，按导出倍数换算
-  ctx.shadowColor="rgba(15,23,42,.18)"
-  ctx.shadowOffsetY=2*scale
-  ctx.shadowBlur=5*scale
-  ctx.fillStyle=g
-  ctx.beginPath()
-  ctx.arc(x,y,r,0,Math.PI*2)
-  ctx.fill()
-  ctx.shadowColor="rgba(0,0,0,.18)"
-  ctx.shadowOffsetY=scale
-  ctx.shadowBlur=scale
-  ctx.fillStyle="#fff"
-  fillTextCentered(ctx,number,x,y)
-  ctx.restore()
+  ctx.shadowColor="rgba(15,23,42,.18)" // 投影颜色
+  ctx.shadowOffsetY=2*scale // 投影向下 2px
+  ctx.shadowBlur=5*scale // 投影模糊 5px
+  ctx.fillStyle=g // 用渐变填充
+  ctx.beginPath() // 开始画路径
+  ctx.arc(x,y,r,0,Math.PI*2) // 圆
+  ctx.fill() // 填充球
+  ctx.shadowColor="rgba(0,0,0,.18)" // 数字阴影颜色
+  ctx.shadowOffsetY=scale // 数字阴影向下 1px
+  ctx.shadowBlur=scale // 数字阴影模糊 1px
+  ctx.fillStyle="#fff" // 白色数字
+  fillTextCentered(ctx,number,x,y) // 在球心画数字，按字形居中
+  ctx.restore() // 恢复画布状态，去掉阴影
 }
-function drawExportImage(title){
-  const L=EXPORT_LAYOUT
-  const theme=getComputedStyle(document.documentElement)
-  const font=getComputedStyle(document.body).fontFamily
-  const lines=[...resultInner.children].map(line=>[...line.children].map(ball=>({
-    number:ball.textContent,
-    color:ball.classList.contains("blue")?"blue":"red"
+function drawExportImage(title){ // 画出导出图片，返回画布
+  const L=EXPORT_LAYOUT // 版式参数的简写
+  const theme=getComputedStyle(document.documentElement) // 当前深浅模式下的 CSS 变量
+  const font=getComputedStyle(document.body).fontFamily // 页面使用的字体
+  const lines=[...resultInner.children].map(line=>[...line.children].map(ball=>({ // 从页面读出每行的号码球
+    number:ball.textContent, // 号码文字
+    color:ball.classList.contains("blue")?"blue":"red" // 颜色：有 blue 类就是蓝球，否则是红球
   })))
   // 至少 2 倍；iPhone 等 3 倍屏按 3 倍导出，图片更清晰
-  const scale=Math.min(Math.max(window.devicePixelRatio||1,2),3)
-  const canvas=document.createElement("canvas")
-  const ctx=canvas.getContext("2d")
-  const titleFont=`600 ${L.titleSize}px ${font}`
-  ctx.font=titleFont
-  const columns=Math.max(...lines.map(line=>line.length))
-  const width=Math.ceil(Math.max(columns*(L.ball+L.gap),ctx.measureText(title).width)+L.padX*2)
-  const height=L.padY*2+L.titleHeight+L.titleGap+lines.length*L.ball+(lines.length-1)*L.rowGap
-  canvas.width=width*scale
-  canvas.height=height*scale
-  ctx.scale(scale,scale)
-  ctx.fillStyle=theme.getPropertyValue("--export-base").trim()
-  ctx.fillRect(0,0,width,height)
-  ctx.fillStyle=canvasLinearGradient(ctx,theme.getPropertyValue("--export-bg"),width,height)
-  ctx.fillRect(0,0,width,height)
-  ctx.textAlign="center"
-  ctx.font=titleFont
-  ctx.fillStyle=theme.getPropertyValue("--export-title").trim()
-  fillTextCentered(ctx,title,width/2,L.padY+L.titleHeight/2)
-  ctx.font=`600 ${L.numberSize}px ${font}`
-  const top=L.padY+L.titleHeight+L.titleGap
-  lines.forEach((line,row)=>{
-    const left=(width-line.length*(L.ball+L.gap))/2+L.gap/2
-    line.forEach((ball,i)=>{
-      drawExportBall(ctx,theme,scale,ball.color,ball.number,left+i*(L.ball+L.gap)+L.ball/2,top+row*(L.ball+L.rowGap)+L.ball/2,L.ball/2)
+  const scale=Math.min(Math.max(window.devicePixelRatio||1,2),3) // 导出倍数：至少 2，最多 3，跟随屏幕像素密度
+  const canvas=document.createElement("canvas") // 新建画布
+  const ctx=canvas.getContext("2d") // 取 2D 绘图上下文
+  const titleFont=`600 ${L.titleSize}px ${font}` // 标题字体：粗体 16px
+  ctx.font=titleFont // 先设好字体，用来量标题宽度
+  const columns=Math.max(...lines.map(line=>line.length)) // 最多一行有几个球
+  const width=Math.ceil(Math.max(columns*(L.ball+L.gap),ctx.measureText(title).width)+L.padX*2) // 图片宽度：号码行和标题取较宽者，再加左右留白
+  const height=L.padY*2+L.titleHeight+L.titleGap+lines.length*L.ball+(lines.length-1)*L.rowGap // 图片高度：上下留白 + 标题 + 间距 + 各行号码 + 行间距
+  canvas.width=width*scale // 画布实际像素宽度
+  canvas.height=height*scale // 画布实际像素高度
+  ctx.scale(scale,scale) // 之后按 CSS 像素坐标作画
+  ctx.fillStyle=theme.getPropertyValue("--export-base").trim() // 底色
+  ctx.fillRect(0,0,width,height) // 先铺底色
+  ctx.fillStyle=canvasLinearGradient(ctx,theme.getPropertyValue("--export-bg"),width,height) // 背景渐变
+  ctx.fillRect(0,0,width,height) // 再铺渐变
+  ctx.textAlign="center" // 文字水平居中
+  ctx.font=titleFont // 标题字体
+  ctx.fillStyle=theme.getPropertyValue("--export-title").trim() // 标题颜色
+  fillTextCentered(ctx,title,width/2,L.padY+L.titleHeight/2) // 画标题，在标题行内垂直居中
+  ctx.font=`600 ${L.numberSize}px ${font}` // 号码数字字体：粗体 13.6px
+  const top=L.padY+L.titleHeight+L.titleGap // 第一行号码的顶部位置
+  lines.forEach((line,row)=>{ // 每一行
+    const left=(width-line.length*(L.ball+L.gap))/2+L.gap/2 // 这一行最左边球的左边缘，让整行水平居中
+    line.forEach((ball,i)=>{ // 这一行的每个球
+      drawExportBall(ctx,theme,scale,ball.color,ball.number,left+i*(L.ball+L.gap)+L.ball/2,top+row*(L.ball+L.rowGap)+L.ball/2,L.ball/2) // 画球：圆心 x、圆心 y、半径
     })
   })
-  return canvas
+  return canvas // 返回画好的画布
 }
-function saveAsImage(){
-  if(isRolling){
-    alert("请等待生成完成再保存")
-    return
+function saveAsImage(){ // 保存图片
+  if(isRolling){ // 正在生成时
+    alert("请等待生成完成再保存") // 提示等待
+    return // 不保存
   }
-  if(!resultInner.innerHTML.trim()){
-    alert("当前没有生成结果")
-    return
+  if(!resultInner.innerHTML.trim()){ // 还没有生成结果时
+    alert("当前没有生成结果") // 提示没有结果
+    return // 不保存
   }
-  const type=getType()
-  const typeText=type==="ssq"?"双色球":"大乐透"
-  const dateText=formatDateLocal(new Date())
-  let canvas
-  try{
-    canvas=drawExportImage(`${dateText} ${typeText}`)
-  }catch(error){
-    console.error("保存图片失败:",error)
-    alert("图片生成失败，请重试")
-    return
+  const type=getType() // 当前彩种
+  const typeText=type==="ssq"?"双色球":"大乐透" // 彩种的中文名
+  const dateText=formatDateLocal(new Date()) // 当前时间，用在标题和文件名里
+  let canvas // 导出用的画布
+  try{ // 尝试
+    canvas=drawExportImage(`${dateText} ${typeText}`) // 画出导出图片，标题为“时间 彩种”
+  }catch(error){ // 画图出错时
+    console.error("保存图片失败:",error) // 在控制台记录错误
+    alert("图片生成失败，请重试") // 提示失败
+    return // 不保存
   }
   // iPadOS 默认伪装成 Mac 的 UA，用触摸点数区分
-  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1)
-  if(isIOS){
-    showSavePreview(canvas.toDataURL("image/png"),`${typeText} ${dateText} 号码图片`)
-    return
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1) // 是否 iOS：UA 含 iPad/iPhone/iPod，或者是带多点触摸的“Mac”（iPadOS）
+  if(isIOS){ // iOS 上
+    showSavePreview(canvas.toDataURL("image/png"),`${typeText} ${dateText} 号码图片`) // 弹出预览，让用户长按保存到相册
+    return // 结束
   }
-  canvas.toBlob(blob=>{
-    if(!blob){
-      alert("图片生成失败，请重试")
-      return
+  canvas.toBlob(blob=>{ // 其他设备：把画布转成 PNG 文件
+    if(!blob){ // 转换失败时
+      alert("图片生成失败，请重试") // 提示失败
+      return // 结束
     }
-    const url=URL.createObjectURL(blob)
-    const a=document.createElement("a")
-    a.href=url
-    a.download=`lottery-${typeText}-${dateText}.png`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(()=>{
-      URL.revokeObjectURL(url)
-    },1000)
-  },"image/png")
+    const url=URL.createObjectURL(blob) // 为文件生成临时地址
+    const a=document.createElement("a") // 新建一个链接
+    a.href=url // 链接指向文件
+    a.download=`lottery-${typeText}-${dateText}.png` // 下载时的文件名
+    document.body.appendChild(a) // 链接放进页面（部分浏览器要求）
+    a.click() // 模拟点击，开始下载
+    document.body.removeChild(a) // 移除链接
+    setTimeout(()=>{ // 稍后
+      URL.revokeObjectURL(url) // 释放临时地址
+    },1000) // 1 秒后
+  },"image/png") // 输出 PNG 格式
 }
 // iOS 不能直接下载到相册：弹出预览，长按图片保存
-function showSavePreview(src,alt){
+function showSavePreview(src,alt){ // 弹出保存预览：src 为图片地址，alt 为图片的文字说明
   // 关闭后把焦点还给触发保存的按钮
-  const opener=document.activeElement
-  const overlay=document.createElement("div")
-  overlay.className="ios-save-overlay"
-  const modal=document.createElement("div")
-  modal.className="ios-save-modal"
-  modal.setAttribute("role","dialog")
-  modal.setAttribute("aria-modal","true")
-  modal.setAttribute("aria-label","保存图片")
-  const preview=document.createElement("img")
-  preview.className="ios-save-preview"
-  preview.alt=alt
-  preview.src=src
-  const tip=document.createElement("div")
-  tip.className="ios-save-tip"
-  tip.textContent="长按图片即可保存到相册"
-  const closeBtn=document.createElement("button")
-  closeBtn.type="button"
-  closeBtn.className="ios-save-close"
-  closeBtn.textContent="关闭"
-  let closing=false
-  function onKey(e){
-    if(e.key==="Escape") closePreview()
+  const opener=document.activeElement // 当前获得焦点的元素（保存按钮）
+  const overlay=document.createElement("div") // 遮罩
+  overlay.className="ios-save-overlay" // 遮罩样式
+  const modal=document.createElement("div") // 弹窗
+  modal.className="ios-save-modal" // 弹窗样式
+  modal.setAttribute("role","dialog") // 读屏软件当作对话框
+  modal.setAttribute("aria-modal","true") // 对话框打开时，背后的内容不可操作
+  modal.setAttribute("aria-label","保存图片") // 对话框的名称
+  const preview=document.createElement("img") // 预览图
+  preview.className="ios-save-preview" // 预览图样式
+  preview.alt=alt // 图片的文字说明
+  preview.src=src // 图片内容
+  const tip=document.createElement("div") // 提示文字
+  tip.className="ios-save-tip" // 提示文字样式
+  tip.textContent="长按图片即可保存到相册" // 提示内容
+  const closeBtn=document.createElement("button") // 关闭按钮
+  closeBtn.type="button" // 普通按钮，不提交表单
+  closeBtn.className="ios-save-close" // 关闭按钮样式
+  closeBtn.textContent="关闭" // 按钮文字
+  let closing=false // 是否正在关闭（防止重复关闭）
+  function onKey(e){ // 键盘按下时
+    if(e.key==="Escape") closePreview() // 按 Esc 关闭
   }
-  function closePreview(){
-    if(closing) return
-    closing=true
-    document.removeEventListener("keydown",onKey)
-    overlay.classList.remove("show")
-    setTimeout(()=>{
-      if(overlay.parentNode){
-        overlay.parentNode.removeChild(overlay)
+  function closePreview(){ // 关闭弹窗
+    if(closing) return // 已经在关闭就忽略
+    closing=true // 标记为正在关闭
+    document.removeEventListener("keydown",onKey) // 不再监听键盘
+    overlay.classList.remove("show") // 开始淡出
+    setTimeout(()=>{ // 等淡出动画结束
+      if(overlay.parentNode){ // 遮罩还在页面里
+        overlay.parentNode.removeChild(overlay) // 移除遮罩和弹窗
       }
-      if(opener&&opener.focus) opener.focus()
-    },230)
+      if(opener&&opener.focus) opener.focus() // 把焦点还给保存按钮
+    },230) // 230 毫秒，比淡出动画稍长
   }
-  document.addEventListener("keydown",onKey)
-  closeBtn.addEventListener("click",closePreview)
-  overlay.addEventListener("click",e=>{
-    if(e.target===overlay) closePreview()
+  document.addEventListener("keydown",onKey) // 监听键盘
+  closeBtn.addEventListener("click",closePreview) // 点关闭按钮时关闭
+  overlay.addEventListener("click",e=>{ // 点击遮罩时
+    if(e.target===overlay) closePreview() // 点在弹窗外面才关闭
   })
-  modal.addEventListener("click",e=>e.stopPropagation())
-  modal.appendChild(preview)
-  modal.appendChild(tip)
-  modal.appendChild(closeBtn)
-  overlay.appendChild(modal)
-  document.body.appendChild(overlay)
-  requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>{
-      overlay.classList.add("show")
-      closeBtn.focus({preventScroll:true})
+  modal.addEventListener("click",e=>e.stopPropagation()) // 点击弹窗内部不往外传，不触发关闭
+  modal.appendChild(preview) // 放入预览图
+  modal.appendChild(tip) // 放入提示文字
+  modal.appendChild(closeBtn) // 放入关闭按钮
+  overlay.appendChild(modal) // 弹窗放进遮罩
+  document.body.appendChild(overlay) // 遮罩放进页面
+  requestAnimationFrame(()=>{ // 等下一帧
+    requestAnimationFrame(()=>{ // 再等一帧，确保初始样式已生效，淡入动画才会播放
+      overlay.classList.add("show") // 显示，开始淡入
+      closeBtn.focus({preventScroll:true}) // 焦点移到关闭按钮，不滚动页面
     })
   })
 }
-document.getElementById("save-btn").onclick=saveAsImage
+document.getElementById("save-btn").onclick=saveAsImage // 点击“保存图片”时保存
 // 监听系统设置（深浅模式、减弱动态效果、降低透明度）的变化；iOS 13 及更早只有 addListener
-function onMediaChange(mql,fn,options){
-  if(mql.addEventListener) mql.addEventListener("change",fn,options)
-  else if(mql.addListener) mql.addListener(fn)
+function onMediaChange(mql,fn,options){ // 监听系统设置的变化：mql 为媒体查询，fn 为回调
+  if(mql.addEventListener) mql.addEventListener("change",fn,options) // 支持 addEventListener 时用它（可带 options，例如用 signal 移除）
+  else if(mql.addListener) mql.addListener(fn) // 旧版 Safari 用 addListener
 }
 // 液态背景：整屏流动的彩色液体。多层正弦扭曲坐标（domain warp）做出丝绸般的流动，
 // 六种颜色按扭曲后的坐标平滑混合，任何时刻都铺满全屏，没有液滴的边界
 // 扭曲和配色的相位都由随机速度推动，速度每隔几秒随机变化并平滑过渡，
 // 所以每次打开都不同，也不会循环重复
 // 着色公式在 WebGL 着色器（fieldSrc）和 2D 兜底画法（shade）里各写了一份，改动时两边要保持一致
-const liquidBackdrop=(function(){
-  const backdrop=document.querySelector(".backdrop")
-  const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
+const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法），返回给 WebGL 使用的接口
+  const backdrop=document.querySelector(".backdrop") // 背景容器
+  const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)") // 系统“减弱动态效果”设置
   // 液体很平滑，低分辨率计算后放大即可：兜底画法每个画布像素对应 6 个 CSS 像素
-  const FALLBACK_SCALE=6
+  const FALLBACK_SCALE=6 // 兜底画法的缩小倍数
   // 五层扭曲的幅度和频率：低频大幅度决定大的流向，高频小幅度带出细的涟漪
-  const WARP=[[.9,1],[.6,1.45],[.42,2.1],[.3,3],[.2,4.3]]
+  const WARP=[[.9,1],[.6,1.45],[.42,2.1],[.3,3],[.2,4.3]] // 每层扭曲：[幅度, 频率]
   // 坐标缩放（每个短边长度内的波数）、配色条纹频率、配色锐度、丝绸褶皱的明暗幅度
-  const SHAPE=[2.4,1.6,5,.1]
-  const warps=WARP.map(()=>{
-    const tx=rand(-.3,.3)
-    const ty=rand(-.3,.3)
-    return {px:rand(0,6.28),py:rand(0,6.28),vx:tx,vy:ty,tx,ty,turn:rand(3,7)}
+  const SHAPE=[2.4,1.6,5,.1] // [坐标缩放, 条纹频率, 锐度, 褶皱幅度]
+  const warps=WARP.map(()=>{ // 每层扭曲的运动状态
+    const tx=rand(-.3,.3) // 初始 x 方向速度，随机
+    const ty=rand(-.3,.3) // 初始 y 方向速度，随机
+    return {px:rand(0,6.28),py:rand(0,6.28),vx:tx,vy:ty,tx,ty,turn:rand(3,7)} // 相位随机；当前速度、目标速度；距下次换方向 3～7 秒
   })
-  const tints=[0,1,2,3,4,5].map(()=>{
-    const a=rand(0,6.28)
-    const tv=rand(-.25,.25)
-    return {dx:Math.cos(a),dy:Math.sin(a),p:rand(0,6.28),v:tv,tv,turn:rand(3,7)}
+  const tints=[0,1,2,3,4,5].map(()=>{ // 六种颜色条纹的运动状态
+    const a=rand(0,6.28) // 条纹方向随机
+    const tv=rand(-.25,.25) // 初始速度，随机
+    return {dx:Math.cos(a),dy:Math.sin(a),p:rand(0,6.28),v:tv,tv,turn:rand(3,7)} // 方向向量、相位随机、当前速度、目标速度、距下次变速的时间
   })
-  let width=backdrop.clientWidth
-  let height=backdrop.clientHeight
-  let colors=[]
-  let chroma=[]
-  let tone=[1,0]
-  let active=false
-  let canvas=null
-  let ctx=null
-  let image=null
-  let raf=0
-  let lastStep=performance.now()
-  let lastDraw=0
-  function rand(a,b){
-    return a+Math.random()*(b-a)
+  let width=backdrop.clientWidth // 背景宽度
+  let height=backdrop.clientHeight // 背景高度
+  let colors=[] // 六种液体颜色（0～1 的 RGB）
+  let chroma=[] // 六种颜色各自的饱和度
+  let tone=[1,0] // 调色：颜色倍率、混白比例
+  let active=false // 兜底画法是否在运行
+  let canvas=null // 兜底画布
+  let ctx=null // 兜底画布的 2D 上下文
+  let image=null // 兜底画布的像素数据
+  let raf=0 // 动画帧编号
+  let lastStep=performance.now() // 上一次更新运动的时间
+  let lastDraw=0 // 上一次绘制的时间
+  function rand(a,b){ // [a,b) 内的随机小数
+    return a+Math.random()*(b-a) // 返回随机数
   }
-  function hex(s){
-    s=s.trim().replace("#","")
-    return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16)/255)
+  function hex(s){ // #rrggbb → [r,g,b]（0～1）
+    s=s.trim().replace("#","") // 去掉空格和 #
+    return [0,2,4].map(i=>parseInt(s.slice(i,i+2),16)/255) // 每两位十六进制换算成 0～1
   }
-  function readTheme(){
-    const cs=getComputedStyle(document.documentElement)
-    colors=[1,2,3,4,5,6].map(i=>hex(cs.getPropertyValue(`--liquid-${i}`)))
+  function readTheme(){ // 读取当前深浅模式的颜色
+    const cs=getComputedStyle(document.documentElement) // 根元素的样式
+    colors=[1,2,3,4,5,6].map(i=>hex(cs.getPropertyValue(`--liquid-${i}`))) // 读取六种液体颜色
     // 每种颜色的饱和度（到同亮度灰色的距离），混色后用来补回饱和度
-    chroma=colors.map(c=>{
-      const l=luma(c)
-      return Math.hypot(c[0]-l,c[1]-l,c[2]-l)
+    chroma=colors.map(c=>{ // 计算每种颜色的饱和度
+      const l=luma(c) // 这个颜色的亮度
+      return Math.hypot(c[0]-l,c[1]-l,c[2]-l) // 到同亮度灰色的距离
     })
-    tone=cs.getPropertyValue("--liquid-tone").trim().split(/\s+/).map(Number)
+    tone=cs.getPropertyValue("--liquid-tone").trim().split(/\s+/).map(Number) // 读取调色：颜色倍率、混白比例
   }
-  function luma(c){
-    return c[0]*.2126+c[1]*.7152+c[2]*.0722
+  function luma(c){ // 颜色的亮度（Rec.709 系数）
+    return c[0]*.2126+c[1]*.7152+c[2]*.0722 // 红绿蓝按人眼敏感度加权
   }
-  function step(now){
-    const dt=Math.min((now-lastStep)/1000,.1)
-    lastStep=now
-    if(reduceMotion.matches||dt<=0) return
-    const ease=Math.min(1,dt*.5)
-    warps.forEach(w=>{
-      w.turn-=dt
-      if(w.turn<=0){
-        w.tx=rand(-.3,.3)
-        w.ty=rand(-.3,.3)
-        w.turn=rand(3,7)
+  function step(now){ // 推进一帧运动：now 为当前时间（毫秒）
+    const dt=Math.min((now-lastStep)/1000,.1) // 距上一帧的秒数，最多按 0.1 秒算（页面切回前台时不会突然跳一大步）
+    lastStep=now // 记下本帧时间
+    if(reduceMotion.matches||dt<=0) return // 减弱动态效果时或时间没前进时不动
+    const ease=Math.min(1,dt*.5) // 速度向目标靠拢的比例，约 2 秒过渡完
+    warps.forEach(w=>{ // 每层扭曲
+      w.turn-=dt // 倒计时
+      if(w.turn<=0){ // 到时间了
+        w.tx=rand(-.3,.3) // 随机新的 x 方向目标速度
+        w.ty=rand(-.3,.3) // 随机新的 y 方向目标速度
+        w.turn=rand(3,7) // 下次换方向在 3～7 秒后
       }
-      w.vx+=(w.tx-w.vx)*ease
-      w.vy+=(w.ty-w.vy)*ease
-      w.px+=w.vx*dt
-      w.py+=w.vy*dt
+      w.vx+=(w.tx-w.vx)*ease // x 速度平滑靠向目标
+      w.vy+=(w.ty-w.vy)*ease // y 速度平滑靠向目标
+      w.px+=w.vx*dt // 推进 x 相位
+      w.py+=w.vy*dt // 推进 y 相位
     })
-    tints.forEach(c=>{
-      c.turn-=dt
-      if(c.turn<=0){
-        c.tv=rand(-.25,.25)
-        c.turn=rand(3,7)
+    tints.forEach(c=>{ // 每种颜色条纹
+      c.turn-=dt // 倒计时
+      if(c.turn<=0){ // 到时间了
+        c.tv=rand(-.25,.25) // 随机新的目标速度
+        c.turn=rand(3,7) // 下次变速在 3～7 秒后
       }
-      c.v+=(c.tv-c.v)*ease
-      c.p+=c.v*dt
+      c.v+=(c.tv-c.v)*ease // 速度平滑靠向目标
+      c.p+=c.v*dt // 推进相位
     })
   }
   // 着色器用到的参数：spec 只在尺寸或主题变化时更新，phases 逐帧更新
-  function spec(){
-    return {
-      warp:WARP.flat(),
-      tintDir:tints.flatMap(c=>[c.dx,c.dy]),
-      shape:SHAPE,
-      colors:colors.flat(),
-      chroma,
-      tone
+  function spec(){ // 不常变化的参数
+    return { // 返回
+      warp:WARP.flat(), // 扭曲的幅度和频率，展开成一维数组
+      tintDir:tints.flatMap(c=>[c.dx,c.dy]), // 六个条纹方向，展开成一维数组
+      shape:SHAPE, // 形状参数
+      colors:colors.flat(), // 六种颜色，展开成一维数组
+      chroma, // 六种颜色的饱和度
+      tone // 调色参数
     }
   }
-  function phases(){
-    return {warp:warps.flatMap(w=>[w.px,w.py]),tint:tints.map(c=>c.p)}
+  function phases(){ // 逐帧变化的相位
+    return {warp:warps.flatMap(w=>[w.px,w.py]),tint:tints.map(c=>c.p)} // 五层扭曲的 x、y 相位，六种条纹的相位
   }
   // 与着色器 fieldSrc 相同：扭曲坐标 → 六色按条纹平滑混合 → 补回饱和度 → 丝绸褶皱的明暗（未做深浅调色）
-  function shade(qx,qy){
-    for(let i=0;i<WARP.length;i++){
-      const [a,f]=WARP[i]
-      const nx=qx+a*Math.sin(qy*f+warps[i].px)
-      qy+=a*Math.sin(qx*f+warps[i].py)
-      qx=nx
+  function shade(qx,qy){ // 计算 (qx, qy) 处液体的颜色
+    for(let i=0;i<WARP.length;i++){ // 五层扭曲
+      const [a,f]=WARP[i] // 这一层的幅度和频率
+      const nx=qx+a*Math.sin(qy*f+warps[i].px) // 新的 x：沿 y 方向的正弦波推动
+      qy+=a*Math.sin(qx*f+warps[i].py) // 新的 y：沿 x 方向的正弦波推动（用的是旧的 x）
+      qx=nx // 更新 x
     }
-    let r=0,g=0,b=0,w=0,ch=0
-    for(let k=0;k<6;k++){
-      const t=tints[k]
-      const s=Math.pow(Math.max(.5+.5*Math.sin((qx*t.dx+qy*t.dy)*SHAPE[1]+t.p),0),SHAPE[2])
-      const c=colors[k]
-      r+=c[0]*s
-      g+=c[1]*s
-      b+=c[2]*s
-      ch+=chroma[k]*s
-      w+=s
+    let r=0,g=0,b=0,w=0,ch=0 // 颜色累加：红、绿、蓝、权重、饱和度
+    for(let k=0;k<6;k++){ // 六种颜色
+      const t=tints[k] // 这种颜色的条纹
+      const s=Math.pow(Math.max(.5+.5*Math.sin((qx*t.dx+qy*t.dy)*SHAPE[1]+t.p),0),SHAPE[2]) // 条纹强度：沿条纹方向的正弦波，取 5 次方让条纹更集中
+      const c=colors[k] // 这种颜色
+      r+=c[0]*s // 累加红
+      g+=c[1]*s // 累加绿
+      b+=c[2]*s // 累加蓝
+      ch+=chroma[k]*s // 累加饱和度
+      w+=s // 累加权重
     }
-    w=Math.max(w,1e-6)
-    r/=w
-    g/=w
-    b/=w
+    w=Math.max(w,1e-6) // 权重不为零
+    r/=w // 平均红
+    g/=w // 平均绿
+    b/=w // 平均蓝
     // 互补色平均会互相抵消、发灰（橙 + 蓝 ≈ 灰），按参与混合的颜色的平均饱和度补回来
-    const l=luma([r,g,b])
-    const boost=Math.min(ch/w/Math.max(Math.hypot(r-l,g-l,b-l),1e-4),2.5)
-    const fold=1+SHAPE[3]*Math.sin(qx*2.3-qy*1.7)
-    return [(l+(r-l)*boost)*fold,(l+(g-l)*boost)*fold,(l+(b-l)*boost)*fold]
+    const l=luma([r,g,b]) // 混合后的亮度
+    const boost=Math.min(ch/w/Math.max(Math.hypot(r-l,g-l,b-l),1e-4),2.5) // 饱和度放大倍数：期望饱和度 ÷ 实际饱和度，最多 2.5 倍
+    const fold=1+SHAPE[3]*Math.sin(qx*2.3-qy*1.7) // 丝绸褶皱：明暗起伏 ±10%
+    return [(l+(r-l)*boost)*fold,(l+(g-l)*boost)*fold,(l+(b-l)*boost)*fold] // 从亮度出发放大颜色偏移，再乘褶皱明暗
   }
-  function resize(){
-    width=backdrop.clientWidth
-    height=backdrop.clientHeight
-    if(canvas&&active){
-      canvas.width=Math.ceil(width/FALLBACK_SCALE)
-      canvas.height=Math.ceil(height/FALLBACK_SCALE)
-      image=ctx.createImageData(canvas.width,canvas.height)
-      drawFallback()
+  function resize(){ // 背景尺寸变化时
+    width=backdrop.clientWidth // 新的宽度
+    height=backdrop.clientHeight // 新的高度
+    if(canvas&&active){ // 兜底画法在运行时
+      canvas.width=Math.ceil(width/FALLBACK_SCALE) // 画布宽度：缩小 6 倍
+      canvas.height=Math.ceil(height/FALLBACK_SCALE) // 画布高度：缩小 6 倍
+      image=ctx.createImageData(canvas.width,canvas.height) // 新建同尺寸的像素数据
+      drawFallback() // 立即重画
     }
   }
   // 不支持 WebGL 时，在低分辨率 2D 画布上逐像素算出同样的液体，再由浏览器平滑放大
-  function drawFallback(){
-    const data=image.data
-    const inv=SHAPE[0]/Math.min(width,height)
-    const [mul,white]=tone
-    let o=0
-    for(let j=0;j<canvas.height;j++){
-      const y=(j+.5)*FALLBACK_SCALE*inv
-      for(let i=0;i<canvas.width;i++){
-        const c=shade((i+.5)*FALLBACK_SCALE*inv,y)
-        data[o]=255*Math.min(1,Math.max(0,c[0])*mul*(1-white)+white)
-        data[o+1]=255*Math.min(1,Math.max(0,c[1])*mul*(1-white)+white)
-        data[o+2]=255*Math.min(1,Math.max(0,c[2])*mul*(1-white)+white)
-        data[o+3]=255
-        o+=4
+  function drawFallback(){ // 画一帧兜底背景
+    const data=image.data // 像素数组
+    const inv=SHAPE[0]/Math.min(width,height) // CSS 像素 → 液体坐标的缩放
+    const [mul,white]=tone // 调色参数
+    let o=0 // 像素数组的写入位置
+    for(let j=0;j<canvas.height;j++){ // 每一行像素
+      const y=(j+.5)*FALLBACK_SCALE*inv // 这一行中心对应的液体 y 坐标
+      for(let i=0;i<canvas.width;i++){ // 这一行的每个像素
+        const c=shade((i+.5)*FALLBACK_SCALE*inv,y) // 算出这个像素的颜色
+        data[o]=255*Math.min(1,Math.max(0,c[0])*mul*(1-white)+white) // 红：调色后写入（0～255）
+        data[o+1]=255*Math.min(1,Math.max(0,c[1])*mul*(1-white)+white) // 绿
+        data[o+2]=255*Math.min(1,Math.max(0,c[2])*mul*(1-white)+white) // 蓝
+        data[o+3]=255 // 不透明
+        o+=4 // 下一个像素
       }
     }
-    ctx.putImageData(image,0,0)
+    ctx.putImageData(image,0,0) // 整张写回画布
   }
   // 30 帧足够，省电
-  function loop(now){
-    raf=requestAnimationFrame(loop)
-    if(now-lastDraw<33) return
-    lastDraw=now
-    step(now)
-    drawFallback()
+  function loop(now){ // 兜底画法的动画循环
+    raf=requestAnimationFrame(loop) // 预约下一帧
+    if(now-lastDraw<33) return // 距上次绘制不到 33 毫秒就跳过（每秒最多 30 帧）
+    lastDraw=now // 记下绘制时间
+    step(now) // 推进运动
+    drawFallback() // 重画
   }
-  function start(){
-    active=true
-    if(!canvas){
-      canvas=document.createElement("canvas")
-      backdrop.appendChild(canvas)
-      ctx=canvas.getContext("2d")
+  function start(){ // 启动兜底画法
+    active=true // 标记为运行中
+    if(!canvas){ // 还没有画布时
+      canvas=document.createElement("canvas") // 新建画布
+      backdrop.appendChild(canvas) // 放进背景容器
+      ctx=canvas.getContext("2d") // 取 2D 上下文
     }
-    resize()
-    lastStep=performance.now()
-    if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop)
+    resize() // 按当前尺寸设置画布并画第一帧
+    lastStep=performance.now() // 从现在开始计时
+    if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop) // 没在循环且没开减弱动态效果时，开始动画循环
   }
-  function stop(){
-    active=false
-    cancelAnimationFrame(raf)
-    raf=0
+  function stop(){ // 停止兜底画法（WebGL 接管时）
+    active=false // 标记为停止
+    cancelAnimationFrame(raf) // 取消下一帧
+    raf=0 // 清空帧编号
   }
-  readTheme()
-  window.addEventListener("resize",resize)
+  readTheme() // 读取当前深浅模式的颜色
+  window.addEventListener("resize",resize) // 窗口尺寸变化时调整
   // 背景尺寸可能在没有 resize 事件时改变（iOS Safari 工具栏调整），直接观察容器尺寸
-  if(window.ResizeObserver) new ResizeObserver(()=>{
-    if(backdrop.clientWidth!==width||backdrop.clientHeight!==height) resize()
-  }).observe(backdrop)
-  onMediaChange(matchMedia("(prefers-color-scheme: dark)"),()=>{
-    readTheme()
-    if(active) drawFallback()
+  if(window.ResizeObserver) new ResizeObserver(()=>{ // 浏览器支持 ResizeObserver 时，观察背景容器
+    if(backdrop.clientWidth!==width||backdrop.clientHeight!==height) resize() // 尺寸确实变了才调整
+  }).observe(backdrop) // 观察背景容器
+  onMediaChange(matchMedia("(prefers-color-scheme: dark)"),()=>{ // 系统深浅模式切换时
+    readTheme() // 重新读取颜色
+    if(active) drawFallback() // 运行中就立即重画
   })
-  onMediaChange(reduceMotion,()=>{
-    if(!active) return
-    stop()
-    start()
+  onMediaChange(reduceMotion,()=>{ // 系统“减弱动态效果”切换时
+    if(!active) return // 没在运行就不管
+    stop() // 先停止
+    start() // 再按新设置启动（开启时只画静止的一帧）
   })
-  return {step,spec,phases,start,stop,readTheme}
-})()
+  return {step,spec,phases,start,stop,readTheme} // 对外提供的接口
+})() // 立即执行，得到液态背景模块
 // WebGL 先在低分辨率纹理里算出液态背景，再整屏放大，并画出玻璃面板：
 // 边缘透镜折射、色散、轻度磨砂、高光和投影
 // 创建失败时返回 null；成功时返回 {destroy}，WebGL 上下文丢失时调用 onLost
-function createLiquidGlass(onLost){
-  const canvas=document.createElement("canvas")
-  canvas.className="lg-canvas"
-  canvas.setAttribute("aria-hidden","true")
-  const gl=canvas.getContext("webgl",{alpha:false,antialias:false,depth:false,stencil:false,premultipliedAlpha:false,powerPreference:"low-power"})
-  if(!gl) return null
+function createLiquidGlass(onLost){ // 创建 WebGL 液体玻璃
+  const canvas=document.createElement("canvas") // 新建画布
+  canvas.className="lg-canvas" // 画布样式
+  canvas.setAttribute("aria-hidden","true") // 读屏软件忽略
+  const gl=canvas.getContext("webgl",{alpha:false,antialias:false,depth:false,stencil:false,premultipliedAlpha:false,powerPreference:"low-power"}) // 取 WebGL 上下文：不透明、不抗锯齿、不需要深度和模板缓冲、优先省电
+  if(!gl) return null // 不支持 WebGL 就返回 null
   // 液体纹理每个像素对应 4 个 CSS 像素
-  const FIELD_SCALE=4
-  const vertSrc=`attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}`
-  const fieldSrc=`
-precision highp float;
-uniform vec2 uFieldRes;
-uniform float uFieldScale;
-uniform vec4 uShape;
-uniform vec2 uWarp[5];
-uniform vec2 uWarpP[5];
-uniform vec2 uTintD[6];
-uniform float uTintP[6];
-uniform vec3 uCol[6];
-uniform float uChroma[6];
-uniform vec2 uTone;
-const vec3 LUMA=vec3(.2126,.7152,.0722);
-void main(){
-  vec2 q=vec2(gl_FragCoord.x,uFieldRes.y-gl_FragCoord.y)*uFieldScale*uShape.x;
-  for(int i=0;i<5;i++){
-    q+=uWarp[i].x*vec2(sin(q.y*uWarp[i].y+uWarpP[i].x),sin(q.x*uWarp[i].y+uWarpP[i].y));
+  const FIELD_SCALE=4 // 液体纹理的缩小倍数
+  const vertSrc=`attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}` // 顶点着色器：一个盖住整个屏幕的三角形
+  const fieldSrc=` // 液体着色器：把整屏液体画进低分辨率纹理
+precision highp float; // 使用高精度浮点数
+uniform vec2 uFieldRes; // 液体纹理的尺寸（像素）
+uniform float uFieldScale; // 每个纹理像素对应的 CSS 像素
+uniform vec4 uShape; // 形状参数：坐标缩放、条纹频率、锐度、褶皱幅度
+uniform vec2 uWarp[5]; // 五层扭曲的幅度和频率
+uniform vec2 uWarpP[5]; // 五层扭曲的 x、y 相位
+uniform vec2 uTintD[6]; // 六个条纹方向
+uniform float uTintP[6]; // 六种条纹的相位
+uniform vec3 uCol[6]; // 六种液体颜色
+uniform float uChroma[6]; // 六种颜色的饱和度
+uniform vec2 uTone; // 调色：颜色倍率、混白比例
+const vec3 LUMA=vec3(.2126,.7152,.0722); // 亮度系数
+void main(){ // 每个纹理像素
+  vec2 q=vec2(gl_FragCoord.x,uFieldRes.y-gl_FragCoord.y)*uFieldScale*uShape.x; // 换算成液体坐标（纹理 y 轴朝上，翻转成朝下）
+  for(int i=0;i<5;i++){ // 五层扭曲
+    q+=uWarp[i].x*vec2(sin(q.y*uWarp[i].y+uWarpP[i].x),sin(q.x*uWarp[i].y+uWarpP[i].y)); // 新的 x、y 都用旧的坐标计算（与 JS 的 shade 相同）
   }
-  vec3 c=vec3(0.);
-  float w=0.;
-  float ch=0.;
-  for(int k=0;k<6;k++){
-    float s=pow(max(.5+.5*sin(dot(q,uTintD[k])*uShape.y+uTintP[k]),0.),uShape.z);
-    c+=uCol[k]*s;
-    ch+=uChroma[k]*s;
-    w+=s;
+  vec3 c=vec3(0.); // 颜色累加
+  float w=0.; // 权重累加
+  float ch=0.; // 饱和度累加
+  for(int k=0;k<6;k++){ // 六种颜色
+    float s=pow(max(.5+.5*sin(dot(q,uTintD[k])*uShape.y+uTintP[k]),0.),uShape.z); // 条纹强度：正弦波取 5 次方
+    c+=uCol[k]*s; // 累加颜色
+    ch+=uChroma[k]*s; // 累加饱和度
+    w+=s; // 累加权重
   }
-  w=max(w,1e-6);
-  c/=w;
+  w=max(w,1e-6); // 权重不为零
+  c/=w; // 加权平均颜色
   // 互补色平均会互相抵消、发灰（橙 + 蓝 ≈ 灰），按参与混合的颜色的平均饱和度补回来
-  float l=dot(c,LUMA);
-  vec3 dc=c-l;
-  c=(l+dc*min(ch/w/max(length(dc),1e-4),2.5))*(1.+uShape.w*sin(q.x*2.3-q.y*1.7));
-  gl_FragColor=vec4(clamp(mix(max(c,0.)*uTone.x,vec3(1.),uTone.y),0.,1.),1.);
-}`
-  const glassSrc=`
-precision highp float;
-uniform sampler2D uField;
-uniform vec2 uFieldSize;
-uniform vec2 uRes;
-uniform float uDpr;
-uniform vec4 uPanel[2];
-uniform float uPanelR[2];
-uniform int uPanelN;
-uniform vec4 uTint;
-uniform vec4 uLook;
-uniform vec4 uShadow;
-const float SAT=1.1;
-const float BEZEL=24.;
-const float REFRACT=28.;
-const float DISPERSE=.15;
-const vec2 LIGHT=vec2(-.61,-.79);
-vec3 bg(vec2 p){
-  return texture2D(uField,vec2(p.x/uFieldSize.x,1.-p.y/uFieldSize.y)).rgb;
+  float l=dot(c,LUMA); // 混合后的亮度
+  vec3 dc=c-l; // 颜色相对亮度的偏移
+  c=(l+dc*min(ch/w/max(length(dc),1e-4),2.5))*(1.+uShape.w*sin(q.x*2.3-q.y*1.7)); // 按平均饱和度放大偏移（最多 2.5 倍），再乘丝绸褶皱的明暗
+  gl_FragColor=vec4(clamp(mix(max(c,0.)*uTone.x,vec3(1.),uTone.y),0.,1.),1.); // 调色（乘倍率、混白），限制在 0～1 后输出
+}` // 液体着色器源码结束
+  const glassSrc=` // 玻璃着色器：整屏背景加两块玻璃面板
+precision highp float; // 使用高精度浮点数
+uniform sampler2D uField; // 液体纹理
+uniform vec2 uFieldSize; // 液体纹理覆盖的 CSS 尺寸
+uniform vec2 uRes; // 画布的实际像素尺寸
+uniform float uDpr; // 屏幕像素密度
+uniform vec4 uPanel[2]; // 两块面板：中心 x、中心 y、半宽、半高
+uniform float uPanelR[2]; // 两块面板的圆角半径
+uniform int uPanelN; // 面板数量
+uniform vec4 uTint; // 玻璃底色（RGB 和不透明度）
+uniform vec4 uLook; // 玻璃参数：磨砂半径、高光、顶部反光、提亮
+uniform vec4 uShadow; // 面板投影颜色（RGB 和不透明度）
+const float SAT=1.1; // 玻璃里的颜色饱和度倍数
+const float BEZEL=24.; // 透镜边缘的宽度（px）：边缘这一圈会折射
+const float REFRACT=28.; // 边缘最大的折射位移（px）
+const float DISPERSE=.15; // 色散：红、蓝两色折射量的差别
+const vec2 LIGHT=vec2(-.61,-.79); // 光源方向：左上
+vec3 bg(vec2 p){ // 取背景纹理在 CSS 坐标 p 处的颜色
+  return texture2D(uField,vec2(p.x/uFieldSize.x,1.-p.y/uFieldSize.y)).rgb; // 换算成纹理坐标（y 轴翻转）
 }
 // 九点采样的轻度磨砂
-vec3 frost(vec2 p,float r){
-  vec2 a=vec2(r,0.);
-  vec2 b=vec2(.7071*r,.7071*r);
-  vec2 c=vec2(-b.x,b.y);
-  return bg(p)*.2+(bg(p+a)+bg(p-a)+bg(p+a.yx)+bg(p-a.yx)+bg(p+b)+bg(p-b)+bg(p+c)+bg(p-c))*.1;
+vec3 frost(vec2 p,float r){ // 磨砂：在 p 周围半径 r 处取 8 个点加中心点做加权平均
+  vec2 a=vec2(r,0.); // 水平偏移
+  vec2 b=vec2(.7071*r,.7071*r); // 右下对角偏移
+  vec2 c=vec2(-b.x,b.y); // 左下对角偏移
+  return bg(p)*.2+(bg(p+a)+bg(p-a)+bg(p+a.yx)+bg(p-a.yx)+bg(p+b)+bg(p-b)+bg(p+c)+bg(p-c))*.1; // 中心占 20%，周围 8 个点各占 10%
 }
-float sdBox(vec2 q,vec2 b,float r){
-  vec2 k=abs(q)-b+r;
-  return length(max(k,0.))+min(max(k.x,k.y),0.)-r;
+float sdBox(vec2 q,vec2 b,float r){ // 圆角矩形的有向距离：q 相对中心的坐标，b 为半宽高，r 为圆角；里面为负、外面为正
+  vec2 k=abs(q)-b+r; // 到圆角内收矩形的距离分量
+  return length(max(k,0.))+min(max(k.x,k.y),0.)-r; // 外面用欧氏距离，里面用最近边的距离，再减去圆角
 }
-void main(){
-  vec2 p=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr;
-  vec3 col=bg(p);
-  for(int i=0;i<2;i++){
-    if(i>=uPanelN) break;
-    float ds=sdBox(p-uPanel[i].xy-vec2(0.,12.),uPanel[i].zw,uPanelR[i]);
-    col=mix(col,uShadow.rgb,(1.-smoothstep(-14.,30.,ds))*uShadow.a);
+void main(){ // 每个屏幕像素
+  vec2 p=vec2(gl_FragCoord.x,uRes.y-gl_FragCoord.y)/uDpr; // 换算成 CSS 坐标（y 轴朝下）
+  vec3 col=bg(p); // 先取背景
+  for(int i=0;i<2;i++){ // 两块面板的投影
+    if(i>=uPanelN) break; // 超过面板数量就停止
+    float ds=sdBox(p-uPanel[i].xy-vec2(0.,12.),uPanel[i].zw,uPanelR[i]); // 到“下移 12px 的面板”的距离
+    col=mix(col,uShadow.rgb,(1.-smoothstep(-14.,30.,ds))*uShadow.a); // 距离越近投影越深，在面板外 30px 内淡出
   }
-  for(int i=0;i<2;i++){
-    if(i>=uPanelN) break;
-    vec2 q=p-uPanel[i].xy;
-    vec2 b=uPanel[i].zw;
-    float r=uPanelR[i];
-    float d=sdBox(q,b,r);
-    if(d>1.) continue;
-    vec2 n=normalize(vec2(sdBox(q+vec2(.5,0.),b,r)-sdBox(q-vec2(.5,0.),b,r),sdBox(q+vec2(0.,.5),b,r)-sdBox(q-vec2(0.,.5),b,r))+1e-6);
-    float e=1.-clamp(-d/BEZEL,0.,1.);
-    float lens=e*e;
+  for(int i=0;i<2;i++){ // 两块玻璃面板
+    if(i>=uPanelN) break; // 超过面板数量就停止
+    vec2 q=p-uPanel[i].xy; // 相对面板中心的坐标
+    vec2 b=uPanel[i].zw; // 面板半宽、半高
+    float r=uPanelR[i]; // 圆角半径
+    float d=sdBox(q,b,r); // 到面板边缘的距离
+    if(d>1.) continue; // 在面板外面就跳过
+    vec2 n=normalize(vec2(sdBox(q+vec2(.5,0.),b,r)-sdBox(q-vec2(.5,0.),b,r),sdBox(q+vec2(0.,.5),b,r)-sdBox(q-vec2(0.,.5),b,r))+1e-6); // 边缘法线：距离函数在 x、y 方向的差分
+    float e=1.-clamp(-d/BEZEL,0.,1.); // 离边缘多近：边缘处为 1，进入 24px 后为 0
+    float lens=e*e; // 透镜强度，越靠边缘越强
     // 透镜：边缘光线向内弯折，看到的是更靠里的内容（放大），三色错开形成色散
-    vec2 off=-n*REFRACT*lens;
-    vec3 g;
-    if(lens>.001){
-      g.r=frost(p+off*(1.+DISPERSE),uLook.x).r;
-      g.g=frost(p+off,uLook.x).g;
-      g.b=frost(p+off*(1.-DISPERSE),uLook.x).b;
-    }else{
-      g=frost(p,uLook.x);
+    vec2 off=-n*REFRACT*lens; // 折射位移：沿法线往里
+    vec3 g; // 玻璃里看到的颜色
+    if(lens>.001){ // 在边缘透镜区内
+      g.r=frost(p+off*(1.+DISPERSE),uLook.x).r; // 红色通道折射多一点
+      g.g=frost(p+off,uLook.x).g; // 绿色通道正常折射
+      g.b=frost(p+off*(1.-DISPERSE),uLook.x).b; // 蓝色通道折射少一点，三色错开形成彩边
+    }else{ // 不在透镜区内
+      g=frost(p,uLook.x); // 只做轻度磨砂
     }
-    float l=dot(g,vec3(.2126,.7152,.0722));
-    g=clamp(mix(vec3(l),g,SAT)*uLook.w,0.,1.);
-    g=mix(g,uTint.rgb,uTint.a);
-    g+=uLook.z*(1.-clamp(length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b))/.55,0.,1.));
+    float l=dot(g,vec3(.2126,.7152,.0722)); // 亮度
+    g=clamp(mix(vec3(l),g,SAT)*uLook.w,0.,1.); // 略微提饱和，再按参数提亮
+    g=mix(g,uTint.rgb,uTint.a); // 叠上玻璃底色
+    g+=uLook.z*(1.-clamp(length((q-vec2(-.64*b.x,-b.y))/(vec2(2.4,1.7)*b))/.55,0.,1.)); // 左上角的顶部反光：椭圆形的柔光
     // 高光：迎光的左上边缘最亮，右下边缘有反光
-    g+=uLook.y*pow(e,3.)*(max(dot(n,LIGHT),0.)+.6*max(dot(n,-LIGHT),0.));
-    g=mix(g,vec3(1.),uLook.y*.1*lens);
-    col=mix(col,clamp(g,0.,1.),clamp(.5-d*uDpr,0.,1.));
+    g+=uLook.y*pow(e,3.)*(max(dot(n,LIGHT),0.)+.6*max(dot(n,-LIGHT),0.)); // 边缘高光：朝光源的一侧亮，背光的一侧有 60% 的反光
+    g=mix(g,vec3(1.),uLook.y*.1*lens); // 边缘透镜区稍微泛白
+    col=mix(col,clamp(g,0.,1.),clamp(.5-d*uDpr,0.,1.)); // 把玻璃颜色画到面板范围内，边缘按 1 个像素抗锯齿
   }
   // 轻微抖动，避免 8 位纹理放大后的平滑渐变出现色带
-  col+=(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.;
-  gl_FragColor=vec4(col,1.);
-}`
-  function compile(type,src){
-    const s=gl.createShader(type)
-    gl.shaderSource(s,src)
-    gl.compileShader(s)
-    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){
-      console.warn("液体玻璃着色器编译失败:",gl.getShaderInfoLog(s))
-      return null
+  col+=(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.; // 加上 ±0.5/255 的随机抖动
+  gl_FragColor=vec4(col,1.); // 输出像素颜色
+}` // 玻璃着色器源码结束
+  function compile(type,src){ // 编译着色器
+    const s=gl.createShader(type) // 新建着色器
+    gl.shaderSource(s,src) // 设置源码
+    gl.compileShader(s) // 编译
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ // 编译失败时
+      console.warn("液体玻璃着色器编译失败:",gl.getShaderInfoLog(s)) // 在控制台输出错误信息
+      return null // 返回 null
     }
-    return s
+    return s // 返回着色器
   }
-  function link(vs,fs,names){
-    const prog=gl.createProgram()
-    gl.attachShader(prog,vs)
-    gl.attachShader(prog,fs)
-    gl.bindAttribLocation(prog,0,"a")
-    gl.linkProgram(prog)
-    if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) return null
-    const u={}
-    names.forEach(name=>{
-      u[name]=gl.getUniformLocation(prog,name)
+  function link(vs,fs,names){ // 链接着色器程序，并取出 names 中各个 uniform 的位置
+    const prog=gl.createProgram() // 新建程序
+    gl.attachShader(prog,vs) // 附加顶点着色器
+    gl.attachShader(prog,fs) // 附加片元着色器
+    gl.bindAttribLocation(prog,0,"a") // 顶点属性 a 固定在位置 0，两个程序共用同一个顶点缓冲
+    gl.linkProgram(prog) // 链接
+    if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) return null // 链接失败就返回 null
+    const u={} // uniform 位置表
+    names.forEach(name=>{ // 每个 uniform 名称
+      u[name]=gl.getUniformLocation(prog,name) // 取出位置
     })
-    return {prog,u}
+    return {prog,u} // 返回程序和位置表
   }
-  const vs=compile(gl.VERTEX_SHADER,vertSrc)
-  const fieldFs=compile(gl.FRAGMENT_SHADER,fieldSrc)
-  const glassFs=compile(gl.FRAGMENT_SHADER,glassSrc)
-  if(!vs||!fieldFs||!glassFs) return null
-  const field=link(vs,fieldFs,["uFieldRes","uFieldScale","uShape","uWarp","uWarpP","uTintD","uTintP","uCol","uChroma","uTone"])
-  const glass=link(vs,glassFs,["uField","uFieldSize","uRes","uDpr","uPanel","uPanelR","uPanelN","uTint","uLook","uShadow"])
-  if(!field||!glass) return null
-  gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer())
-  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW)
-  gl.enableVertexAttribArray(0)
-  gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0)
-  const fieldTex=gl.createTexture()
-  gl.bindTexture(gl.TEXTURE_2D,fieldTex)
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE)
-  const fbo=gl.createFramebuffer()
-  const panels=[...document.querySelectorAll(".glass")].slice(0,2)
-  const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)")
+  const vs=compile(gl.VERTEX_SHADER,vertSrc) // 编译顶点着色器
+  const fieldFs=compile(gl.FRAGMENT_SHADER,fieldSrc) // 编译液体着色器
+  const glassFs=compile(gl.FRAGMENT_SHADER,glassSrc) // 编译玻璃着色器
+  if(!vs||!fieldFs||!glassFs) return null // 任一编译失败就返回 null
+  const field=link(vs,fieldFs,["uFieldRes","uFieldScale","uShape","uWarp","uWarpP","uTintD","uTintP","uCol","uChroma","uTone"]) // 液体程序和它的 uniform
+  const glass=link(vs,glassFs,["uField","uFieldSize","uRes","uDpr","uPanel","uPanelR","uPanelN","uTint","uLook","uShadow"]) // 玻璃程序和它的 uniform
+  if(!field||!glass) return null // 任一链接失败就返回 null
+  gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer()) // 新建顶点缓冲并绑定
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW) // 三个顶点组成一个盖住整个屏幕的大三角形
+  gl.enableVertexAttribArray(0) // 启用位置 0 的顶点属性
+  gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0) // 每个顶点 2 个浮点数
+  const fieldTex=gl.createTexture() // 新建液体纹理
+  gl.bindTexture(gl.TEXTURE_2D,fieldTex) // 绑定纹理
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR) // 缩小时线性插值
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR) // 放大时线性插值（低分辨率纹理放大后平滑）
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE) // 横向超出时取边缘像素
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE) // 纵向超出时取边缘像素
+  const fbo=gl.createFramebuffer() // 新建帧缓冲，用来把液体画进纹理
+  const panels=[...document.querySelectorAll(".glass")].slice(0,2) // 两块玻璃面板元素
+  const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)") // 系统“减弱动态效果”设置
   // 销毁时一次性移除所有监听
-  const listeners=new AbortController()
-  const on={signal:listeners.signal}
-  const observers=[]
-  let raf=0
-  let lastDraw=0
-  let sizeW=0
-  let sizeH=0
-  let sizeDpr=0
-  let fieldW=1
-  let fieldH=1
-  function rgba(s){
-    const v=(s.match(/[\d.]+/g)||[]).map(Number)
-    return [(v[0]||0)/255,(v[1]||0)/255,(v[2]||0)/255,v.length>3?v[3]:1]
+  const listeners=new AbortController() // 用来一次性移除所有监听的控制器
+  const on={signal:listeners.signal} // 带上 signal 的监听选项
+  const observers=[] // 尺寸观察器列表
+  let raf=0 // 动画帧编号
+  let lastDraw=0 // 上一次绘制的时间
+  let sizeW=0 // 画布当前的 CSS 宽度
+  let sizeH=0 // 画布当前的 CSS 高度
+  let sizeDpr=0 // 画布当前的像素密度
+  let fieldW=1 // 液体纹理宽度
+  let fieldH=1 // 液体纹理高度
+  function rgba(s){ // 解析 CSS 颜色 rgb(a)(...) → [r,g,b,a]（0～1）
+    const v=(s.match(/[\d.]+/g)||[]).map(Number) // 取出所有数字
+    return [(v[0]||0)/255,(v[1]||0)/255,(v[2]||0)/255,v.length>3?v[3]:1] // 前三个除以 255，第四个是不透明度，没有就是 1
   }
   // 液体参数来自 liquidBackdrop，颜色和玻璃参数从 CSS 变量读取，深浅模式各一套
-  function readTheme(){
-    const cs=getComputedStyle(document.documentElement)
-    liquidBackdrop.readTheme()
-    const sp=liquidBackdrop.spec()
-    gl.useProgram(field.prog)
-    gl.uniform4f(field.u.uShape,sp.shape[0]/Math.min(sizeW,sizeH),sp.shape[1],sp.shape[2],sp.shape[3])
-    gl.uniform2fv(field.u.uWarp,sp.warp)
-    gl.uniform2fv(field.u.uTintD,sp.tintDir)
-    gl.uniform3fv(field.u.uCol,sp.colors)
-    gl.uniform1fv(field.u.uChroma,sp.chroma)
-    gl.uniform2fv(field.u.uTone,sp.tone)
-    gl.useProgram(glass.prog)
-    gl.uniform4f(glass.u.uTint,...rgba(cs.getPropertyValue("--glass-bg")))
-    gl.uniform4f(glass.u.uLook,...cs.getPropertyValue("--gl-look").trim().split(/\s+/).map(Number))
-    gl.uniform4f(glass.u.uShadow,...rgba(cs.getPropertyValue("--gl-shadow")))
+  function readTheme(){ // 读取颜色和玻璃参数，设置到着色器
+    const cs=getComputedStyle(document.documentElement) // 根元素的样式
+    liquidBackdrop.readTheme() // 先让液态背景模块重新读取颜色
+    const sp=liquidBackdrop.spec() // 取液体参数
+    gl.useProgram(field.prog) // 切换到液体程序
+    gl.uniform4f(field.u.uShape,sp.shape[0]/Math.min(sizeW,sizeH),sp.shape[1],sp.shape[2],sp.shape[3]) // 形状参数：坐标缩放按屏幕短边换算
+    gl.uniform2fv(field.u.uWarp,sp.warp) // 扭曲的幅度和频率
+    gl.uniform2fv(field.u.uTintD,sp.tintDir) // 条纹方向
+    gl.uniform3fv(field.u.uCol,sp.colors) // 液体颜色
+    gl.uniform1fv(field.u.uChroma,sp.chroma) // 颜色饱和度
+    gl.uniform2fv(field.u.uTone,sp.tone) // 调色参数
+    gl.useProgram(glass.prog) // 切换到玻璃程序
+    gl.uniform4f(glass.u.uTint,...rgba(cs.getPropertyValue("--glass-bg"))) // 玻璃底色
+    gl.uniform4f(glass.u.uLook,...cs.getPropertyValue("--gl-look").trim().split(/\s+/).map(Number)) // 玻璃参数
+    gl.uniform4f(glass.u.uShadow,...rgba(cs.getPropertyValue("--gl-shadow"))) // 面板投影颜色
   }
-  function resize(){
-    const dpr=Math.min(window.devicePixelRatio||1,2)
-    sizeW=canvas.clientWidth
-    sizeH=canvas.clientHeight
-    sizeDpr=dpr
-    canvas.width=Math.round(sizeW*dpr)
-    canvas.height=Math.round(sizeH*dpr)
-    fieldW=Math.max(1,Math.ceil(sizeW/FIELD_SCALE))
-    fieldH=Math.max(1,Math.ceil(sizeH/FIELD_SCALE))
-    gl.bindTexture(gl.TEXTURE_2D,fieldTex)
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,fieldW,fieldH,0,gl.RGBA,gl.UNSIGNED_BYTE,null)
-    gl.bindFramebuffer(gl.FRAMEBUFFER,fbo)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,fieldTex,0)
-    gl.bindFramebuffer(gl.FRAMEBUFFER,null)
-    gl.useProgram(field.prog)
-    gl.uniform2f(field.u.uFieldRes,fieldW,fieldH)
-    gl.uniform1f(field.u.uFieldScale,FIELD_SCALE)
-    gl.useProgram(glass.prog)
-    gl.uniform1i(glass.u.uField,0)
-    gl.uniform2f(glass.u.uFieldSize,fieldW*FIELD_SCALE,fieldH*FIELD_SCALE)
-    gl.uniform2f(glass.u.uRes,canvas.width,canvas.height)
-    gl.uniform1f(glass.u.uDpr,dpr)
-    gl.uniform1i(glass.u.uPanelN,panels.length)
-    gl.uniform1fv(glass.u.uPanelR,panels.map(el=>parseFloat(getComputedStyle(el).borderTopLeftRadius)||0).concat([0,0]).slice(0,2))
-    readTheme()
-    draw(performance.now())
+  function resize(){ // 画布尺寸变化时重新设置
+    const dpr=Math.min(window.devicePixelRatio||1,2) // 像素密度，最高 2 倍（再高看不出差别，只会更耗电）
+    sizeW=canvas.clientWidth // 记下 CSS 宽度
+    sizeH=canvas.clientHeight // 记下 CSS 高度
+    sizeDpr=dpr // 记下像素密度
+    canvas.width=Math.round(sizeW*dpr) // 画布像素宽度
+    canvas.height=Math.round(sizeH*dpr) // 画布像素高度
+    fieldW=Math.max(1,Math.ceil(sizeW/FIELD_SCALE)) // 液体纹理宽度
+    fieldH=Math.max(1,Math.ceil(sizeH/FIELD_SCALE)) // 液体纹理高度
+    gl.bindTexture(gl.TEXTURE_2D,fieldTex) // 绑定液体纹理
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,fieldW,fieldH,0,gl.RGBA,gl.UNSIGNED_BYTE,null) // 按新尺寸分配纹理（不填内容）
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fbo) // 绑定帧缓冲
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,fieldTex,0) // 把纹理接到帧缓冲上，之后画进帧缓冲就是画进纹理
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null) // 恢复画到屏幕
+    gl.useProgram(field.prog) // 切换到液体程序
+    gl.uniform2f(field.u.uFieldRes,fieldW,fieldH) // 纹理尺寸
+    gl.uniform1f(field.u.uFieldScale,FIELD_SCALE) // 每个纹理像素对应的 CSS 像素
+    gl.useProgram(glass.prog) // 切换到玻璃程序
+    gl.uniform1i(glass.u.uField,0) // 液体纹理使用 0 号纹理单元
+    gl.uniform2f(glass.u.uFieldSize,fieldW*FIELD_SCALE,fieldH*FIELD_SCALE) // 液体纹理覆盖的 CSS 尺寸
+    gl.uniform2f(glass.u.uRes,canvas.width,canvas.height) // 画布像素尺寸
+    gl.uniform1f(glass.u.uDpr,dpr) // 像素密度
+    gl.uniform1i(glass.u.uPanelN,panels.length) // 面板数量
+    gl.uniform1fv(glass.u.uPanelR,panels.map(el=>parseFloat(getComputedStyle(el).borderTopLeftRadius)||0).concat([0,0]).slice(0,2)) // 两块面板的圆角半径（从 CSS 读取，不足两块补 0）
+    readTheme() // 读取颜色和参数
+    draw(performance.now()) // 立即画一帧
   }
-  function draw(now){
+  function draw(now){ // 画一帧：now 为当前时间
     // iOS Safari 首次打开时，工具栏调整会改变画布尺寸，却不一定触发 resize 事件。
     // 尺寸不一致时画面会被拉伸，玻璃和卡片错位，所以每次绘制前都核对一遍
-    if(canvas.clientWidth!==sizeW||canvas.clientHeight!==sizeH||Math.min(window.devicePixelRatio||1,2)!==sizeDpr){
-      resize()
-      return
+    if(canvas.clientWidth!==sizeW||canvas.clientHeight!==sizeH||Math.min(window.devicePixelRatio||1,2)!==sizeDpr){ // 画布尺寸或像素密度和记录的不一致
+      resize() // 重新设置（resize 里会再画）
+      return // 本次不再往下画
     }
-    liquidBackdrop.step(now)
-    const ph=liquidBackdrop.phases()
-    gl.bindFramebuffer(gl.FRAMEBUFFER,fbo)
-    gl.viewport(0,0,fieldW,fieldH)
-    gl.useProgram(field.prog)
-    gl.uniform2fv(field.u.uWarpP,ph.warp)
-    gl.uniform1fv(field.u.uTintP,ph.tint)
-    gl.drawArrays(gl.TRIANGLES,0,3)
-    gl.bindFramebuffer(gl.FRAMEBUFFER,null)
-    gl.viewport(0,0,canvas.width,canvas.height)
-    gl.useProgram(glass.prog)
-    gl.bindTexture(gl.TEXTURE_2D,fieldTex)
-    gl.uniform4fv(glass.u.uPanel,panels.flatMap(el=>{
-      const r=el.getBoundingClientRect()
-      return [r.left+r.width/2,r.top+r.height/2,r.width/2,r.height/2]
-    }).concat([0,0,0,0,0,0,0,0]).slice(0,8))
-    gl.drawArrays(gl.TRIANGLES,0,3)
-    lastDraw=now
+    liquidBackdrop.step(now) // 推进液体运动
+    const ph=liquidBackdrop.phases() // 取当前相位
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fbo) // 画到液体纹理里
+    gl.viewport(0,0,fieldW,fieldH) // 视口为纹理尺寸
+    gl.useProgram(field.prog) // 用液体程序
+    gl.uniform2fv(field.u.uWarpP,ph.warp) // 五层扭曲的相位
+    gl.uniform1fv(field.u.uTintP,ph.tint) // 六种条纹的相位
+    gl.drawArrays(gl.TRIANGLES,0,3) // 画满整个纹理
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null) // 改为画到屏幕
+    gl.viewport(0,0,canvas.width,canvas.height) // 视口为画布尺寸
+    gl.useProgram(glass.prog) // 用玻璃程序
+    gl.bindTexture(gl.TEXTURE_2D,fieldTex) // 使用刚画好的液体纹理
+    gl.uniform4fv(glass.u.uPanel,panels.flatMap(el=>{ // 两块面板的位置
+      const r=el.getBoundingClientRect() // 面板在屏幕上的位置
+      return [r.left+r.width/2,r.top+r.height/2,r.width/2,r.height/2] // 中心 x、中心 y、半宽、半高
+    }).concat([0,0,0,0,0,0,0,0]).slice(0,8)) // 不足两块补 0
+    gl.drawArrays(gl.TRIANGLES,0,3) // 画满整个屏幕
+    lastDraw=now // 记下绘制时间
   }
   // 液体流得很慢，30 帧足够，省电
-  function loop(now){
-    raf=requestAnimationFrame(loop)
-    if(now-lastDraw>=33) draw(now)
+  function loop(now){ // WebGL 的动画循环
+    raf=requestAnimationFrame(loop) // 预约下一帧
+    if(now-lastDraw>=33) draw(now) // 距上次绘制满 33 毫秒才画（每秒最多 30 帧）
   }
-  function start(){
-    if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop)
+  function start(){ // 开始动画循环
+    if(!raf&&!reduceMotion.matches) raf=requestAnimationFrame(loop) // 没在循环且没开减弱动态效果时才开始
   }
-  function stop(){
-    cancelAnimationFrame(raf)
-    raf=0
+  function stop(){ // 停止动画循环
+    cancelAnimationFrame(raf) // 取消下一帧
+    raf=0 // 清空帧编号
   }
-  function destroy(){
-    stop()
-    listeners.abort()
-    observers.forEach(o=>o.disconnect())
-    canvas.remove()
-    document.documentElement.classList.remove("lg-webgl")
-    const lose=gl.getExtension("WEBGL_lose_context")
-    if(lose&&!gl.isContextLost()) lose.loseContext()
+  function destroy(){ // 销毁 WebGL：停止动画、移除监听、释放资源
+    stop() // 停止动画
+    listeners.abort() // 移除所有带 signal 的监听
+    observers.forEach(o=>o.disconnect()) // 断开所有尺寸观察器
+    canvas.remove() // 移除画布
+    document.documentElement.classList.remove("lg-webgl") // 去掉 WebGL 生效的标记，CSS 玻璃恢复
+    const lose=gl.getExtension("WEBGL_lose_context") // 取“主动丢弃上下文”扩展
+    if(lose&&!gl.isContextLost()) lose.loseContext() // 上下文还在就主动丢弃，立即释放显存
   }
-  document.body.insertBefore(canvas,document.body.firstChild)
-  resize()
+  document.body.insertBefore(canvas,document.body.firstChild) // 画布放到页面最前面（在内容下层）
+  resize() // 设置尺寸并画第一帧
   // 极少数设备不能渲染到纹理，此时改用 2D 兜底画法
-  gl.bindFramebuffer(gl.FRAMEBUFFER,fbo)
-  const fboOk=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE
-  gl.bindFramebuffer(gl.FRAMEBUFFER,null)
-  if(!fboOk){
-    destroy()
-    return null
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbo) // 绑定帧缓冲
+  const fboOk=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE // 检查能否渲染到纹理
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null) // 恢复画到屏幕
+  if(!fboOk){ // 不能渲染到纹理时
+    destroy() // 销毁
+    return null // 返回 null，改用兜底
   }
-  canvas.addEventListener("webglcontextlost",()=>{
-    destroy()
-    onLost()
-  },on)
-  document.documentElement.classList.add("lg-webgl")
-  start()
-  window.addEventListener("resize",resize,on)
-  if(window.visualViewport) visualViewport.addEventListener("resize",resize,on)
-  if(window.ResizeObserver){
-    ;[document.querySelector(".container"),canvas].forEach(el=>{
-      const o=new ResizeObserver(()=>draw(performance.now()))
-      o.observe(el)
-      observers.push(o)
+  canvas.addEventListener("webglcontextlost",()=>{ // WebGL 上下文丢失时（例如 iOS 后台回收）
+    destroy() // 销毁
+    onLost() // 通知控制器改用兜底
+  },on) // 监听可一次性移除
+  document.documentElement.classList.add("lg-webgl") // 标记 WebGL 生效，CSS 去掉玻璃底色和模糊
+  start() // 开始动画
+  window.addEventListener("resize",resize,on) // 窗口尺寸变化时重新设置
+  if(window.visualViewport) visualViewport.addEventListener("resize",resize,on) // 可视区域尺寸变化时（iOS 工具栏收起展开）重新设置
+  if(window.ResizeObserver){ // 浏览器支持 ResizeObserver 时
+    ;[document.querySelector(".container"),canvas].forEach(el=>{ // 观察内容容器（面板位置变化）和画布（画布尺寸变化）
+      const o=new ResizeObserver(()=>draw(performance.now())) // 尺寸变化时重画
+      o.observe(el) // 开始观察
+      observers.push(o) // 记入列表，销毁时断开
     })
   }
   // 旧版 Safari 不支持用 signal 移除监听，所以回调里先确认 WebGL 仍在使用
-  onMediaChange(matchMedia("(prefers-color-scheme: dark)"),()=>{
-    if(listeners.signal.aborted) return
-    readTheme()
-    draw(performance.now())
-  },on)
-  onMediaChange(reduceMotion,()=>{
-    if(listeners.signal.aborted) return
-    stop()
-    start()
-    draw(performance.now())
-  },on)
-  return {destroy}
+  onMediaChange(matchMedia("(prefers-color-scheme: dark)"),()=>{ // 系统深浅模式切换时
+    if(listeners.signal.aborted) return // 已销毁就不管
+    readTheme() // 重新读取颜色
+    draw(performance.now()) // 重画
+  },on) // 监听可一次性移除
+  onMediaChange(reduceMotion,()=>{ // 系统“减弱动态效果”切换时
+    if(listeners.signal.aborted) return // 已销毁就不管
+    stop() // 先停止
+    start() // 按新设置重新开始
+    draw(performance.now()) // 立即画一帧
+  },on) // 监听可一次性移除
+  return {destroy} // 返回销毁接口
 }
 // 优先用 WebGL；不支持、上下文丢失或系统要求降低透明度时，用 2D 兜底背景和 CSS 玻璃。
 // "降低透明度"可以随时切换，切换后立即生效。
 // iOS Safari 常在页面切到后台后回收 WebGL 上下文，回到前台时重新创建
-;(function liquidGlassController(){
-  const reduceTransparency=matchMedia("(prefers-reduced-transparency: reduce)")
-  let webgl=null
-  let unsupported=false
-  function fallback(){
-    webgl=null
-    liquidBackdrop.start()
+;(function liquidGlassController(){ // 立即执行：决定用 WebGL 还是兜底
+  const reduceTransparency=matchMedia("(prefers-reduced-transparency: reduce)") // 系统“降低透明度”设置
+  let webgl=null // 当前的 WebGL 实例
+  let unsupported=false // 设备是否不支持 WebGL（不支持就不再尝试）
+  function fallback(){ // 改用兜底
+    webgl=null // 清掉 WebGL 实例
+    liquidBackdrop.start() // 启动兜底背景
   }
-  function create(){
-    try{
-      return createLiquidGlass(fallback)
-    }catch(error){
-      console.warn("液体玻璃初始化失败:",error)
-      document.querySelectorAll(".lg-canvas").forEach(c=>c.remove())
-      document.documentElement.classList.remove("lg-webgl")
-      return null
+  function create(){ // 创建 WebGL，出错时清理干净
+    try{ // 尝试
+      return createLiquidGlass(fallback) // 创建，上下文丢失时改用兜底
+    }catch(error){ // 初始化出错时
+      console.warn("液体玻璃初始化失败:",error) // 在控制台记录
+      document.querySelectorAll(".lg-canvas").forEach(c=>c.remove()) // 移除可能残留的画布
+      document.documentElement.classList.remove("lg-webgl") // 去掉 WebGL 生效的标记
+      return null // 返回 null
     }
   }
-  function apply(){
-    if(reduceTransparency.matches){
-      if(webgl) webgl.destroy()
-      fallback()
-      return
+  function apply(){ // 根据当前设置选择 WebGL 或兜底
+    if(reduceTransparency.matches){ // 开启了降低透明度
+      if(webgl) webgl.destroy() // 有 WebGL 就销毁
+      fallback() // 改用兜底（实底玻璃）
+      return // 结束
     }
-    if(webgl||unsupported) return
-    webgl=create()
-    if(webgl){
-      liquidBackdrop.stop()
-    }else{
-      unsupported=true
-      liquidBackdrop.start()
+    if(webgl||unsupported) return // WebGL 已在运行或设备不支持就不处理
+    webgl=create() // 尝试创建 WebGL
+    if(webgl){ // 创建成功
+      liquidBackdrop.stop() // 停止兜底背景
+    }else{ // 创建失败
+      unsupported=true // 记为不支持
+      liquidBackdrop.start() // 启动兜底背景
     }
   }
-  apply()
-  onMediaChange(reduceTransparency,apply)
-  document.addEventListener("visibilitychange",()=>{
-    if(document.visibilityState==="visible") apply()
+  apply() // 页面加载时先选一次
+  onMediaChange(reduceTransparency,apply) // 降低透明度切换时重新选
+  document.addEventListener("visibilitychange",()=>{ // 页面可见性变化时
+    if(document.visibilityState==="visible") apply() // 回到前台就重新选（WebGL 被回收后会重建）
   })
-})()
-</script>
-</body>
-</html>
+})() // 立即执行函数结束
+</script> <!-- 脚本结束 -->
+</body> <!-- 页面主体结束 -->
+</html> <!-- 根元素结束 -->
