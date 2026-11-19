@@ -28,6 +28,14 @@ SOFTWARE.
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"> <!-- 视口：宽度等于设备宽度，禁止缩放，内容延伸到刘海和圆角区域 -->
 <meta name="theme-color" content="#f7f3ff" media="(prefers-color-scheme: light)"> <!-- 浅色模式下浏览器状态栏的颜色 -->
 <meta name="theme-color" content="#07081a" media="(prefers-color-scheme: dark)"> <!-- 深色模式下浏览器状态栏的颜色 -->
+<!-- 添加到主屏幕：以独立 App 的样子全屏打开，有自己的图标和名字 -->
+<meta name="apple-mobile-web-app-capable" content="yes"> <!-- 从 iPhone 主屏幕打开时全屏显示，不显示 Safari 的地址栏和工具栏（iOS 16.3 及更早靠这一项） -->
+<meta name="mobile-web-app-capable" content="yes"> <!-- 同上，标准写法（安卓 Chrome 等） -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <!-- 状态栏透明，液体背景一直延伸到状态栏下面 -->
+<meta name="apple-mobile-web-app-title" content="随机选号"> <!-- 主屏幕图标下面显示的名字 -->
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png"> <!-- iPhone、iPad 主屏幕图标（180×180） -->
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"> <!-- 浏览器标签页图标 -->
+<link rel="manifest" href="manifest.webmanifest"> <!-- 网页应用清单：名字、图标、全屏显示（iOS 16.4 起和安卓都读它） -->
 <title>双色球 / 大乐透 随机选号</title> <!-- 页面标题 -->
 <style> /* 页面样式开始 */
 :root { /* 全局变量（浅色模式的默认值） */
@@ -254,6 +262,20 @@ SOFTWARE.
   flex-direction:column; /* 纵向排列：标题、表单、结果 */
   gap:16px; /* 各块之间的间距 */
   padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); /* 四周留白，至少 24px，并避开刘海和圆角安全区 */
+}
+/* 从主屏幕全屏打开时状态栏是透明的，文字固定为白色：浅色背景上看不清，在顶部加一层淡淡的暗色渐变 */
+@media (display-mode: standalone) and (prefers-color-scheme: light) { /* 主屏幕 App 且为浅色模式时 */
+  body::before { /* 状态栏底下的渐变层 */
+    content:""; /* 伪元素必须有 content 才会显示 */
+    position:fixed; /* 固定在屏幕顶部 */
+    top:0; /* 贴住顶部 */
+    left:0; /* 贴住左边 */
+    right:0; /* 贴住右边 */
+    height:calc(env(safe-area-inset-top) + 20px); /* 高度：状态栏再往下 20px */
+    background:linear-gradient(rgba(15,23,42,.3),rgba(15,23,42,0)); /* 从上往下由淡暗色渐变到透明 */
+    z-index:2; /* 盖在背景和内容上面 */
+    pointer-events:none; /* 不接收点击 */
+  }
 }
 h1 { /* 标题 */
   text-align:center; /* 文字居中 */
@@ -1584,6 +1606,10 @@ void main(){ // 每个屏幕像素
     if(document.visibilityState==="visible") apply() // 回到前台就重新选（WebGL 被回收后会重建）
   })
 })() // 立即执行函数结束
+// 离线缓存：添加到主屏幕后，没有网络也能打开。只在网址为 http(s) 时注册，直接打开本地文件时跳过
+if("serviceWorker" in navigator&&location.protocol.startsWith("http")){ // 浏览器支持且通过网址打开时
+  navigator.serviceWorker.register("sw.js").catch(error=>console.warn("离线缓存注册失败:",error)) // 注册离线缓存，失败不影响使用
+}
 </script> <!-- 脚本结束 -->
 </body> <!-- 页面主体结束 -->
 </html> <!-- 根元素结束 -->
