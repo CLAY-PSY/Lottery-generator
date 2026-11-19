@@ -37,32 +37,34 @@ SOFTWARE.
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"> <!-- 浏览器标签页图标 -->
 <link rel="manifest" href="manifest.webmanifest"> <!-- 网页应用清单：名字、图标、全屏显示（iOS 16.4 起和安卓都读它） -->
 <script> // 主屏幕 App 底部白边修正（放在页面最前面，第一帧就生效）
-  // iOS 主屏幕 App 的已知问题：页面上移到状态栏下面，但视口高度（100vh、100lvh，有时连 innerHeight）不含状态栏，
-  // 底部会露出一条与状态栏等高的底色（灵动岛机型 59px）。iOS 26 起 env(safe-area-inset-top) 可能返回 0，
-  // navigator.standalone 和 display-mode 也不一定可靠，所以不判断是否为主屏幕 App：
-  // 在所有 iOS 设备上用“屏幕高度 − 视口高度（CSS 的 100lvh 和 innerHeight 取较小者）”算出差值，
-  // 差值在 1～80px（状态栏的范围）时写进 --screen-extra，背景层和弹窗遮罩多往下延伸这么多。
-  // 差值更大说明是 Safari 工具栏或 iPad 分屏，不用补；多延伸的部分在屏幕外，看不到
-  (function fitScreen(){ // 立即执行：计算差值，并在尺寸变化时更新
+  // iOS 26 主屏幕 App 的问题（WebKit Bug 301108）：页面本身比屏幕矮时，iOS 把可视区域缩短一个状态栏的高度，
+  // 固定定位的背景也画到那条边为止，底部露出一条与状态栏等高的空白（灵动岛机型 59px）。
+  // 页面原来是 height:100%，而 100% 在这种情况下正好少了状态栏的高度，所以页面“比屏幕矮”。
+  // 解决：在 iOS 主屏幕 App 里让页面至少和屏幕一样高（--screen-h，用 JS 量屏幕高度，
+  // 不用 env(safe-area-inset-top)：iOS 26.1 起它可能返回 0）。见 html.ios-app 样式
+  (function fitScreen(){ // 立即执行：判断是否为主屏幕 App，并在尺寸变化时更新
+    const root=document.documentElement // 根元素
     const ua=navigator.userAgent // 浏览器标识
     const isIOS=/iPad|iPhone|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1) // 是否 iOS / iPadOS（iPadOS 伪装成 Mac，用触摸点数区分）
     const probe=document.createElement("div") // 用来量 CSS 的 100lvh 实际有多高
     probe.style.cssText="position:fixed;top:0;left:0;width:0;height:100vh;height:100lvh;visibility:hidden;pointer-events:none" // 不可见、不占布局；不支持 lvh 时用 vh
-    function update(){ // 更新差值
-      let extra=0 // 要补的高度，默认不补
-      if(isIOS){ // 只在 iOS 上补
-        document.documentElement.appendChild(probe) // 放进页面才能量
-        const view=Math.min(innerHeight,probe.offsetHeight||innerHeight) // 视口高度：CSS 和 JS 给的取较小者
-        probe.remove() // 量完移除
-        const landscape=innerWidth>innerHeight // 是否横屏
-        const screenH=landscape?Math.min(screen.width,screen.height):Math.max(screen.width,screen.height) // 当前方向下屏幕的高度（iOS 的 screen 尺寸固定按竖屏给出）
-        const gap=screenH-view // 屏幕比视口高出的部分
-        if(gap>0&&gap<=80) extra=gap // 在状态栏高度范围内才补
-      }
-      document.documentElement.style.setProperty("--screen-extra",`${extra}px`) // 写进 CSS 变量
+    function update(){ // 更新
+      if(!isIOS) return // 只处理 iOS
+      const landscape=innerWidth>innerHeight // 是否横屏
+      const screenH=landscape?Math.min(screen.width,screen.height):Math.max(screen.width,screen.height) // 当前方向下屏幕的高度（iOS 的 screen 尺寸固定按竖屏给出）
+      root.appendChild(probe) // 放进页面才能量
+      const view=Math.min(innerHeight,probe.offsetHeight||innerHeight) // 视口高度：CSS 和 JS 给的取较小者
+      probe.remove() // 量完移除
+      const gap=screenH-view // 屏幕比视口高出的部分
+      // 三种迹象任一出现就当作主屏幕 App：系统标记、显示模式、视口正好比屏幕矮一个状态栏（1～80px，再大是 Safari 工具栏或 iPad 分屏）
+      const standalone=navigator.standalone===true||matchMedia("(display-mode: standalone)").matches||matchMedia("(display-mode: fullscreen)").matches // 系统给出的主屏幕 App 标记
+      // 一旦认定就不再撤销：页面撑高后缺口会消失，撤销会让页面又变矮、来回跳
+      if(standalone||(gap>0&&gap<=80)) root.classList.add("ios-app") // 认定为主屏幕 App
+      root.style.setProperty("--screen-h",`${screenH}px`) // 当前方向的屏幕高度
+      root.style.setProperty("--screen-extra",`${gap>0&&gap<=80?gap:0}px`) // 视口比屏幕矮的部分：固定背景层再往下多铺这么多（保险）
     }
     update() // 先算一次
-    addEventListener("resize",update) // 旋转屏幕、工具栏伸缩等尺寸变化时重新计算
+    addEventListener("resize",update) // 旋转屏幕等尺寸变化时重新计算
   })() // 立即执行函数结束
 </script> <!-- 主屏幕 App 底部白边修正结束 -->
 <title>双色球 / 大乐透 随机选号</title> <!-- 页面标题 -->
@@ -138,6 +140,7 @@ SOFTWARE.
   --export-title:#111827; /* 导出图片标题颜色 */
   /* 同心圆角：外圆角 = 控件半高 + 内边距 */
   --screen-extra:0px; /* iOS 主屏幕 App 里屏幕比视口高出的部分（由页面开头的脚本计算），背景层多延伸这么多，底部不露白边 */
+  --strip:#a99af0; /* iOS 主屏幕 App 底部系统色条的颜色（浅色）：中紫，与液体和靛蓝按钮协调，不显白 */
   --pad:10px; /* 卡片内边距 */
   --ctl-h:46px; /* 按钮、分段控件的高度 */
   --radius-outer:calc(var(--ctl-h) / 2 + var(--pad)); /* 卡片外圆角 = 控件半高 + 内边距，内外圆角同心 */
@@ -181,6 +184,7 @@ SOFTWARE.
       0 2px 6px rgba(0,0,0,.3); /* 近处投影 */
     --gl-look:2.5 .3 .04 1; /* 深色：磨砂 2.5、高光 0.3、顶部反光 0.04、不提亮 */
     --gl-tint:rgba(20,22,40,.08); /* 深色 WebGL 玻璃底色：8% 深蓝灰 */
+    --strip:#0b1026; /* 深色 iOS 主屏幕 App 底部系统色条的颜色：深海军蓝，像自然的暗角 */
     --gl-sheen:0; /* 深色：边缘反光用白光（暗背景上是一条清晰的亮线） */
     --gl-shadow:rgba(0,0,0,.25); /* 深色面板投影颜色 */
     --glow:rgba(255,255,255,.26); /* 深色触摸发光（更弱） */
@@ -303,6 +307,18 @@ SOFTWARE.
   flex-direction:column; /* 纵向排列：标题、表单、结果 */
   gap:16px; /* 各块之间的间距 */
   padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); /* 四周留白，至少 24px，并避开刘海和圆角安全区 */
+}
+/* iOS 主屏幕 App：页面至少和屏幕一样高（WebKit Bug 301108：页面比屏幕矮时，iOS 把可视区域缩短一个状态栏，底部露出空白） */
+html.ios-app, /* 主屏幕 App 的根元素和 */
+html.ios-app body { /* 页面主体 */
+  min-height:var(--screen-h); /* 至少一个屏幕高（overflow:hidden，页面不会因此滚动） */
+}
+html.ios-app { /* 主屏幕 App 的根元素 */
+  background-color:var(--strip); /* 万一底部仍留一条，用与液体协调的颜色代替发白的底色（系统用页面底色给那一条上色） */
+}
+html.ios-app .lg-canvas, /* 主屏幕 App 的 WebGL 画布和 */
+html.ios-app .backdrop { /* 兜底背景 */
+  min-height:var(--screen-h); /* 至少铺满整个屏幕 */
 }
 /* 从主屏幕全屏打开时状态栏是透明的，文字固定为白色：浅色背景上看不清，在顶部加一层淡淡的暗色渐变 */
 @media (display-mode: standalone) and (prefers-color-scheme: light) { /* 主屏幕 App 且为浅色模式时 */
@@ -1658,6 +1674,74 @@ void main(){ // 每个屏幕像素
 if("serviceWorker" in navigator&&location.protocol.startsWith("http")){ // 浏览器支持且通过网址打开时
   navigator.serviceWorker.register("sw.js").catch(error=>console.warn("离线缓存注册失败:",error)) // 注册离线缓存，失败不影响使用
 }
+// 临时诊断（排查主屏幕 App 底部白边，问题解决后删除）：快速连点三下标题，显示手机实测的屏幕和页面尺寸，
+// 并在屏幕底部画几条不同位置的彩色标记线，截图就能看出哪些能画进白边、哪些不能
+;(function screenDiagnostics(){ // 立即执行：诊断面板
+  const BUILD="白边诊断 v2（2026-11-19，页面撑满屏幕）" // 版本标记：确认手机上跑的是新版本
+  const title=document.querySelector("h1") // 标题
+  let taps=[] // 最近几次点标题的时间
+  let shown=[] // 诊断时加进页面的元素
+  function measure(css){ // 量一个按 css 设定高度的隐形元素有多高
+    const d=document.createElement("div") // 隐形元素
+    d.style.cssText="position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;"+css // 不可见、不占布局
+    document.body.appendChild(d) // 放进页面才能量
+    const h=d.getBoundingClientRect().height // 量高度
+    d.remove() // 量完移除
+    return Math.round(h*10)/10 // 保留一位小数
+  }
+  function line(top,color,label,indent){ // 在 top 位置画一条 6px 高的彩色横线和说明，说明文字从左边 indent 处开始（几条线重叠时文字错开）
+    const d=document.createElement("div") // 横线
+    d.style.cssText=`position:fixed;left:0;right:0;top:${top};height:6px;background:${color};z-index:100001;pointer-events:none;font:bold 11px/6px -apple-system,sans-serif;color:#000;text-indent:${indent}px;white-space:nowrap` // 固定定位的彩色横线
+    d.textContent=label // 说明文字
+    document.body.appendChild(d) // 放进页面
+    shown.push(d) // 记下，关闭时移除
+  }
+  function show(){ // 显示诊断
+    const cs=getComputedStyle(document.documentElement) // 根元素样式
+    const vv=window.visualViewport // 可视区域
+    const c=document.querySelector(".lg-canvas") // WebGL 画布
+    const mm=q=>matchMedia(q).matches?"是":"否" // 媒体查询是否匹配
+    const rows=[ // 每行一项
+      BUILD, // 版本
+      `屏幕 screen：${screen.width}×${screen.height}，像素密度 ${devicePixelRatio}`, // 屏幕尺寸
+      `窗口 innerWidth×innerHeight：${innerWidth}×${innerHeight}`, // 窗口尺寸
+      `documentElement.clientHeight：${document.documentElement.clientHeight}`, // 根元素可视高度
+      `visualViewport：${vv?`${Math.round(vv.width)}×${Math.round(vv.height)}，offsetTop ${vv.offsetTop}，pageTop ${vv.pageTop}`:"不支持"}`, // 可视区域
+      `CSS 高度：100vh=${measure("height:100vh")}，100lvh=${measure("height:100lvh")}，100svh=${measure("height:100svh")}，100dvh=${measure("height:100dvh")}`, // 各种视口单位
+      `安全区：上 ${measure("height:0;padding-top:env(safe-area-inset-top)")}，下 ${measure("height:0;padding-top:env(safe-area-inset-bottom)")}`, // 安全区
+      `standalone：${navigator.standalone}，display-mode：standalone ${mm("(display-mode: standalone)")}，fullscreen ${mm("(display-mode: fullscreen)")}，browser ${mm("(display-mode: browser)")}`, // 是否主屏幕 App
+      `主屏幕 App 修正：${document.documentElement.classList.contains("ios-app")?"已启用":"未启用"}，--screen-h ${cs.getPropertyValue("--screen-h").trim()||"无"}，--screen-extra ${cs.getPropertyValue("--screen-extra").trim()}`, // 修正是否生效
+      `页面高度：html ${Math.round(document.documentElement.getBoundingClientRect().height)}，body ${Math.round(document.body.getBoundingClientRect().height)}，scrollHeight ${document.documentElement.scrollHeight}`, // 页面实际高度
+      `WebGL 画布：${c?`高 ${c.clientHeight}，底边 ${Math.round(c.getBoundingClientRect().bottom)}，缓冲区 ${c.width}×${c.height}`:"没有（用兜底背景）"}`, // 画布
+      `离线缓存接管：${navigator.serviceWorker&&navigator.serviceWorker.controller?"是":"否"}`, // 离线缓存
+      `系统：${(navigator.userAgent.match(/OS [\d_]+/)||["?"])[0].replace(/_/g,".")}`, // iOS 版本
+      "彩色线：红=页面底边(bottom:0) 绿=100lvh 蓝=画布底边 黄=屏幕高度", // 标记线说明
+      "再连点三下标题关闭", // 关闭方法
+    ]
+    const panel=document.createElement("pre") // 诊断面板
+    panel.style.cssText="position:fixed;left:8px;right:8px;top:70px;z-index:100002;margin:0;padding:10px;border-radius:12px;background:rgba(0,0,0,.78);color:#fff;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;pointer-events:none" // 半透明黑底白字
+    panel.textContent=rows.join("\n") // 每项一行
+    document.body.appendChild(panel) // 放进页面
+    shown.push(panel) // 记下，关闭时移除
+    line("calc(100% - 6px)","#ff3b30","红 bottom:0",8) // 红线：页面（视口）底边
+    line("calc(100lvh - 6px)","#34c759","绿 100lvh",105) // 绿线：100lvh 的位置
+    if(c) line(`${c.getBoundingClientRect().bottom-6}px`,"#0a84ff","蓝 画布底边",195) // 蓝线：WebGL 画布的底边
+    line(`${screen.height-6}px`,"#ffd60a","黄 屏幕高度",290) // 黄线：按屏幕高度算的底边
+  }
+  function hide(){ // 关闭诊断
+    shown.forEach(e=>e.remove()) // 移除面板和标记线
+    shown=[] // 清空
+  }
+  title.addEventListener("pointerdown",()=>{ // 点标题时
+    const now=Date.now() // 当前时间
+    taps=taps.filter(t=>now-t<1500).concat(now) // 只保留 1.5 秒内的点击
+    if(taps.length>=3){ // 连点三下
+      taps=[] // 重新计数
+      if(shown.length) hide() // 已显示就关闭
+      else show() // 没显示就打开
+    }
+  })
+})() // 立即执行函数结束
 </script> <!-- 脚本结束 -->
 </body> <!-- 页面主体结束 -->
 </html> <!-- 根元素结束 -->
