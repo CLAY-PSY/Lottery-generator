@@ -1562,9 +1562,11 @@ void main(){ // 每个屏幕像素
     gl.viewport(0,0,canvas.width,canvas.height) // 视口为画布尺寸
     gl.useProgram(glass.prog) // 用玻璃程序
     gl.bindTexture(gl.TEXTURE_2D,fieldTex) // 使用刚画好的液体纹理
+    // 面板位置按画布自身的位置换算：iOS 主屏幕 App 里画布不一定正好从屏幕顶端开始，按屏幕坐标算玻璃会和面板错开
+    const cr=canvas.getBoundingClientRect() // 画布在屏幕上的位置
     gl.uniform4fv(glass.u.uPanel,panels.flatMap(el=>{ // 两块面板的位置
       const r=el.getBoundingClientRect() // 面板在屏幕上的位置
-      return [r.left+r.width/2,r.top+r.height/2,r.width/2,r.height/2] // 中心 x、中心 y、半宽、半高
+      return [r.left-cr.left+r.width/2,r.top-cr.top+r.height/2,r.width/2,r.height/2] // 相对画布的中心 x、中心 y，半宽、半高
     }).concat([0,0,0,0,0,0,0,0]).slice(0,8)) // 不足两块补 0
     gl.drawArrays(gl.TRIANGLES,0,3) // 画满整个屏幕
   }
@@ -1633,15 +1635,25 @@ void main(){ // 每个屏幕像素
 // iOS Safari 常在页面切到后台后回收 WebGL 上下文，回到前台时重新创建
 ;(function liquidGlassController(){ // 立即执行：决定用 WebGL 还是兜底
   const reduceTransparency=matchMedia("(prefers-reduced-transparency: reduce)") // 系统“降低透明度”设置
+  // WebGL 创建失败或运行中丢失时，先用兜底背景顶上，再按这些间隔自动重试；用完后等下次回到前台再试。
+  // iOS 刚启动或从后台切回时偶尔建不起来，原来失败一次就再也不试，只剩没有折射的磨砂玻璃
+  const RETRY_DELAYS=[500,1500,4000,10000] // 第 1～4 次重试前等待的毫秒数
   let webgl=null // 当前的 WebGL 实例
-  let unsupported=false // 设备是否不支持 WebGL（不支持就不再尝试）
-  function fallback(){ // 改用兜底
+  let retries=0 // 已经安排过几次重试（WebGL 成功运行或回到前台时清零）
+  let retryTimer=0 // 下一次重试的计时器
+  function scheduleRetry(){ // 安排下一次重试
+    clearTimeout(retryTimer) // 取消已安排的重试
+    if(retries>=RETRY_DELAYS.length) return // 次数用完：等下次回到前台再试
+    retryTimer=setTimeout(apply,RETRY_DELAYS[retries++]) // 依次等 0.5、1.5、4、10 秒再试
+  }
+  function onLost(){ // WebGL 运行中丢失时（例如 iOS 回收显存）
     webgl=null // 清掉 WebGL 实例
-    liquidBackdrop.start() // 启动兜底背景
+    liquidBackdrop.start() // 先用兜底背景顶上
+    scheduleRetry() // 稍后重建
   }
   function create(){ // 创建 WebGL，出错时清理干净
     try{ // 尝试
-      return createLiquidGlass(fallback) // 创建，上下文丢失时改用兜底
+      return createLiquidGlass(onLost) // 创建，丢失时调用 onLost
     }catch(error){ // 初始化出错时
       console.warn("液体玻璃初始化失败:",error) // 在控制台记录
       document.querySelectorAll(".lg-canvas").forEach(c=>c.remove()) // 移除可能残留的画布
@@ -1650,98 +1662,40 @@ void main(){ // 每个屏幕像素
     }
   }
   function apply(){ // 根据当前设置选择 WebGL 或兜底
+    clearTimeout(retryTimer) // 这次就是在处理，取消已安排的重试
     if(reduceTransparency.matches){ // 开启了降低透明度
       if(webgl) webgl.destroy() // 有 WebGL 就销毁
-      fallback() // 改用兜底（实底玻璃）
+      webgl=null // 清掉 WebGL 实例
+      liquidBackdrop.start() // 改用兜底（实底玻璃）
       return // 结束
     }
-    if(webgl||unsupported) return // WebGL 已在运行或设备不支持就不处理
+    if(webgl) return // WebGL 已在运行就不处理
     webgl=create() // 尝试创建 WebGL
     if(webgl){ // 创建成功
+      retries=0 // 重试次数清零
       liquidBackdrop.stop() // 停止兜底背景
     }else{ // 创建失败
-      unsupported=true // 记为不支持
-      liquidBackdrop.start() // 启动兜底背景
+      liquidBackdrop.start() // 先用兜底背景
+      scheduleRetry() // 稍后再试
     }
   }
   apply() // 页面加载时先选一次
   onMediaChange(reduceTransparency,apply) // 降低透明度切换时重新选
   document.addEventListener("visibilitychange",()=>{ // 页面可见性变化时
-    if(document.visibilityState==="visible") apply() // 回到前台就重新选（WebGL 被回收后会重建）
+    if(document.visibilityState!=="visible") return // 切到后台时不处理
+    retries=0 // 回到前台：重试次数重新算
+    apply() // 重新选（WebGL 被回收后会重建）
+  })
+  addEventListener("pageshow",event=>{ // 页面显示时（含从后退缓存恢复）
+    if(!event.persisted) return // 只处理从缓存恢复的情况，首次加载已经处理过
+    retries=0 // 重试次数重新算
+    apply() // 重新选
   })
 })() // 立即执行函数结束
 // 离线缓存：添加到主屏幕后，没有网络也能打开。只在网址为 http(s) 时注册，直接打开本地文件时跳过
 if("serviceWorker" in navigator&&location.protocol.startsWith("http")){ // 浏览器支持且通过网址打开时
   navigator.serviceWorker.register("sw.js").catch(error=>console.warn("离线缓存注册失败:",error)) // 注册离线缓存，失败不影响使用
 }
-// 临时诊断（排查主屏幕 App 底部白边，问题解决后删除）：快速连点三下标题，显示手机实测的屏幕和页面尺寸，
-// 并在屏幕底部画几条不同位置的彩色标记线，截图就能看出哪些能画进白边、哪些不能
-;(function screenDiagnostics(){ // 立即执行：诊断面板
-  const BUILD="白边诊断 v2（2026-11-19，页面撑满屏幕）" // 版本标记：确认手机上跑的是新版本
-  const title=document.querySelector("h1") // 标题
-  let taps=[] // 最近几次点标题的时间
-  let shown=[] // 诊断时加进页面的元素
-  function measure(css){ // 量一个按 css 设定高度的隐形元素有多高
-    const d=document.createElement("div") // 隐形元素
-    d.style.cssText="position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;"+css // 不可见、不占布局
-    document.body.appendChild(d) // 放进页面才能量
-    const h=d.getBoundingClientRect().height // 量高度
-    d.remove() // 量完移除
-    return Math.round(h*10)/10 // 保留一位小数
-  }
-  function line(top,color,label,indent){ // 在 top 位置画一条 6px 高的彩色横线和说明，说明文字从左边 indent 处开始（几条线重叠时文字错开）
-    const d=document.createElement("div") // 横线
-    d.style.cssText=`position:fixed;left:0;right:0;top:${top};height:6px;background:${color};z-index:100001;pointer-events:none;font:bold 11px/6px -apple-system,sans-serif;color:#000;text-indent:${indent}px;white-space:nowrap` // 固定定位的彩色横线
-    d.textContent=label // 说明文字
-    document.body.appendChild(d) // 放进页面
-    shown.push(d) // 记下，关闭时移除
-  }
-  function show(){ // 显示诊断
-    const cs=getComputedStyle(document.documentElement) // 根元素样式
-    const vv=window.visualViewport // 可视区域
-    const c=document.querySelector(".lg-canvas") // WebGL 画布
-    const mm=q=>matchMedia(q).matches?"是":"否" // 媒体查询是否匹配
-    const rows=[ // 每行一项
-      BUILD, // 版本
-      `屏幕 screen：${screen.width}×${screen.height}，像素密度 ${devicePixelRatio}`, // 屏幕尺寸
-      `窗口 innerWidth×innerHeight：${innerWidth}×${innerHeight}`, // 窗口尺寸
-      `documentElement.clientHeight：${document.documentElement.clientHeight}`, // 根元素可视高度
-      `visualViewport：${vv?`${Math.round(vv.width)}×${Math.round(vv.height)}，offsetTop ${vv.offsetTop}，pageTop ${vv.pageTop}`:"不支持"}`, // 可视区域
-      `CSS 高度：100vh=${measure("height:100vh")}，100lvh=${measure("height:100lvh")}，100svh=${measure("height:100svh")}，100dvh=${measure("height:100dvh")}`, // 各种视口单位
-      `安全区：上 ${measure("height:0;padding-top:env(safe-area-inset-top)")}，下 ${measure("height:0;padding-top:env(safe-area-inset-bottom)")}`, // 安全区
-      `standalone：${navigator.standalone}，display-mode：standalone ${mm("(display-mode: standalone)")}，fullscreen ${mm("(display-mode: fullscreen)")}，browser ${mm("(display-mode: browser)")}`, // 是否主屏幕 App
-      `主屏幕 App 修正：${document.documentElement.classList.contains("ios-app")?"已启用":"未启用"}，--screen-h ${cs.getPropertyValue("--screen-h").trim()||"无"}，--screen-extra ${cs.getPropertyValue("--screen-extra").trim()}`, // 修正是否生效
-      `页面高度：html ${Math.round(document.documentElement.getBoundingClientRect().height)}，body ${Math.round(document.body.getBoundingClientRect().height)}，scrollHeight ${document.documentElement.scrollHeight}`, // 页面实际高度
-      `WebGL 画布：${c?`高 ${c.clientHeight}，底边 ${Math.round(c.getBoundingClientRect().bottom)}，缓冲区 ${c.width}×${c.height}`:"没有（用兜底背景）"}`, // 画布
-      `离线缓存接管：${navigator.serviceWorker&&navigator.serviceWorker.controller?"是":"否"}`, // 离线缓存
-      `系统：${(navigator.userAgent.match(/OS [\d_]+/)||["?"])[0].replace(/_/g,".")}`, // iOS 版本
-      "彩色线：红=页面底边(bottom:0) 绿=100lvh 蓝=画布底边 黄=屏幕高度", // 标记线说明
-      "再连点三下标题关闭", // 关闭方法
-    ]
-    const panel=document.createElement("pre") // 诊断面板
-    panel.style.cssText="position:fixed;left:8px;right:8px;top:70px;z-index:100002;margin:0;padding:10px;border-radius:12px;background:rgba(0,0,0,.78);color:#fff;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;pointer-events:none" // 半透明黑底白字
-    panel.textContent=rows.join("\n") // 每项一行
-    document.body.appendChild(panel) // 放进页面
-    shown.push(panel) // 记下，关闭时移除
-    line("calc(100% - 6px)","#ff3b30","红 bottom:0",8) // 红线：页面（视口）底边
-    line("calc(100lvh - 6px)","#34c759","绿 100lvh",105) // 绿线：100lvh 的位置
-    if(c) line(`${c.getBoundingClientRect().bottom-6}px`,"#0a84ff","蓝 画布底边",195) // 蓝线：WebGL 画布的底边
-    line(`${screen.height-6}px`,"#ffd60a","黄 屏幕高度",290) // 黄线：按屏幕高度算的底边
-  }
-  function hide(){ // 关闭诊断
-    shown.forEach(e=>e.remove()) // 移除面板和标记线
-    shown=[] // 清空
-  }
-  title.addEventListener("pointerdown",()=>{ // 点标题时
-    const now=Date.now() // 当前时间
-    taps=taps.filter(t=>now-t<1500).concat(now) // 只保留 1.5 秒内的点击
-    if(taps.length>=3){ // 连点三下
-      taps=[] // 重新计数
-      if(shown.length) hide() // 已显示就关闭
-      else show() // 没显示就打开
-    }
-  })
-})() // 立即执行函数结束
 </script> <!-- 脚本结束 -->
 </body> <!-- 页面主体结束 -->
 </html> <!-- 根元素结束 -->
