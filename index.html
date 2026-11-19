@@ -37,35 +37,34 @@ SOFTWARE.
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"> <!-- 浏览器标签页图标 -->
 <link rel="manifest" href="manifest.webmanifest"> <!-- 网页应用清单：名字、图标、全屏显示（iOS 16.4 起和安卓都读它） -->
 <script> // 主屏幕 App 底部白边修正（放在页面最前面，第一帧就生效）
-  // iOS 主屏幕 App 的已知问题：页面上移到状态栏下面，但视口高度（100vh、100lvh，有时连 innerHeight）不含状态栏，
-  // 底部会露出一条与状态栏等高的底色（灵动岛机型 59px）。iOS 26 起 env(safe-area-inset-top) 可能返回 0，
-  // navigator.standalone 和 display-mode 也不一定可靠，所以不判断是否为主屏幕 App：
-  // 在所有 iOS 设备上用“屏幕高度 − 视口高度（CSS 的 100lvh 和 innerHeight 取较小者）”算出差值，
-  // 差值在 1～80px（状态栏的范围）时写进 --screen-extra，背景层和弹窗遮罩多往下延伸这么多。
-  // 差值更大说明是 Safari 工具栏或 iPad 分屏，不用补；多延伸的部分在屏幕外，看不到
-  (function fitScreen(){ // 立即执行：计算差值，并在尺寸变化时更新
+  // iOS 26 主屏幕 App 的问题（WebKit Bug 301108）：页面本身比屏幕矮时，iOS 把可视区域缩短一个状态栏的高度，
+  // 固定定位的背景也画到那条边为止，底部露出一条与状态栏等高的空白（灵动岛机型 59px）。
+  // 页面原来是 height:100%，而 100% 在这种情况下正好少了状态栏的高度，所以页面“比屏幕矮”。
+  // 解决：在 iOS 主屏幕 App 里让页面至少和屏幕一样高（--screen-h，用 JS 量屏幕高度，
+  // 不用 env(safe-area-inset-top)：iOS 26.1 起它可能返回 0）。见 html.ios-app 样式
+  (function fitScreen(){ // 立即执行：判断是否为主屏幕 App，并在尺寸变化时更新
+    const root=document.documentElement // 根元素
     const ua=navigator.userAgent // 浏览器标识
     const isIOS=/iPad|iPhone|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1) // 是否 iOS / iPadOS（iPadOS 伪装成 Mac，用触摸点数区分）
     const probe=document.createElement("div") // 用来量 CSS 的 100lvh 实际有多高
     probe.style.cssText="position:fixed;top:0;left:0;width:0;height:100vh;height:100lvh;visibility:hidden;pointer-events:none" // 不可见、不占布局；不支持 lvh 时用 vh
-    function update(){ // 更新差值
-      let extra=0 // 要补的高度，默认不补
-      if(isIOS){ // 只在 iOS 上补
-        document.documentElement.appendChild(probe) // 放进页面才能量
-        const view=Math.min(innerHeight,probe.offsetHeight||innerHeight) // 视口高度：CSS 和 JS 给的取较小者
-        probe.remove() // 量完移除
-        const landscape=innerWidth>innerHeight // 是否横屏
-        const screenH=landscape?Math.min(screen.width,screen.height):Math.max(screen.width,screen.height) // 当前方向下屏幕的高度（iOS 的 screen 尺寸固定按竖屏给出）
-        const gap=screenH-view // 屏幕比视口高出的部分
-        if(gap>0&&gap<=80) extra=gap // 在状态栏高度范围内才补
-      }
-      document.documentElement.style.setProperty("--screen-extra",`${extra}px`) // 写进 CSS 变量
-      // 实测（WebKit Bug 301994）：这一条是系统画在网页上面的，网页画不进去，颜色取自页面底色，且只在 App 重新启动时更新。
-      // 所以有缺口时，在第一帧之前就把页面底色换成与液体协调的颜色，并让液体在底部渐变过渡到它（见 .ios-strip 样式）
-      document.documentElement.classList.toggle("ios-strip",extra>0) // 有缺口时启用底部色条的配色和渐变
+    function update(){ // 更新
+      if(!isIOS) return // 只处理 iOS
+      const landscape=innerWidth>innerHeight // 是否横屏
+      const screenH=landscape?Math.min(screen.width,screen.height):Math.max(screen.width,screen.height) // 当前方向下屏幕的高度（iOS 的 screen 尺寸固定按竖屏给出）
+      root.appendChild(probe) // 放进页面才能量
+      const view=Math.min(innerHeight,probe.offsetHeight||innerHeight) // 视口高度：CSS 和 JS 给的取较小者
+      probe.remove() // 量完移除
+      const gap=screenH-view // 屏幕比视口高出的部分
+      // 三种迹象任一出现就当作主屏幕 App：系统标记、显示模式、视口正好比屏幕矮一个状态栏（1～80px，再大是 Safari 工具栏或 iPad 分屏）
+      const standalone=navigator.standalone===true||matchMedia("(display-mode: standalone)").matches||matchMedia("(display-mode: fullscreen)").matches // 系统给出的主屏幕 App 标记
+      // 一旦认定就不再撤销：页面撑高后缺口会消失，撤销会让页面又变矮、来回跳
+      if(standalone||(gap>0&&gap<=80)) root.classList.add("ios-app") // 认定为主屏幕 App
+      root.style.setProperty("--screen-h",`${screenH}px`) // 当前方向的屏幕高度
+      root.style.setProperty("--screen-extra",`${gap>0&&gap<=80?gap:0}px`) // 视口比屏幕矮的部分：固定背景层再往下多铺这么多（保险）
     }
     update() // 先算一次
-    addEventListener("resize",update) // 旋转屏幕、工具栏伸缩等尺寸变化时重新计算
+    addEventListener("resize",update) // 旋转屏幕等尺寸变化时重新计算
   })() // 立即执行函数结束
 </script> <!-- 主屏幕 App 底部白边修正结束 -->
 <title>双色球 / 大乐透 随机选号</title> <!-- 页面标题 -->
@@ -309,20 +308,17 @@ SOFTWARE.
   gap:16px; /* 各块之间的间距 */
   padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); /* 四周留白，至少 24px，并避开刘海和圆角安全区 */
 }
-/* iOS 主屏幕 App 底部系统画的那一条（网页画不进去，颜色取页面底色）：底色换成 --strip，液体在底部渐变过渡到它，看不出边界 */
-html.ios-strip { /* 有底部色条时的根元素 */
-  background-color:var(--strip); /* 页面底色：系统用它给底部那一条上色 */
+/* iOS 主屏幕 App：页面至少和屏幕一样高（WebKit Bug 301108：页面比屏幕矮时，iOS 把可视区域缩短一个状态栏，底部露出空白） */
+html.ios-app, /* 主屏幕 App 的根元素和 */
+html.ios-app body { /* 页面主体 */
+  min-height:var(--screen-h); /* 至少一个屏幕高（overflow:hidden，页面不会因此滚动） */
 }
-html.ios-strip body::after { /* 底部渐变层 */
-  content:""; /* 伪元素必须有 content 才会显示 */
-  position:fixed; /* 固定在屏幕底部 */
-  left:0; /* 贴住左边 */
-  right:0; /* 贴住右边 */
-  bottom:calc(0px - var(--screen-extra)); /* 往下延伸到屏幕底（万一系统允许画进那一条，也用同一种颜色盖住） */
-  height:calc(110px + var(--screen-extra)); /* 渐变 110px，再加上那一条的高度 */
-  background:linear-gradient(to bottom,transparent,var(--strip) calc(100% - var(--screen-extra)),var(--strip)); /* 从透明渐变到色条颜色，最下面那一条是纯色 */
-  z-index:0; /* 盖在液体背景上，在页面内容下面 */
-  pointer-events:none; /* 不接收点击 */
+html.ios-app { /* 主屏幕 App 的根元素 */
+  background-color:var(--strip); /* 万一底部仍留一条，用与液体协调的颜色代替发白的底色（系统用页面底色给那一条上色） */
+}
+html.ios-app .lg-canvas, /* 主屏幕 App 的 WebGL 画布和 */
+html.ios-app .backdrop { /* 兜底背景 */
+  min-height:var(--screen-h); /* 至少铺满整个屏幕 */
 }
 /* 从主屏幕全屏打开时状态栏是透明的，文字固定为白色：浅色背景上看不清，在顶部加一层淡淡的暗色渐变 */
 @media (display-mode: standalone) and (prefers-color-scheme: light) { /* 主屏幕 App 且为浅色模式时 */
@@ -1681,7 +1677,7 @@ if("serviceWorker" in navigator&&location.protocol.startsWith("http")){ // 浏�
 // 临时诊断（排查主屏幕 App 底部白边，问题解决后删除）：快速连点三下标题，显示手机实测的屏幕和页面尺寸，
 // 并在屏幕底部画几条不同位置的彩色标记线，截图就能看出哪些能画进白边、哪些不能
 ;(function screenDiagnostics(){ // 立即执行：诊断面板
-  const BUILD="白边诊断 v1（2026-11-19）" // 版本标记：确认手机上跑的是新版本
+  const BUILD="白边诊断 v2（2026-11-19，页面撑满屏幕）" // 版本标记：确认手机上跑的是新版本
   const title=document.querySelector("h1") // 标题
   let taps=[] // 最近几次点标题的时间
   let shown=[] // 诊断时加进页面的元素
@@ -1714,7 +1710,8 @@ if("serviceWorker" in navigator&&location.protocol.startsWith("http")){ // 浏�
       `CSS 高度：100vh=${measure("height:100vh")}，100lvh=${measure("height:100lvh")}，100svh=${measure("height:100svh")}，100dvh=${measure("height:100dvh")}`, // 各种视口单位
       `安全区：上 ${measure("height:0;padding-top:env(safe-area-inset-top)")}，下 ${measure("height:0;padding-top:env(safe-area-inset-bottom)")}`, // 安全区
       `standalone：${navigator.standalone}，display-mode：standalone ${mm("(display-mode: standalone)")}，fullscreen ${mm("(display-mode: fullscreen)")}，browser ${mm("(display-mode: browser)")}`, // 是否主屏幕 App
-      `--screen-extra：${cs.getPropertyValue("--screen-extra").trim()}`, // 补的高度
+      `主屏幕 App 修正：${document.documentElement.classList.contains("ios-app")?"已启用":"未启用"}，--screen-h ${cs.getPropertyValue("--screen-h").trim()||"无"}，--screen-extra ${cs.getPropertyValue("--screen-extra").trim()}`, // 修正是否生效
+      `页面高度：html ${Math.round(document.documentElement.getBoundingClientRect().height)}，body ${Math.round(document.body.getBoundingClientRect().height)}，scrollHeight ${document.documentElement.scrollHeight}`, // 页面实际高度
       `WebGL 画布：${c?`高 ${c.clientHeight}，底边 ${Math.round(c.getBoundingClientRect().bottom)}，缓冲区 ${c.width}×${c.height}`:"没有（用兜底背景）"}`, // 画布
       `离线缓存接管：${navigator.serviceWorker&&navigator.serviceWorker.controller?"是":"否"}`, // 离线缓存
       `系统：${(navigator.userAgent.match(/OS [\d_]+/)||["?"])[0].replace(/_/g,".")}`, // iOS 版本
