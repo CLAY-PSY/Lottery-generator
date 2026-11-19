@@ -37,18 +37,32 @@ SOFTWARE.
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"> <!-- 浏览器标签页图标 -->
 <link rel="manifest" href="manifest.webmanifest"> <!-- 网页应用清单：名字、图标、全屏显示（iOS 16.4 起和安卓都读它） -->
 <script> // 主屏幕 App 底部白边修正（放在页面最前面，第一帧就生效）
-  // iOS 主屏幕 App 的已知问题：页面上移到状态栏下面，但视口高度（100vh、innerHeight）不含状态栏，
-  // 底部会露出一条与状态栏等高的底色（灵动岛机型 59px）。iOS 26.1 起 env(safe-area-inset-top) 还可能返回 0，
-  // 所以直接用“屏幕高度 − 视口高度”算出差值，写进 --screen-extra，背景层和弹窗遮罩多往下延伸这么多
+  // iOS 主屏幕 App 的已知问题：页面上移到状态栏下面，但视口高度（100vh、100lvh，有时连 innerHeight）不含状态栏，
+  // 底部会露出一条与状态栏等高的底色（灵动岛机型 59px）。iOS 26 起 env(safe-area-inset-top) 可能返回 0，
+  // navigator.standalone 和 display-mode 也不一定可靠，所以不判断是否为主屏幕 App：
+  // 在所有 iOS 设备上用“屏幕高度 − 视口高度（CSS 的 100lvh 和 innerHeight 取较小者）”算出差值，
+  // 差值在 1～80px（状态栏的范围）时写进 --screen-extra，背景层和弹窗遮罩多往下延伸这么多。
+  // 差值更大说明是 Safari 工具栏或 iPad 分屏，不用补；多延伸的部分在屏幕外，看不到
   (function fitScreen(){ // 立即执行：计算差值，并在尺寸变化时更新
+    const ua=navigator.userAgent // 浏览器标识
+    const isIOS=/iPad|iPhone|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1) // 是否 iOS / iPadOS（iPadOS 伪装成 Mac，用触摸点数区分）
+    const probe=document.createElement("div") // 用来量 CSS 的 100lvh 实际有多高
+    probe.style.cssText="position:fixed;top:0;left:0;width:0;height:100vh;height:100lvh;visibility:hidden;pointer-events:none" // 不可见、不占布局；不支持 lvh 时用 vh
     function update(){ // 更新差值
-      const landscape=innerWidth>innerHeight // 是否横屏
-      const screenH=landscape?Math.min(screen.width,screen.height):Math.max(screen.width,screen.height) // 当前方向下屏幕的高度（iOS 的 screen 尺寸固定按竖屏给出）
-      const extra=navigator.standalone===true?Math.max(0,screenH-innerHeight):0 // 只在 iOS 主屏幕 App 里补：屏幕比视口高出的部分；浏览器里为 0
+      let extra=0 // 要补的高度，默认不补
+      if(isIOS){ // 只在 iOS 上补
+        document.documentElement.appendChild(probe) // 放进页面才能量
+        const view=Math.min(innerHeight,probe.offsetHeight||innerHeight) // 视口高度：CSS 和 JS 给的取较小者
+        probe.remove() // 量完移除
+        const landscape=innerWidth>innerHeight // 是否横屏
+        const screenH=landscape?Math.min(screen.width,screen.height):Math.max(screen.width,screen.height) // 当前方向下屏幕的高度（iOS 的 screen 尺寸固定按竖屏给出）
+        const gap=screenH-view // 屏幕比视口高出的部分
+        if(gap>0&&gap<=80) extra=gap // 在状态栏高度范围内才补
+      }
       document.documentElement.style.setProperty("--screen-extra",`${extra}px`) // 写进 CSS 变量
     }
     update() // 先算一次
-    addEventListener("resize",update) // 旋转屏幕等尺寸变化时重新计算
+    addEventListener("resize",update) // 旋转屏幕、工具栏伸缩等尺寸变化时重新计算
   })() // 立即执行函数结束
 </script> <!-- 主屏幕 App 底部白边修正结束 -->
 <title>双色球 / 大乐透 随机选号</title> <!-- 页面标题 -->

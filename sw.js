@@ -20,7 +20,8 @@ self.addEventListener("fetch",event=>{ // 页面发出请求时
   const request=event.request // 这个请求
   if(request.method!=="GET"||new URL(request.url).origin!==location.origin) return // 只处理本站的 GET 请求
   if(request.mode==="navigate"){ // 打开页面
-    event.respondWith(fetch(request).then(response=>{ // 先联网取最新版
+    // 带 no-cache 向服务器确认是否有新版：GitHub Pages 的页面在浏览器缓存里能存 10 分钟，不加的话刚发布的修改要过一会儿才生效
+    event.respondWith(fetch(request.url,{cache:"no-cache",credentials:"same-origin"}).then(response=>{ // 先联网取最新版
       if(response.ok){ // 取到了
         const copy=response.clone() // 复制一份
         caches.open(CACHE).then(cache=>cache.put("./index.html",copy)) // 更新缓存里的页面
