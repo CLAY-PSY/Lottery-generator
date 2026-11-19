@@ -28,6 +28,14 @@ SOFTWARE.
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"> <!-- 视口：宽度等于设备宽度，禁止缩放，内容延伸到刘海和圆角区域 -->
 <meta name="theme-color" content="#f7f3ff" media="(prefers-color-scheme: light)"> <!-- 浅色模式下浏览器状态栏的颜色 -->
 <meta name="theme-color" content="#07081a" media="(prefers-color-scheme: dark)"> <!-- 深色模式下浏览器状态栏的颜色 -->
+<!-- 添加到主屏幕：以独立 App 的样子全屏打开，有自己的图标和名字 -->
+<meta name="apple-mobile-web-app-capable" content="yes"> <!-- 从 iPhone 主屏幕打开时全屏显示，不显示 Safari 的地址栏和工具栏（iOS 16.3 及更早靠这一项） -->
+<meta name="mobile-web-app-capable" content="yes"> <!-- 同上，标准写法（安卓 Chrome 等） -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <!-- 状态栏透明，液体背景一直延伸到状态栏下面 -->
+<meta name="apple-mobile-web-app-title" content="随机选号"> <!-- 主屏幕图标下面显示的名字 -->
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png"> <!-- iPhone、iPad 主屏幕图标（180×180） -->
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"> <!-- 浏览器标签页图标 -->
+<link rel="manifest" href="manifest.webmanifest"> <!-- 网页应用清单：名字、图标、全屏显示（iOS 16.4 起和安卓都读它） -->
 <title>双色球 / 大乐透 随机选号</title> <!-- 页面标题 -->
 <style> /* 页面样式开始 */
 :root { /* 全局变量（浅色模式的默认值） */
@@ -45,13 +53,17 @@ SOFTWARE.
   --blue-hi:#8ab8ff; /* 蓝球高光色 */
   --blue:#3b82f6; /* 蓝球主色 */
   --blue-lo:#2563d9; /* 蓝球暗部色 */
-  /* 液态背景：六种液体颜色 */
+  /* 液态背景：十种液体颜色 */
   --liquid-1:#5b8cff; /* 液体颜色 1：蓝 */
   --liquid-2:#a35bff; /* 液体颜色 2：紫 */
   --liquid-3:#ff6fb1; /* 液体颜色 3：粉 */
   --liquid-4:#ff9f45; /* 液体颜色 4：橙 */
   --liquid-5:#3fd0c9; /* 液体颜色 5：青 */
   --liquid-6:#7b6cff; /* 液体颜色 6：靛 */
+  --liquid-7:#ffd166; /* 液体颜色 7：金黄 */
+  --liquid-8:#5ee6a0; /* 液体颜色 8：薄荷绿 */
+  --liquid-9:#ff7a7a; /* 液体颜色 9：珊瑚红 */
+  --liquid-10:#4cc9ff; /* 液体颜色 10：天蓝 */
   /* 整屏液体的调色：颜色倍率 混白比例 */
   --liquid-tone:1 .12; /* 浅色：颜色倍率 1，混入 12% 白色：柔和但仍饱满，玻璃的折射和彩边才看得出来（混白太多整屏发粉、玻璃显得发白） */
   --title-glow:0 0 14px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.8); /* 标题外发光：白色光晕让标题在彩色液体上更清楚 */
@@ -113,9 +125,13 @@ SOFTWARE.
     --liquid-4:#ff8a24; /* 深色液体颜色 4：橙 */
     --liquid-5:#1fb8b0; /* 深色液体颜色 5：青 */
     --liquid-6:#5a4dff; /* 深色液体颜色 6：靛 */
+    --liquid-7:#ffb020; /* 深色液体颜色 7：金黄 */
+    --liquid-8:#12c27a; /* 深色液体颜色 8：翠绿 */
+    --liquid-9:#ff4f5e; /* 深色液体颜色 9：珊瑚红 */
+    --liquid-10:#1ea7ff; /* 深色液体颜色 10：天蓝 */
     --liquid-tone:.65 0; /* 深色：颜色乘 0.65 压暗，不混白 */
     --title-glow:0 0 14px rgba(0,0,0,.7); /* 深色标题外发光：黑色光晕 */
-    --label-glow:0 0 8px rgba(0,0,0,.6),0 0 2px rgba(0,0,0,.4); /* 深色分段控件文字的光晕：黑色 */
+    --label-glow:0 0 8px rgba(0,0,0,.72),0 0 2px rgba(0,0,0,.55); /* 深色分段控件文字的光晕：黑色（金黄、绿色等亮色液体上也看得清） */
     --glass-bg:rgba(20,22,40,.08); /* 深色玻璃底色：8% 深蓝灰 */
     --glass-bg-strong:rgba(54,60,84,.74); /* 深色较实的玻璃底色 */
     --glass-blur:blur(5px) saturate(140%); /* 深色 CSS 玻璃的模糊和提饱和 */
@@ -254,6 +270,20 @@ SOFTWARE.
   flex-direction:column; /* 纵向排列：标题、表单、结果 */
   gap:16px; /* 各块之间的间距 */
   padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); /* 四周留白，至少 24px，并避开刘海和圆角安全区 */
+}
+/* 从主屏幕全屏打开时状态栏是透明的，文字固定为白色：浅色背景上看不清，在顶部加一层淡淡的暗色渐变 */
+@media (display-mode: standalone) and (prefers-color-scheme: light) { /* 主屏幕 App 且为浅色模式时 */
+  body::before { /* 状态栏底下的渐变层 */
+    content:""; /* 伪元素必须有 content 才会显示 */
+    position:fixed; /* 固定在屏幕顶部 */
+    top:0; /* 贴住顶部 */
+    left:0; /* 贴住左边 */
+    right:0; /* 贴住右边 */
+    height:calc(env(safe-area-inset-top) + 20px); /* 高度：状态栏再往下 20px */
+    background:linear-gradient(rgba(15,23,42,.3),rgba(15,23,42,0)); /* 从上往下由淡暗色渐变到透明 */
+    z-index:2; /* 盖在背景和内容上面 */
+    pointer-events:none; /* 不接收点击 */
+  }
 }
 h1 { /* 标题 */
   text-align:center; /* 文字居中 */
@@ -1016,36 +1046,39 @@ function onMediaChange(mql,fn,options){ // 监听系统设置的变化：mql 为
   else if(mql.addListener) mql.addListener(fn) // 旧版 Safari 用 addListener
 }
 // 液态背景：整屏流动的彩色液体。多层正弦扭曲坐标（domain warp）做出丝绸般的流动，
-// 六种颜色按扭曲后的坐标平滑混合，任何时刻都铺满全屏，没有液滴的边界
+// 十种颜色按扭曲后的坐标平滑混合，任何时刻都铺满全屏，没有液滴的边界
 // 扭曲和配色的相位都由随机速度推动，速度每隔几秒随机变化并平滑过渡，
 // 所以每次打开都不同，也不会循环重复
 // 着色公式在 WebGL 着色器（fieldSrc）和 2D 兜底画法（shade）里各写了一份，改动时两边要保持一致
+// 液体颜色的种类数：对应 CSS 变量 --liquid-1 ～ --liquid-10，WebGL 着色器的数组大小也由它决定
+const LIQUID_COUNT=10 // 液体颜色的种类数
 const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法），返回给 WebGL 使用的接口
   const backdrop=document.querySelector(".backdrop") // 背景容器
   const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)") // 系统“减弱动态效果”设置
-  // 液体很平滑，低分辨率计算后放大即可：兜底画法每个画布像素对应 6 个 CSS 像素
-  const FALLBACK_SCALE=6 // 兜底画法的缩小倍数
+  // 液体很平滑，低分辨率计算后放大即可：兜底画法每个画布像素对应 7 个 CSS 像素（颜色种类多了，逐像素计算更费时，降一点分辨率抵消）
+  const FALLBACK_SCALE=7 // 兜底画法的缩小倍数
   // 五层扭曲的幅度和频率：低频大幅度决定大的流向，高频小幅度带出细的涟漪
   const WARP=[[.9,1],[.6,1.45],[.42,2.1],[.3,3],[.2,4.3]] // 每层扭曲：[幅度, 频率]
   // 坐标缩放（每个短边长度内的波数）、配色条纹频率、配色锐度、丝绸褶皱的明暗幅度
   const SHAPE=[2.4,1.6,5,.1] // [坐标缩放, 条纹频率, 锐度, 褶皱幅度]
   // 流动速度：每层扭曲、每种颜色条纹的相位速度（弧度/秒）在 ±最大值内随机
-  const WARP_SPEED=.6 // 扭曲的最大相位速度（原来 0.3，提高一倍）
-  const TINT_SPEED=.5 // 颜色条纹的最大相位速度（原来 0.25，提高一倍）
+  const WARP_SPEED=.9 // 扭曲的最大相位速度（最初 0.3，现为 3 倍）
+  const TINT_SPEED=.75 // 颜色条纹的最大相位速度（最初 0.25，现为 3 倍）
   const warps=WARP.map(()=>{ // 每层扭曲的运动状态
     const tx=rand(-WARP_SPEED,WARP_SPEED) // 初始 x 方向速度，随机
     const ty=rand(-WARP_SPEED,WARP_SPEED) // 初始 y 方向速度，随机
     return {px:rand(0,6.28),py:rand(0,6.28),vx:tx,vy:ty,tx,ty,turn:rand(3,7)} // 相位随机；当前速度、目标速度；距下次换方向 3～7 秒
   })
-  const tints=[0,1,2,3,4,5].map(()=>{ // 六种颜色条纹的运动状态
+  const tints=Array.from({length:LIQUID_COUNT},()=>{ // 每种颜色条纹的运动状态
     const a=rand(0,6.28) // 条纹方向随机
+    const f=rand(.65,1.45) // 条纹宽窄随机：有的宽成大片，有的细成丝带，看起来是不同的液体
     const tv=rand(-TINT_SPEED,TINT_SPEED) // 初始速度，随机
-    return {dx:Math.cos(a),dy:Math.sin(a),p:rand(0,6.28),v:tv,tv,turn:rand(3,7)} // 方向向量、相位随机、当前速度、目标速度、距下次变速的时间
+    return {dx:Math.cos(a)*f,dy:Math.sin(a)*f,p:rand(0,6.28),v:tv,tv,turn:rand(3,7)} // 方向向量（乘上宽窄倍数）、相位随机、当前速度、目标速度、距下次变速的时间
   })
   let width=backdrop.clientWidth // 背景宽度
   let height=backdrop.clientHeight // 背景高度
-  let colors=[] // 六种液体颜色（0～1 的 RGB）
-  let chroma=[] // 六种颜色各自的饱和度
+  let colors=[] // 各种液体颜色（0～1 的 RGB）
+  let chroma=[] // 各种颜色各自的饱和度
   let tone=[1,0] // 调色：颜色倍率、混白比例
   let active=false // 兜底画法是否在运行
   let canvas=null // 兜底画布
@@ -1063,7 +1096,7 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
   }
   function readTheme(){ // 读取当前深浅模式的颜色
     const cs=getComputedStyle(document.documentElement) // 根元素的样式
-    colors=[1,2,3,4,5,6].map(i=>hex(cs.getPropertyValue(`--liquid-${i}`))) // 读取六种液体颜色
+    colors=Array.from({length:LIQUID_COUNT},(_,i)=>hex(cs.getPropertyValue(`--liquid-${i+1}`))) // 读取各种液体颜色
     // 每种颜色的饱和度（到同亮度灰色的距离），混色后用来补回饱和度
     chroma=colors.map(c=>{ // 计算每种颜色的饱和度
       const l=luma(c) // 这个颜色的亮度
@@ -1105,17 +1138,17 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
   function spec(){ // 不常变化的参数
     return { // 返回
       warp:WARP.flat(), // 扭曲的幅度和频率，展开成一维数组
-      tintDir:tints.flatMap(c=>[c.dx,c.dy]), // 六个条纹方向，展开成一维数组
+      tintDir:tints.flatMap(c=>[c.dx,c.dy]), // 各条纹方向，展开成一维数组
       shape:SHAPE, // 形状参数
-      colors:colors.flat(), // 六种颜色，展开成一维数组
-      chroma, // 六种颜色的饱和度
+      colors:colors.flat(), // 各种颜色，展开成一维数组
+      chroma, // 各种颜色的饱和度
       tone // 调色参数
     }
   }
   function phases(){ // 逐帧变化的相位
-    return {warp:warps.flatMap(w=>[w.px,w.py]),tint:tints.map(c=>c.p)} // 五层扭曲的 x、y 相位，六种条纹的相位
+    return {warp:warps.flatMap(w=>[w.px,w.py]),tint:tints.map(c=>c.p)} // 五层扭曲的 x、y 相位，各条纹的相位
   }
-  // 与着色器 fieldSrc 相同：扭曲坐标 → 六色按条纹平滑混合 → 补回饱和度 → 丝绸褶皱的明暗（未做深浅调色）
+  // 与着色器 fieldSrc 相同：扭曲坐标 → 各色按条纹平滑混合 → 补回饱和度 → 丝绸褶皱的明暗（未做深浅调色）
   function shade(qx,qy){ // 计算 (qx, qy) 处液体的颜色
     for(let i=0;i<WARP.length;i++){ // 五层扭曲
       const [a,f]=WARP[i] // 这一层的幅度和频率
@@ -1124,7 +1157,7 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
       qx=nx // 更新 x
     }
     let r=0,g=0,b=0,w=0,ch=0 // 颜色累加：红、绿、蓝、权重、饱和度
-    for(let k=0;k<6;k++){ // 六种颜色
+    for(let k=0;k<LIQUID_COUNT;k++){ // 每种颜色
       const t=tints[k] // 这种颜色的条纹
       const s=Math.pow(Math.max(.5+.5*Math.sin((qx*t.dx+qy*t.dy)*SHAPE[1]+t.p),0),SHAPE[2]) // 条纹强度：沿条纹方向的正弦波，取 5 次方让条纹更集中
       const c=colors[k] // 这种颜色
@@ -1233,10 +1266,9 @@ uniform float uFieldScale; // 每个纹理像素对应的 CSS 像素
 uniform vec4 uShape; // 形状参数：坐标缩放、条纹频率、锐度、褶皱幅度
 uniform vec2 uWarp[5]; // 五层扭曲的幅度和频率
 uniform vec2 uWarpP[5]; // 五层扭曲的 x、y 相位
-uniform vec2 uTintD[6]; // 六个条纹方向
-uniform float uTintP[6]; // 六种条纹的相位
-uniform vec3 uCol[6]; // 六种液体颜色
-uniform float uChroma[6]; // 六种颜色的饱和度
+// 每种条纹的参数打包成一个 vec4：手机 GPU 的 uniform 槽位有限（iPhone 为 64 个），分开传会接近上限
+uniform vec4 uTint[${LIQUID_COUNT}]; // 每种颜色条纹：方向 x、方向 y（已乘宽窄倍数）、相位、饱和度
+uniform vec3 uCol[${LIQUID_COUNT}]; // 各种液体颜色
 uniform vec2 uTone; // 调色：颜色倍率、混白比例
 const vec3 LUMA=vec3(.2126,.7152,.0722); // 亮度系数
 void main(){ // 每个纹理像素
@@ -1247,10 +1279,10 @@ void main(){ // 每个纹理像素
   vec3 c=vec3(0.); // 颜色累加
   float w=0.; // 权重累加
   float ch=0.; // 饱和度累加
-  for(int k=0;k<6;k++){ // 六种颜色
-    float s=pow(max(.5+.5*sin(dot(q,uTintD[k])*uShape.y+uTintP[k]),0.),uShape.z); // 条纹强度：正弦波取 5 次方
+  for(int k=0;k<${LIQUID_COUNT};k++){ // 每种颜色
+    float s=pow(max(.5+.5*sin(dot(q,uTint[k].xy)*uShape.y+uTint[k].z),0.),uShape.z); // 条纹强度：正弦波取 5 次方
     c+=uCol[k]*s; // 累加颜色
-    ch+=uChroma[k]*s; // 累加饱和度
+    ch+=uTint[k].w*s; // 累加饱和度
     w+=s; // 累加权重
   }
   w=max(w,1e-6); // 权重不为零
@@ -1374,7 +1406,7 @@ void main(){ // 每个屏幕像素
   const fieldFs=compile(gl.FRAGMENT_SHADER,fieldSrc) // 编译液体着色器
   const glassFs=compile(gl.FRAGMENT_SHADER,glassSrc) // 编译玻璃着色器
   if(!vs||!fieldFs||!glassFs) return null // 任一编译失败就返回 null
-  const field=link(vs,fieldFs,["uFieldRes","uFieldScale","uShape","uWarp","uWarpP","uTintD","uTintP","uCol","uChroma","uTone"]) // 液体程序和它的 uniform
+  const field=link(vs,fieldFs,["uFieldRes","uFieldScale","uShape","uWarp","uWarpP","uTint","uCol","uTone"]) // 液体程序和它的 uniform
   const glass=link(vs,glassFs,["uField","uFieldSize","uRes","uDpr","uPanel","uPanelR","uPanelN","uTint","uLook","uShadow","uSheen"]) // 玻璃程序和它的 uniform
   if(!field||!glass) return null // 任一链接失败就返回 null
   gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer()) // 新建顶点缓冲并绑定
@@ -1402,6 +1434,7 @@ void main(){ // 每个屏幕像素
   let sizeW=0 // 画布当前的 CSS 宽度
   let sizeH=0 // 画布当前的 CSS 高度
   let sizeDpr=0 // 画布当前的像素密度
+  const tintBuf=new Float32Array(LIQUID_COUNT*4) // 条纹参数（每种 4 个数）：方向 x、方向 y、相位、饱和度
   let fieldW=1 // 液体纹理宽度
   let fieldH=1 // 液体纹理高度
   function rgba(s){ // 解析 CSS 颜色 rgb(a)(...) → [r,g,b,a]（0～1）
@@ -1416,9 +1449,12 @@ void main(){ // 每个屏幕像素
     gl.useProgram(field.prog) // 切换到液体程序
     gl.uniform4f(field.u.uShape,sp.shape[0]/Math.min(sizeW,sizeH),sp.shape[1],sp.shape[2],sp.shape[3]) // 形状参数：坐标缩放按屏幕短边换算
     gl.uniform2fv(field.u.uWarp,sp.warp) // 扭曲的幅度和频率
-    gl.uniform2fv(field.u.uTintD,sp.tintDir) // 条纹方向
+    for(let k=0;k<LIQUID_COUNT;k++){ // 每种颜色条纹：方向和饱和度不常变，记在 tintBuf 里，相位逐帧填入
+      tintBuf[k*4]=sp.tintDir[k*2] // 方向 x
+      tintBuf[k*4+1]=sp.tintDir[k*2+1] // 方向 y
+      tintBuf[k*4+3]=sp.chroma[k] // 饱和度
+    }
     gl.uniform3fv(field.u.uCol,sp.colors) // 液体颜色
-    gl.uniform1fv(field.u.uChroma,sp.chroma) // 颜色饱和度
     gl.uniform2fv(field.u.uTone,sp.tone) // 调色参数
     gl.useProgram(glass.prog) // 切换到玻璃程序
     gl.uniform4f(glass.u.uTint,...rgba(cs.getPropertyValue("--gl-tint"))) // 玻璃底色
@@ -1470,7 +1506,8 @@ void main(){ // 每个屏幕像素
     gl.viewport(0,0,fieldW,fieldH) // 视口为纹理尺寸
     gl.useProgram(field.prog) // 用液体程序
     gl.uniform2fv(field.u.uWarpP,ph.warp) // 五层扭曲的相位
-    gl.uniform1fv(field.u.uTintP,ph.tint) // 六种条纹的相位
+    ph.tint.forEach((p,k)=>{tintBuf[k*4+2]=p}) // 各条纹的相位
+    gl.uniform4fv(field.u.uTint,tintBuf) // 条纹参数：方向、相位、饱和度
     gl.drawArrays(gl.TRIANGLES,0,3) // 画满整个纹理
     gl.bindFramebuffer(gl.FRAMEBUFFER,null) // 改为画到屏幕
     gl.viewport(0,0,canvas.width,canvas.height) // 视口为画布尺寸
@@ -1584,6 +1621,10 @@ void main(){ // 每个屏幕像素
     if(document.visibilityState==="visible") apply() // 回到前台就重新选（WebGL 被回收后会重建）
   })
 })() // 立即执行函数结束
+// 离线缓存：添加到主屏幕后，没有网络也能打开。只在网址为 http(s) 时注册，直接打开本地文件时跳过
+if("serviceWorker" in navigator&&location.protocol.startsWith("http")){ // 浏览器支持且通过网址打开时
+  navigator.serviceWorker.register("sw.js").catch(error=>console.warn("离线缓存注册失败:",error)) // 注册离线缓存，失败不影响使用
+}
 </script> <!-- 脚本结束 -->
 </body> <!-- 页面主体结束 -->
 </html> <!-- 根元素结束 -->
