@@ -36,6 +36,21 @@ SOFTWARE.
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"> <!-- iPhone、iPad 主屏幕图标（180×180） -->
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"> <!-- 浏览器标签页图标 -->
 <link rel="manifest" href="manifest.webmanifest"> <!-- 网页应用清单：名字、图标、全屏显示（iOS 16.4 起和安卓都读它） -->
+<script> // 主屏幕 App 底部白边修正（放在页面最前面，第一帧就生效）
+  // iOS 主屏幕 App 的已知问题：页面上移到状态栏下面，但视口高度（100vh、innerHeight）不含状态栏，
+  // 底部会露出一条与状态栏等高的底色（灵动岛机型 59px）。iOS 26.1 起 env(safe-area-inset-top) 还可能返回 0，
+  // 所以直接用“屏幕高度 − 视口高度”算出差值，写进 --screen-extra，背景层和弹窗遮罩多往下延伸这么多
+  (function fitScreen(){ // 立即执行：计算差值，并在尺寸变化时更新
+    function update(){ // 更新差值
+      const landscape=innerWidth>innerHeight // 是否横屏
+      const screenH=landscape?Math.min(screen.width,screen.height):Math.max(screen.width,screen.height) // 当前方向下屏幕的高度（iOS 的 screen 尺寸固定按竖屏给出）
+      const extra=navigator.standalone===true?Math.max(0,screenH-innerHeight):0 // 只在 iOS 主屏幕 App 里补：屏幕比视口高出的部分；浏览器里为 0
+      document.documentElement.style.setProperty("--screen-extra",`${extra}px`) // 写进 CSS 变量
+    }
+    update() // 先算一次
+    addEventListener("resize",update) // 旋转屏幕等尺寸变化时重新计算
+  })() // 立即执行函数结束
+</script> <!-- 主屏幕 App 底部白边修正结束 -->
 <title>双色球 / 大乐透 随机选号</title> <!-- 页面标题 -->
 <style> /* 页面样式开始 */
 :root { /* 全局变量（浅色模式的默认值） */
@@ -108,6 +123,7 @@ SOFTWARE.
   --export-base:#f4f2ff; /* 导出图片的画布底色 */
   --export-title:#111827; /* 导出图片标题颜色 */
   /* 同心圆角：外圆角 = 控件半高 + 内边距 */
+  --screen-extra:0px; /* iOS 主屏幕 App 里屏幕比视口高出的部分（由页面开头的脚本计算），背景层多延伸这么多，底部不露白边 */
   --pad:10px; /* 卡片内边距 */
   --ctl-h:46px; /* 按钮、分段控件的高度 */
   --radius-outer:calc(var(--ctl-h) / 2 + var(--pad)); /* 卡片外圆角 = 控件半高 + 内边距，内外圆角同心 */
@@ -209,6 +225,7 @@ SOFTWARE.
   background-repeat: no-repeat; /* 渐变不重复 */
   background-size: 100% 100vh; /* 渐变高度等于视口高度（旧浏览器） */
   background-size: 100% 100lvh; /* 渐变高度等于大视口高度，盖住 iOS 工具栏区域 */
+  background-size: 100% calc(100lvh + var(--screen-extra)); /* 主屏幕 App 里再多延伸状态栏的高度 */
   }
   * { /* 所有元素 */
   -webkit-tap-highlight-color: transparent; /* 去掉点击时的灰色高亮 */
@@ -232,6 +249,7 @@ SOFTWARE.
   right:0; /* 贴住右边 */
   height:100vh; /* 高度等于视口（旧浏览器） */
   height:100lvh; /* 高度等于大视口，盖住 iOS 工具栏区域 */
+  height:calc(100lvh + var(--screen-extra)); /* 主屏幕 App 里再多延伸状态栏的高度，底部不露白边 */
   z-index:0; /* 放在内容下面 */
   overflow:hidden; /* 超出部分裁掉 */
   pointer-events:none; /* 不接收点击 */
@@ -249,6 +267,7 @@ SOFTWARE.
   width:100%; /* 宽度铺满 */
   height:100vh; /* 高度等于视口（旧浏览器） */
   height:100lvh; /* 高度等于大视口 */
+  height:calc(100lvh + var(--screen-extra)); /* 主屏幕 App 里再多延伸状态栏的高度，底部不露白边 */
   z-index:0; /* 放在内容下面 */
   pointer-events:none; /* 不接收点击 */
 }
@@ -561,7 +580,7 @@ button:disabled { /* 禁用的按钮 */
   position: fixed; /* 固定在视口上 */
   top: 0; /* 贴住顶部 */
   right: 0; /* 贴住右边 */
-  bottom: 0; /* 贴住底部 */
+  bottom: calc(0px - var(--screen-extra)); /* 贴住底部；主屏幕 App 里多往下延伸状态栏的高度，压暗整个屏幕 */
   left: 0; /* 贴住左边 */
   z-index: 99999; /* 放在所有内容上面 */
   display: flex; /* 用 flex 布局 */
