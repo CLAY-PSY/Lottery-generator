@@ -60,6 +60,9 @@ SOFTWARE.
         if(gap>0&&gap<=80) extra=gap // 在状态栏高度范围内才补
       }
       document.documentElement.style.setProperty("--screen-extra",`${extra}px`) // 写进 CSS 变量
+      // 实测（WebKit Bug 301994）：这一条是系统画在网页上面的，网页画不进去，颜色取自页面底色，且只在 App 重新启动时更新。
+      // 所以有缺口时，在第一帧之前就把页面底色换成与液体协调的颜色，并让液体在底部渐变过渡到它（见 .ios-strip 样式）
+      document.documentElement.classList.toggle("ios-strip",extra>0) // 有缺口时启用底部色条的配色和渐变
     }
     update() // 先算一次
     addEventListener("resize",update) // 旋转屏幕、工具栏伸缩等尺寸变化时重新计算
@@ -138,6 +141,7 @@ SOFTWARE.
   --export-title:#111827; /* 导出图片标题颜色 */
   /* 同心圆角：外圆角 = 控件半高 + 内边距 */
   --screen-extra:0px; /* iOS 主屏幕 App 里屏幕比视口高出的部分（由页面开头的脚本计算），背景层多延伸这么多，底部不露白边 */
+  --strip:#a99af0; /* iOS 主屏幕 App 底部系统色条的颜色（浅色）：中紫，与液体和靛蓝按钮协调，不显白 */
   --pad:10px; /* 卡片内边距 */
   --ctl-h:46px; /* 按钮、分段控件的高度 */
   --radius-outer:calc(var(--ctl-h) / 2 + var(--pad)); /* 卡片外圆角 = 控件半高 + 内边距，内外圆角同心 */
@@ -181,6 +185,7 @@ SOFTWARE.
       0 2px 6px rgba(0,0,0,.3); /* 近处投影 */
     --gl-look:2.5 .3 .04 1; /* 深色：磨砂 2.5、高光 0.3、顶部反光 0.04、不提亮 */
     --gl-tint:rgba(20,22,40,.08); /* 深色 WebGL 玻璃底色：8% 深蓝灰 */
+    --strip:#0b1026; /* 深色 iOS 主屏幕 App 底部系统色条的颜色：深海军蓝，像自然的暗角 */
     --gl-sheen:0; /* 深色：边缘反光用白光（暗背景上是一条清晰的亮线） */
     --gl-shadow:rgba(0,0,0,.25); /* 深色面板投影颜色 */
     --glow:rgba(255,255,255,.26); /* 深色触摸发光（更弱） */
@@ -303,6 +308,21 @@ SOFTWARE.
   flex-direction:column; /* 纵向排列：标题、表单、结果 */
   gap:16px; /* 各块之间的间距 */
   padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); /* 四周留白，至少 24px，并避开刘海和圆角安全区 */
+}
+/* iOS 主屏幕 App 底部系统画的那一条（网页画不进去，颜色取页面底色）：底色换成 --strip，液体在底部渐变过渡到它，看不出边界 */
+html.ios-strip { /* 有底部色条时的根元素 */
+  background-color:var(--strip); /* 页面底色：系统用它给底部那一条上色 */
+}
+html.ios-strip body::after { /* 底部渐变层 */
+  content:""; /* 伪元素必须有 content 才会显示 */
+  position:fixed; /* 固定在屏幕底部 */
+  left:0; /* 贴住左边 */
+  right:0; /* 贴住右边 */
+  bottom:calc(0px - var(--screen-extra)); /* 往下延伸到屏幕底（万一系统允许画进那一条，也用同一种颜色盖住） */
+  height:calc(110px + var(--screen-extra)); /* 渐变 110px，再加上那一条的高度 */
+  background:linear-gradient(to bottom,transparent,var(--strip) calc(100% - var(--screen-extra)),var(--strip)); /* 从透明渐变到色条颜色，最下面那一条是纯色 */
+  z-index:0; /* 盖在液体背景上，在页面内容下面 */
+  pointer-events:none; /* 不接收点击 */
 }
 /* 从主屏幕全屏打开时状态栏是透明的，文字固定为白色：浅色背景上看不清，在顶部加一层淡淡的暗色渐变 */
 @media (display-mode: standalone) and (prefers-color-scheme: light) { /* 主屏幕 App 且为浅色模式时 */
