@@ -35,6 +35,7 @@ SOFTWARE.
 <meta name="apple-mobile-web-app-title" content="随机选号"> <!-- 主屏幕图标下面显示的名字 -->
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"> <!-- iPhone、iPad 主屏幕图标（180×180） -->
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"> <!-- 浏览器标签页图标 -->
+<link rel="preload" as="image" href="images/splash.jpg" fetchpriority="high"> <!-- 开屏图片优先下载 -->
 <link rel="manifest" href="manifest.webmanifest"> <!-- 网页应用清单：名字、图标、全屏显示（iOS 16.4 起和安卓都读它） -->
 <script> // 主屏幕 App 底部白边修正（放在页面最前面，第一帧就生效）
   // iOS 26 主屏幕 App 的问题（WebKit Bug 301108）：页面本身比屏幕矮时，iOS 把可视区域缩短一个状态栏的高度，
@@ -769,9 +770,145 @@ html.ios-app .ios-save-stage { /* 主屏幕 App 里 */
   color: #fff; /* 白色文字 */
   font-size: 15px; /* 字号 */
 }
+/* ===== 开屏页：每次打开时显示开屏图片和加载进度条，页面加载好后淡出 ===== */
+.splash { /* 开屏页：盖住整个屏幕 */
+  position: fixed; /* 固定在屏幕上 */
+  top: 0; /* 贴住顶部 */
+  left: 0; /* 贴住左边 */
+  width: 100%; /* 铺满宽度 */
+  height: 100vh; /* 铺满高度（旧浏览器） */
+  height: 100lvh; /* 铺满大视口，盖住 iOS 工具栏区域 */
+  height: calc(100lvh + var(--screen-extra)); /* 主屏幕 App 里再多延伸状态栏的高度 */
+  z-index: 200000; /* 盖在所有内容和弹窗上面 */
+  overflow: hidden; /* 画面超出屏幕的部分裁掉 */
+  background: #f1f3fe; /* 和开屏图片边缘一样的淡蓝白色：图片没载入或没铺满时不突兀 */
+  transition: opacity .45s ease; /* 淡出 */
+}
+html.ios-app .splash { /* 主屏幕 App 里 */
+  min-height: var(--screen-h); /* 至少铺满整个屏幕 */
+}
+/* 画面居中的区域：和页面内容居中的区域一样（当前可见的视口；主屏幕 App 里至少一个屏幕高）。
+   开屏页本身为了盖住 Safari 工具栏下面可能比视口高，画面不能按它居中，否则会偏下 */
+.splash-view { /* 画面居中的区域 */
+  position: absolute; /* 叠在开屏页里 */
+  top: 0; /* 贴住顶部 */
+  left: 0; /* 贴住左边 */
+  width: 100%; /* 铺满宽度 */
+  height: 100vh; /* 视口高度（旧浏览器） */
+  height: 100dvh; /* 当前可见的视口高度 */
+  display: flex; /* 用 flex 布局 */
+  align-items: center; /* 画面垂直居中 */
+  justify-content: center; /* 画面水平居中 */
+  container: splash / size; /* 作为尺寸容器，画面按这块区域的大小缩放 */
+}
+html.ios-app .splash-view { /* 主屏幕 App 里 */
+  min-height: var(--screen-h); /* 和页面一样至少一个屏幕高 */
+}
+.splash.hide { /* 淡出时 */
+  opacity: 0; /* 变透明 */
+  pointer-events: none; /* 不再挡住点击 */
+}
+/* 画面按图片比例（941×1672）缩放：竖屏手机上铺满屏幕；横屏或电脑上缩小，保证图标、文字和进度条完整显示
+   （中间内容约占图片高度的一半：画面高度不超过可见高度的 1.6 倍，即宽度不超过 90%，内容就只占可见高度的八成） */
+.splash-art { /* 开屏画面 */
+  position: relative; /* 进度条按画面定位 */
+  flex: none; /* 不被 flex 压缩 */
+  aspect-ratio: 941 / 1672; /* 和图片同样的宽高比 */
+  width: min(max(100vw, 56.28vh), 90vh, 160vw); /* 宽度：铺满屏幕，但中间内容不超出屏幕（不支持容器单位时） */
+  width: min(max(100cqw, 56.28cqh), 90cqh, 90svh, 160cqw); /* 同上，按居中区域的实际大小算；也不超过最小可见高度的 90% */
+}
+@container splash (min-aspect-ratio: 9 / 10) { /* 屏幕接近方形或更宽（横屏、电脑）：画面没铺满宽度，两侧露出底色 */
+  .splash-art { /* 画面左右边缘淡出到底色，没有硬边 */
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); /* 左右各 10% 渐隐（Safari） */
+    mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); /* 左右各 10% 渐隐 */
+  }
+}
+.splash-img { /* 开屏图片（已去掉图上静止的进度条） */
+  display: block; /* 块级显示 */
+  width: 100%; /* 铺满画面 */
+  height: 100%; /* 铺满画面 */
+}
+.splash-track { /* 进度条轨道：位置和大小按原图量出，随画面一起缩放 */
+  position: absolute; /* 按画面定位 */
+  left: 22.69%; /* 左端：原图 213.5px */
+  top: 70.78%; /* 上沿：原图 1183.5px */
+  width: 54.62%; /* 长度：原图 514px */
+  height: .658%; /* 粗细：原图 11px */
+  border-radius: 999px; /* 两端圆头 */
+  background: #e5e7f0; /* 浅灰轨道，和原图一致 */
+}
+.splash-fill { /* 进度条：红→紫→蓝渐变，从左往右露出 */
+  position: absolute; /* 盖住轨道 */
+  inset: 0; /* 和轨道一样大 */
+  border-radius: inherit; /* 圆头 */
+  overflow: hidden; /* 高光不超出进度条 */
+  background: linear-gradient(90deg, #fe2130 0%, #fd2938 17%, #f73149 26%, #dd3c68 34%, #c24481 42%, #a34f9d 51%, #8353b2 59%, #665acb 67%, #4e62e0 76%, #306bf5 84%, #0771fd 92%); /* 原图进度条的颜色 */
+  -webkit-clip-path: inset(0 100% 0 0 round 999px); /* 一开始完全藏起来（Safari） */
+  clip-path: inset(0 100% 0 0 round 999px); /* 一开始完全藏起来 */
+  animation: splash-load 1.4s cubic-bezier(.25,.8,.3,1) forwards; /* 加载动画：先快后慢走到 86% */
+}
+.splash-fill::after { /* 进度条上来回扫过的高光 */
+  content: ""; /* 伪元素必须有 content 才会显示 */
+  position: absolute; /* 叠在进度条上 */
+  top: 0; /* 贴住上沿 */
+  bottom: 0; /* 贴住下沿 */
+  width: 30%; /* 高光宽度 */
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent); /* 中间亮、两边透明 */
+  animation: splash-shine 1.1s ease-in-out infinite; /* 一直循环扫过 */
+}
+.splash.done .splash-fill { /* 页面加载好了 */
+  animation: splash-finish .3s ease-out forwards; /* 快速走满 */
+}
+@keyframes splash-load { /* 加载中 */
+  to { -webkit-clip-path: inset(0 14% 0 0 round 999px); clip-path: inset(0 14% 0 0 round 999px); } /* 走到 86% */
+}
+@keyframes splash-finish { /* 加载完成 */
+  from { -webkit-clip-path: inset(0 14% 0 0 round 999px); clip-path: inset(0 14% 0 0 round 999px); } /* 从 86% */
+  to { -webkit-clip-path: inset(0 0 0 0 round 999px); clip-path: inset(0 0 0 0 round 999px); } /* 走到 100% */
+}
+@keyframes splash-shine { /* 高光从左扫到右 */
+  from { transform: translateX(-100%); } /* 从进度条左边外面开始 */
+  to { transform: translateX(340%); } /* 扫到右边外面 */
+}
+@media (prefers-reduced-motion: reduce) { /* 减弱动态效果时 */
+  .splash-fill, /* 进度条直接显示为满 */
+  .splash.done .splash-fill { animation: none; -webkit-clip-path: none; clip-path: none; } /* 不做动画 */
+  .splash-fill::after { display: none; } /* 不要扫光 */
+  .splash { transition-duration: .2s; } /* 淡出更快 */
+}
 </style> <!-- 页面样式结束 -->
 </head> <!-- 文档头结束 -->
 <body> <!-- 页面主体开始 -->
+<div class="splash" id="splash" aria-hidden="true"> <!-- 开屏页（读屏软件忽略） -->
+  <div class="splash-view"> <!-- 画面居中的区域 -->
+    <div class="splash-art"> <!-- 按图片比例缩放的画面 -->
+      <img class="splash-img" src="images/splash.jpg" alt="" decoding="async"> <!-- 开屏图片 -->
+      <div class="splash-track"><div class="splash-fill"></div></div> <!-- 进度条：轨道和走动的部分 -->
+    </div>
+  </div>
+</div>
+<script> /* 开屏页：页面加载好、并且至少显示 1.5 秒后，进度条走满再淡出；最多 6 秒 */
+  (function splash(){ // 立即执行
+    const el=document.getElementById("splash") // 开屏页
+    const start=performance.now() // 开始时间
+    const quick=matchMedia("(prefers-reduced-motion: reduce)").matches // 减弱动态效果时显示得短一些
+    const MIN=quick?500:1500,MAX=6000 // 最短、最长显示时间（毫秒）
+    let finished=false // 是否已经开始收尾
+    function finish(){ // 收尾：进度条走满，然后淡出并移除
+      if(finished) return // 只做一次
+      finished=true // 标记
+      el.classList.add("done") // 进度条走满（0.3 秒）
+      setTimeout(()=>el.classList.add("hide"),quick?0:320) // 走满后淡出
+      setTimeout(()=>{el.remove();window.__splashGone=performance.now()},quick?250:800) // 淡出后从页面移除（记下时间，测试用）
+    }
+    function ready(){ // 页面加载好了
+      setTimeout(finish,Math.max(0,MIN-(performance.now()-start))) // 不足最短时间就再等一会儿
+    }
+    if(document.readyState==="complete") ready() // 已经加载好
+    else addEventListener("load",ready,{once:true}) // 等页面（包括图片）加载完
+    setTimeout(finish,MAX) // 保险：最多显示 6 秒
+  })() // 立即执行结束
+</script>
 <div class="backdrop" aria-hidden="true"></div> <!-- 2D 兜底背景的容器（读屏软件忽略） -->
 <div class="container"> <!-- 页面内容容器 -->
   <h1>双色球 / 大乐透 随机选号</h1> <!-- 页面标题 -->
