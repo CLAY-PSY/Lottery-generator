@@ -513,7 +513,7 @@ button::after, /* 按钮、 */
   -webkit-mask-image:linear-gradient(to bottom,transparent,#000 22px); /* 顶部 22px 由透明过渡到不透明（Safari） */
   mask-image:linear-gradient(to bottom,transparent,#000 22px); /* 顶部 22px 由透明过渡到不透明 */
 }
-.result-line.reveal { /* 深度思考给出的号码行 */
+.result-line.reveal { /* 生成的号码行 */
   animation:think-in .4s ease both; /* 依次淡入 */
 }
 @keyframes think-in { /* 淡入并上移 */
@@ -928,39 +928,27 @@ function toggleButtons(disabled){ // 统一禁用或启用按钮、彩种切换�
   typeInputs.forEach(input=>input.disabled=disabled) // 两个彩种单选框
   modeInputs.forEach(input=>input.disabled=disabled) // 两个选号方式单选框
 }
-function generateRolling(){ // 生成号码（滚动 10 秒后停下）
-  if(isRolling) return // 正在生成就忽略
-  const type=getType() // 记下开始时的彩种
-  const count=5 // 生成 5 注
-  isRolling=true // 标记为生成中
-  toggleButtons(true) // 禁用按钮和彩种切换
-  resultInner.setAttribute("aria-busy","true") // 告诉读屏软件内容正在变化，先不播报
-  const duration=10000 // 滚动 10 秒
-  const start=performance.now() // 开始时间
-  function frame(now){ // 每一帧
-    resultInner.innerHTML='' // 清空上一帧的号码
-    for(let i=0;i<count;i++){ // 生成 5 行
-      const line=document.createElement("div") // 一行
-      line.className="result-line" // 行的样式
-      if(type==="ssq"){ // 双色球
-        randomNums(1,33,6).forEach(n=>line.appendChild(createBall(n,"red"))) // 6 个红球：1～33 中不重复
-        line.appendChild(createBall(randomNums(1,16,1)[0],"blue")) // 1 个蓝球：1～16
-      }else{ // 大乐透
-        randomNums(1,35,5).forEach(n=>line.appendChild(createBall(n,"red"))) // 5 个红球：1～35 中不重复
-        randomNums(1,12,2).forEach(n=>line.appendChild(createBall(n,"blue"))) // 2 个蓝球：1～12 中不重复
-      }
-      resultInner.appendChild(line) // 这一行加到结果里
-    }
-    if(now-start<duration){ // 还没到 10 秒
-      requestAnimationFrame(frame) // 下一帧继续滚动
-    }else{ // 到 10 秒了
-      isRolling=false // 标记为生成结束，最后一帧就是结果
-      resultMode="random" // 结果来自随机抽取
-      resultInner.removeAttribute("aria-busy") // 读屏软件播报最终号码
-      toggleButtons(false) // 恢复按钮和彩种切换
-    }
-  }
-  requestAnimationFrame(frame) // 开始第一帧
+function showTickets(tickets){ // 显示生成的号码：一行接一行淡入
+  resultInner.innerHTML="" // 清空结果
+  resultInner.scrollTop=0 // 滚回顶部
+  resultInner.classList.remove("faded") // 号码不需要顶部淡出
+  tickets.forEach((t,i)=>{ // 每一注
+    const line=document.createElement("div") // 一行
+    line.className="result-line reveal" // 样式：依次淡入
+    line.style.animationDelay=`${i*.08}s` // 一行接一行
+    t.red.forEach(n=>line.appendChild(createBall(n,"red"))) // 红球
+    t.blue.forEach(n=>line.appendChild(createBall(n,"blue"))) // 蓝球
+    resultInner.appendChild(line) // 加到结果里
+  })
+}
+function generateRandom(){ // 随机抽取：立即给出 5 注
+  if(isRolling) return // 深度思考进行中就忽略
+  const ssq=getType()==="ssq" // 是不是双色球
+  const tickets=Array.from({length:5},()=>ssq // 生成 5 注
+    ?{red:randomNums(1,33,6),blue:randomNums(1,16,1)} // 双色球：6 个红球 1～33、1 个蓝球 1～16，各不重复
+    :{red:randomNums(1,35,5),blue:randomNums(1,12,2)}) // 大乐透：5 个红球 1～35、2 个蓝球 1～12，各不重复
+  showTickets(tickets) // 显示
+  resultMode="random" // 结果来自随机抽取
 }
 // ===== 深度思考：用神经网络学习开奖历史选号 =====
 // 开奖是独立随机事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。
@@ -1287,17 +1275,7 @@ async function generateDeep(){ // 深度思考：读历史、现场训练神经�
     const tickets=deepTickets(a,5) // 生成 5 注
     say(`按网络评分抽号，和值限 ${a.sumRange[0]}～${a.sumRange[1]}，排除少见形态和历史头奖组合`) // 抽号方法
     await wait(1200) // 停一会儿让人看完
-    resultInner.innerHTML="" // 换成号码
-    resultInner.scrollTop=0 // 滚回顶部
-    resultInner.classList.remove("faded") // 号码不需要顶部淡出
-    tickets.forEach((t,i)=>{ // 每一注
-      const line=document.createElement("div") // 一行
-      line.className="result-line reveal" // 样式：依次淡入
-      line.style.animationDelay=`${i*.08}s` // 一行接一行
-      t.red.forEach(n=>line.appendChild(createBall(n,"red"))) // 红球
-      t.blue.forEach(n=>line.appendChild(createBall(n,"blue"))) // 蓝球
-      resultInner.appendChild(line) // 加到结果里
-    })
+    showTickets(tickets) // 换成号码
     resultMode="deep" // 结果来自深度思考
   }catch(error){ // 读取或分析出错
     console.warn("深度思考失败:",error) // 在控制台记录
@@ -1311,7 +1289,7 @@ async function generateDeep(){ // 深度思考：读历史、现场训练神经�
     toggleButtons(false) // 恢复按钮和切换
   }
 }
-document.getElementById("generate-btn").onclick=()=>getMode()==="deep"?generateDeep():generateRolling() // 点击“生成号码”：按选号方式生成
+document.getElementById("generate-btn").onclick=()=>getMode()==="deep"?generateDeep():generateRandom() // 点击“生成号码”：按选号方式生成
 function formatDateLocal(date){ // 时间格式化为 2026-10-30_123456
   const y=date.getFullYear() // 年
   const m=String(date.getMonth()+1).padStart(2,"0") // 月，补零
@@ -1674,7 +1652,7 @@ const liquidBackdrop=(function(){ // 液态背景模块（含 2D 兜底画法）
     }
     ctx.putImageData(image,0,0) // 整张写回画布
   }
-  // 兜底画法用 JS 逐像素计算，开销大（每帧约 10 毫秒），保持每秒 30 帧，不和按钮、号码滚动抢主线程
+  // 兜底画法用 JS 逐像素计算，开销大（每帧约 10 毫秒），保持每秒 30 帧，不和按钮动画抢主线程
   function loop(now){ // 兜底画法的动画循环
     raf=requestAnimationFrame(loop) // 预约下一帧
     if(now-lastDraw<33) return // 距上次绘制不到 33 毫秒就跳过（每秒最多 30 帧）
