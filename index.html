@@ -433,7 +433,9 @@ button::after, /* 按钮、 */
   transition:color .25s; /* 颜色变化 0.25 秒过渡 */
 }
 #type-ssq:checked ~ label[for="type-ssq"], /* 选中“双色球”时它的文字、 */
-#type-dlt:checked ~ label[for="type-dlt"] { /* 选中“大乐透”时它的文字： */
+#type-dlt:checked ~ label[for="type-dlt"], /* 选中“大乐透”时它的文字、 */
+#mode-random:checked ~ label[for="mode-random"], /* 选中“随机抽取”时它的文字、 */
+#mode-deep:checked ~ label[for="mode-deep"] { /* 选中“深度思考”时它的文字： */
   color:var(--text-main); /* 用主要文字颜色 */
   font-weight:600; /* 加粗 */
 }
@@ -473,8 +475,55 @@ button::after, /* 按钮、 */
   70% {transform:scale(.98,1.03);} /* 70%：轻微回弹 */
   100% {transform:none;} /* 结束：原样 */
 }
-#type-dlt:checked ~ .segmented-thumb { /* 选中“大乐透”时的滑块 */
+#type-dlt:checked ~ .segmented-thumb, /* 选中“大乐透”时的滑块、 */
+#mode-deep:checked ~ .segmented-thumb { /* 选中“深度思考”时的滑块 */
   --thumb-x:100%; /* 移到右半边 */
+}
+.mode-switch { /* 选号方式分段控件 */
+  margin-top:var(--pad); /* 与上方彩种切换的间距 */
+}
+/* 深度思考的过程：一行行出现的分析步骤 */
+.think { /* 思考过程 */
+  align-self:stretch; /* 占满结果卡片的宽度 */
+  display:flex; /* 用 flex 布局 */
+  flex-direction:column; /* 纵向排列 */
+  gap:5px; /* 行间距 */
+  font-size:12.5px; /* 字号 */
+  line-height:1.38; /* 行高 */
+  color:var(--text-main); /* 文字颜色 */
+  text-shadow:var(--label-glow); /* 文字光晕：液体流过时看得清 */
+}
+.think-line { /* 一个分析步骤 */
+  display:flex; /* 图标和文字横排 */
+  gap:6px; /* 图标与文字的间距 */
+  animation:think-in .35s ease both; /* 淡入 */
+}
+.think-line::before { /* 步骤前的图标 */
+  content:"◆"; /* 菱形 */
+  color:var(--primary); /* 主题色 */
+  flex:none; /* 不伸缩 */
+}
+.think-note { /* 提示：不能提高中奖概率 */
+  color:var(--text-sub); /* 次要文字颜色 */
+  font-size:12px; /* 字号小一点 */
+}
+.think-note::before { /* 提示前的图标 */
+  content:"ⓘ"; /* 信息图标 */
+}
+.result-inner.faded { /* 深度思考步骤滚动之后：顶部淡出，不会被硬生生切掉半行 */
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 22px); /* 顶部 22px 由透明过渡到不透明（Safari） */
+  mask-image:linear-gradient(to bottom,transparent,#000 22px); /* 顶部 22px 由透明过渡到不透明 */
+}
+.result-line.reveal { /* 深度思考给出的号码行 */
+  animation:think-in .4s ease both; /* 依次淡入 */
+}
+@keyframes think-in { /* 淡入并上移 */
+  from {opacity:0;transform:translateY(6px);} /* 开始：透明、偏下 */
+  to {opacity:1;transform:none;} /* 结束：不透明、原位 */
+}
+@media (prefers-reduced-motion: reduce) { /* 减弱动态效果时 */
+  .think-line, /* 分析步骤和 */
+  .result-line.reveal {animation:none;} /* 号码行不做动画 */
 }
 .segmented:active input:enabled ~ .segmented-thumb { /* 按住分段控件（且未禁用）时的滑块 */
   --thumb-s:1.1; /* 放大 1.1 倍，像透镜 */
@@ -544,6 +593,8 @@ button:disabled { /* 禁用的按钮 */
   flex-shrink:0; /* 不被压缩 */
 }
 .result-inner { /* 结果内容 */
+  height:100%; /* 占满结果卡片的内容区 */
+  overflow:hidden; /* 深度思考的步骤放不下时在这里滚动（不能滚动卡片本身：卡片的高光描边会跟着移位） */
   display:flex; /* 用 flex 布局 */
   flex-direction:column; /* 纵向排列每行号码 */
   justify-content:flex-start; /* 从顶部开始排 */
@@ -700,6 +751,13 @@ button:disabled { /* 禁用的按钮 */
       <label for="type-ssq">双色球</label> <!-- “双色球”选项文字，点击选中对应单选框 -->
       <label for="type-dlt">大乐透</label> <!-- “大乐透”选项文字，点击选中对应单选框 -->
     </div> <!-- 分段控件结束 -->
+    <div class="segmented mode-switch" role="radiogroup" aria-label="选号方式"> <!-- 选号方式：随机抽取 / 深度思考 -->
+      <input type="radio" name="mode" id="mode-random" value="random" checked> <!-- “随机抽取”单选框，默认选中 -->
+      <input type="radio" name="mode" id="mode-deep" value="deep"> <!-- “深度思考”单选框 -->
+      <span class="segmented-thumb" aria-hidden="true"></span> <!-- 滑块（纯装饰，读屏软件忽略） -->
+      <label for="mode-random">随机抽取</label> <!-- “随机抽取”：纯随机，与原来相同 -->
+      <label for="mode-deep">深度思考</label> <!-- “深度思考”：参考历史开奖统计选号 -->
+    </div> <!-- 选号方式结束 -->
     <div class="button-group"> <!-- 按钮组 -->
       <button type="button" id="generate-btn" class="prominent">生成号码</button> <!-- “生成号码”按钮 -->
       <button type="button" id="save-btn" class="prominent">保存图片</button> <!-- “保存图片”按钮 -->
@@ -784,16 +842,24 @@ let isRolling=false // 是否正在生成号码
 function getType(){ // 取当前选中的彩种
   return document.querySelector('input[name="type"]:checked').value // 返回选中单选框的值：ssq 或 dlt
 }
-const segmentedThumb=document.querySelector(".segmented-thumb") // 分段控件的滑块
-typeInputs.forEach(input=>input.addEventListener('change',()=>{ // 每个单选框切换时
-  segmentedThumb.classList.remove("morph") // 先去掉拉伸动画的类
-  void segmentedThumb.offsetWidth // 读取一次布局，强制浏览器应用上一步，才能重新播放动画
-  segmentedThumb.classList.add("morph") // 加回类，播放液态拉伸动画
-  if(!isRolling){ // 不在生成中时
-    resultInner.innerHTML='' // 清空结果（换了彩种，旧号码不再有效）
-  }
-}))
-segmentedThumb.addEventListener("animationend",()=>segmentedThumb.classList.remove("morph")) // 拉伸动画播完后去掉类
+const modeInputs=document.querySelectorAll('input[name="mode"]') // 两个选号方式单选框
+function getMode(){ // 取当前选中的选号方式
+  return document.querySelector('input[name="mode"]:checked').value // 返回 random（随机抽取）或 deep（深度思考）
+}
+let resultMode="random" // 当前结果是用哪种方式生成的（保存图片的标题用）
+// 两个分段控件（彩种、选号方式）共用：切换时滑块播放液态拉伸动画
+document.querySelectorAll(".segmented").forEach(ctl=>{ // 每个分段控件
+  const thumb=ctl.querySelector(".segmented-thumb") // 它的滑块
+  ctl.querySelectorAll("input").forEach(input=>input.addEventListener("change",()=>{ // 每个单选框切换时
+    thumb.classList.remove("morph") // 先去掉拉伸动画的类
+    void thumb.offsetWidth // 读取一次布局，强制浏览器应用上一步，才能重新播放动画
+    thumb.classList.add("morph") // 加回类，播放液态拉伸动画
+    if(input.name==="type"&&!isRolling){ // 换了彩种且不在生成中时
+      resultInner.innerHTML='' // 清空结果（换了彩种，旧号码不再有效）
+    }
+  }))
+  thumb.addEventListener("animationend",()=>thumb.classList.remove("morph")) // 拉伸动画播完后去掉类
+})
 ;(function liquidGlassTouchLight(){ // 立即执行：触摸发光
   let lit=[] // 当前亮着的元素
   function place(el,e){ // 把光晕移到手指位置
@@ -809,9 +875,10 @@ segmentedThumb.addEventListener("animationend",()=>segmentedThumb.classList.remo
     release() // 先熄灭上一次的
     const ctl=e.target.closest("button,.segmented") // 找到按下的按钮或分段控件
     if(!ctl) return // 不是控件就不处理
-    if(ctl.matches(".segmented")&&typeInputs[0].disabled) return // 分段控件禁用时不发光
+    const isSeg=ctl.matches(".segmented") // 是不是分段控件
+    if(isSeg&&ctl.querySelector("input").disabled) return // 分段控件禁用时不发光
     if(ctl.disabled) return // 按钮禁用时不发光
-    const surface=ctl.matches(".segmented")?segmentedThumb:ctl // 分段控件让滑块发光，按钮让自己发光
+    const surface=isSeg?ctl.querySelector(".segmented-thumb"):ctl // 分段控件让自己的滑块发光，按钮让自己发光
     lit=[surface] // 记入列表
     const panel=ctl.closest(".glass") // 所在的玻璃面板
     if(panel) lit.push(panel) // 面板也一起带亮
@@ -855,10 +922,11 @@ function createBall(n,color){ // 创建一个号码球
   span.appendChild(num) // 数字放进球里
   return span // 返回这个球
 }
-function toggleButtons(disabled){ // 统一禁用或启用按钮和彩种切换
+function toggleButtons(disabled){ // 统一禁用或启用按钮、彩种切换和选号方式切换
   document.getElementById("generate-btn").disabled=disabled // “生成号码”按钮
   document.getElementById("save-btn").disabled=disabled // “保存图片”按钮
   typeInputs.forEach(input=>input.disabled=disabled) // 两个彩种单选框
+  modeInputs.forEach(input=>input.disabled=disabled) // 两个选号方式单选框
 }
 function generateRolling(){ // 生成号码（滚动 10 秒后停下）
   if(isRolling) return // 正在生成就忽略
@@ -887,13 +955,211 @@ function generateRolling(){ // 生成号码（滚动 10 秒后停下）
       requestAnimationFrame(frame) // 下一帧继续滚动
     }else{ // 到 10 秒了
       isRolling=false // 标记为生成结束，最后一帧就是结果
+      resultMode="random" // 结果来自随机抽取
       resultInner.removeAttribute("aria-busy") // 读屏软件播报最终号码
       toggleButtons(false) // 恢复按钮和彩种切换
     }
   }
   requestAnimationFrame(frame) // 开始第一帧
 }
-document.getElementById("generate-btn").onclick=generateRolling // 点击“生成号码”时生成
+// ===== 深度思考：参考历史开奖统计选号 =====
+// 开奖是独立随机事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。
+// 这里做的是：按历史冷热和遗漏给号码加权抽取，再筛掉历史上很少出现的组合形态（和值、奇偶、大小、区间、连号），
+// 并避开历史上开出过的头奖组合。每次结果都不同，仅供参考和娱乐
+const DEEP_RULES={ // 两种彩票的规则
+  ssq:{name:"双色球",red:[6,33],blue:[1,16],zones:[[1,11],[12,22],[23,33]],maxShare:3}, // 双色球：6 红（1～33）+ 1 蓝（1～16），红球分三区；5 注之间最多共用 3 个红球
+  dlt:{name:"大乐透",red:[5,35],blue:[2,12],zones:[[1,12],[13,24],[25,35]],maxShare:2}, // 大乐透：5 红（1～35）+ 2 蓝（1～12）；最多共用 2 个红球
+}
+const RECENT=100 // 统计“近期冷热”用的期数
+const historyCache={} // 已读取的开奖历史：彩种 → 数据
+async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/dlt.json，每期：[期号, 日期, 红球, 蓝球]，新的在前）
+  if(historyCache[type]) return historyCache[type] // 读过就直接用
+  const response=await fetch(`data/${type}.json`,{cache:"no-cache"}) // 向服务器确认最新版本
+  if(!response.ok) throw new Error(`HTTP ${response.status}`) // 读取失败
+  const data=await response.json() // 解析 JSON
+  if(!Array.isArray(data.draws)||data.draws.length<50) throw new Error("数据不完整") // 数据太少
+  historyCache[type]=data // 缓存
+  return data // 返回
+}
+function randomFloat(){ // [0,1) 内的随机小数（用加密随机数）
+  return randomIntUnbiased(0x100000000)/0x100000000 // 32 位随机整数除以 2^32
+}
+function weightedPick(weights,count){ // 按权重不放回地抽 count 个号码（weights[n] 是号码 n 的权重），从小到大返回
+  const pool=weights.map((w,n)=>[n,w]).filter(([n])=>n>0) // 号码和权重（下标 0 不用）
+  const picked=[] // 抽中的号码
+  while(picked.length<count){ // 抽够为止
+    const total=pool.reduce((sum,[,w])=>sum+w,0) // 剩余号码的权重之和
+    let r=randomFloat()*total // 在总权重里随机落一个点
+    let i=0 // 落点所在的号码
+    while(i<pool.length-1&&(r-=pool[i][1])>=0) i++ // 依次减去权重，找到落点所在的号码
+    picked.push(pool[i][0]) // 抽中
+    pool.splice(i,1) // 不放回
+  }
+  return picked.sort((a,b)=>a-b) // 从小到大
+}
+function poolStats(draws,col,count,max){ // 统计一组号码（col=2 红球，col=3 蓝球）：全部和近期出现次数、遗漏期数、加权抽取的权重
+  const all=new Array(max+1).fill(0) // 全部历史中出现的次数
+  const recent=new Array(max+1).fill(0) // 近 RECENT 期出现的次数
+  const omit=new Array(max+1).fill(draws.length) // 遗漏期数：距离上次出现隔了几期（从没出现过就是总期数）
+  draws.forEach((d,i)=>d[col].forEach(n=>{ // 每期的每个号码（新的在前）
+    all[n]++ // 全部次数加一
+    if(i<RECENT) recent[n]++ // 近期次数加一
+    if(omit[n]===draws.length) omit[n]=i // 第一次遇到就是遗漏期数
+  }))
+  const expAll=draws.length*count/max // 全部历史中每个号码平均出现的次数
+  const expRecent=Math.min(RECENT,draws.length)*count/max // 近期每个号码平均出现的次数
+  const weights=all.map((a,n)=>{ // 每个号码的权重
+    if(!n) return 0 // 下标 0 不用
+    const hot=recent[n]/expRecent // 近期热度：1 为平均，越大越热
+    const due=Math.min(omit[n]/(draws.length/Math.max(a,1)),3) // 遗漏程度：遗漏期数 ÷ 平均间隔，越大越“该出”（最多按 3 算）
+    const long=a/expAll // 长期频率：1 为平均
+    return Math.max(.15,.45*hot+.35*due+.2*long) // 近期冷热占 45%、遗漏占 35%、长期频率占 20%；最低 0.15，每个号码都有机会
+  })
+  return {all,recent,omit,weights,avgGap:all.map(a=>a?draws.length/a:Infinity)} // 返回统计结果
+}
+function commonSet(values){ // 历史上最常见的取值，合计占到 85% 为止
+  const counts={} // 每个取值出现的次数
+  values.forEach(v=>{counts[v]=(counts[v]||0)+1}) // 计数
+  const order=Object.keys(counts).map(Number).sort((a,b)=>counts[b]-counts[a]) // 按次数从多到少
+  const keep=new Set() // 保留的取值
+  let covered=0 // 已覆盖的期数
+  for(const v of order){ // 从最常见的开始
+    keep.add(v) // 保留
+    covered+=counts[v] // 累计
+    if(covered>=values.length*.85) break // 覆盖 85% 就够了
+  }
+  return keep // 返回
+}
+function shapeOf(reds,rule){ // 一注红球的形态：和值、奇数个数、大号个数、每区个数、最长连号
+  const half=rule.red[1]/2 // 大小分界：大于一半的算大号
+  let run=1,longest=1 // 当前连号长度、最长连号长度
+  for(let i=1;i<reds.length;i++){ // 逐个比较相邻号码
+    run=reds[i]===reds[i-1]+1?run+1:1 // 连着就加一，否则重新算
+    longest=Math.max(longest,run) // 记下最长
+  }
+  return { // 返回
+    sum:reds.reduce((a,b)=>a+b,0), // 和值
+    odd:reds.filter(n=>n%2).length, // 奇数个数
+    big:reds.filter(n=>n>half).length, // 大号个数
+    zoneMax:Math.max(...rule.zones.map(([lo,hi])=>reds.filter(n=>n>=lo&&n<=hi).length)), // 号码最多的那个区有几个
+    longest, // 最长连号
+  }
+}
+function analyze(type,data){ // 分析开奖历史，得到加权和筛选条件
+  const rule=DEEP_RULES[type] // 规则
+  const draws=data.draws // 全部开奖（新的在前）
+  const red=poolStats(draws,2,rule.red[0],rule.red[1]) // 红球统计
+  const blue=poolStats(draws,3,rule.blue[0],rule.blue[1]) // 蓝球统计
+  const shapes=draws.map(d=>shapeOf(d[2],rule)) // 每期红球的形态
+  const sums=shapes.map(x=>x.sum).sort((a,b)=>a-b) // 和值从小到大
+  const pct=q=>sums[Math.floor((sums.length-1)*q)] // 百分位数
+  const zoneLimit=Math.max(...commonSet(shapes.map(x=>x.zoneMax))) // 历史 85% 的开奖里，单区最多几个号
+  const runLimit=Math.max(...commonSet(shapes.map(x=>x.longest))) // 历史 85% 的开奖里，最长连号
+  return { // 返回
+    rule,draws,red,blue, // 规则、开奖、红蓝球统计
+    sumRange:[pct(.1),pct(.9)], // 历史 80% 的开奖落在这个和值范围里
+    oddSet:commonSet(shapes.map(x=>x.odd)), // 常见的奇数个数
+    bigSet:commonSet(shapes.map(x=>x.big)), // 常见的大号个数
+    zoneLimit,runLimit, // 单区上限、连号上限
+    jackpots:new Set(draws.map(d=>d[2].join(",")+"|"+d[3].join(","))), // 开出过的头奖组合
+  }
+}
+function fitsHistory(reds,a){ // 这注红球的形态是不是历史上常见的
+  const x=shapeOf(reds,a.rule) // 形态
+  return x.sum>=a.sumRange[0]&&x.sum<=a.sumRange[1]&&a.oddSet.has(x.odd)&&a.bigSet.has(x.big)&&x.zoneMax<=a.zoneLimit&&x.longest<=a.runLimit // 和值、奇偶、大小、区间、连号都在常见范围内
+}
+function deepTickets(a,count){ // 生成 count 注
+  const tickets=[] // 结果
+  for(let tries=0;tickets.length<count&&tries<5000;tries++){ // 最多尝试 5000 次
+    const reds=weightedPick(a.red.weights,a.rule.red[0]) // 按权重抽红球
+    if(!fitsHistory(reds,a)) continue // 形态不常见就重抽
+    const loose=tries>3000 // 试了很多次还不够就放宽“5 注之间不要太像”的要求
+    if(!loose&&tickets.some(t=>t.red.filter(n=>reds.includes(n)).length>a.rule.maxShare)) continue // 与已选的某注共用太多红球就重抽
+    const blues=weightedPick(a.blue.weights,a.rule.blue[0]) // 按权重抽蓝球
+    if(a.jackpots.has(reds.join(",")+"|"+blues.join(","))) continue // 开出过的头奖组合不要
+    if(tickets.some(t=>t.red.join()===reds.join()&&t.blue.join()===blues.join())) continue // 与已选的完全相同就不要
+    tickets.push({red:reds,blue:blues}) // 选中
+  }
+  return tickets // 返回
+}
+function pad2(n){ // 号码补零成两位
+  return String(n).padStart(2,"0") // 例如 7 → 07
+}
+function topBy(arr,count,desc){ // 按数值取前几个号码（desc=true 取最大的）
+  return arr.map((v,n)=>[n,v]).filter(([n])=>n>0).sort((x,y)=>desc?y[1]-x[1]:x[1]-y[1]).slice(0,count) // [号码, 数值]
+}
+function thinkingSteps(a){ // 根据真实统计写出分析步骤
+  const d=a.draws // 全部开奖
+  const hot=topBy(a.red.recent,3,true).map(([n])=>pad2(n)).join("、") // 近期最热的 3 个红球
+  const cold=topBy(a.red.recent,3,false).map(([n])=>pad2(n)).join("、") // 近期最冷的 3 个红球
+  const [dueN]=topBy(a.red.omit.map((o,n)=>n?o/a.red.avgGap[n]:0),1,true)[0] // 遗漏最“该出”的红球
+  const blueHot=topBy(a.blue.recent,2,true).map(([n])=>pad2(n)).join("、") // 近期最热的 2 个蓝球
+  const odds=[...a.oddSet].sort((x,y)=>y-x).map(o=>`${o}:${a.rule.red[0]-o}`).join("、") // 常见奇偶比
+  return [ // 每一步一句话（结果卡片不高，句子尽量短）
+    `${a.rule.name}开奖历史 ${d.length.toLocaleString()} 期（${d[d.length-1][1]} 至 ${d[0][1]}）`, // 数据范围
+    `近 ${RECENT} 期红球热号 ${hot}，冷号 ${cold}`, // 红球冷热
+    `蓝球热号 ${blueHot}；红球 ${pad2(dueN)} 已 ${a.red.omit[dueN]} 期未出（平均 ${Math.round(a.red.avgGap[dueN])} 期一次）`, // 蓝球冷热和遗漏
+    `80% 的开奖红球和值 ${a.sumRange[0]}～${a.sumRange[1]}，奇偶比多为 ${odds}`, // 形态
+    `按冷热、遗漏加权抽号，排除少见形态和历史头奖组合`, // 方法
+  ]
+}
+async function generateDeep(){ // 深度思考：读历史、显示分析过程、给出 5 注
+  if(isRolling) return // 正在生成就忽略
+  const type=getType() // 记下开始时的彩种
+  isRolling=true // 标记为生成中
+  toggleButtons(true) // 禁用按钮和切换
+  resultInner.setAttribute("aria-busy","true") // 告诉读屏软件内容正在变化，先不播报
+  const quick=matchMedia("(prefers-reduced-motion: reduce)").matches // 减弱动态效果时步骤间隔缩短
+  const wait=ms=>new Promise(r=>setTimeout(r,quick?Math.min(ms,150):ms)) // 等待
+  const box=document.createElement("div") // 分析过程
+  box.className="think" // 样式
+  const say=(text,cls="think-line")=>{ // 显示一行
+    const line=document.createElement("div") // 一行
+    line.className=cls // 样式
+    line.textContent=text // 文字
+    box.appendChild(line) // 放进去
+    resultInner.scrollTop=resultInner.scrollHeight // 放不下时滚到最新一行（窄屏上最后的提示也能看到）
+    resultInner.classList.toggle("faded",resultInner.scrollTop>0) // 滚动过就让顶部淡出
+  }
+  resultInner.innerHTML="" // 清空结果
+  resultInner.appendChild(box) // 显示分析过程
+  say(`正在读取${DEEP_RULES[type].name}开奖历史…`) // 第一行
+  try{ // 尝试
+    const [data]=await Promise.all([loadHistory(type),wait(500)]) // 读取开奖历史（至少停留半秒）
+    const a=analyze(type,data) // 分析
+    const tickets=deepTickets(a,5) // 生成 5 注
+    box.innerHTML="" // 换成真实的分析步骤
+    for(const step of thinkingSteps(a)){ // 每一步
+      say(step) // 显示
+      await wait(650) // 间隔 0.65 秒
+    }
+    say("开奖是独立随机事件，统计不能提高中奖概率，仅供娱乐","think-line think-note") // 如实说明
+    await wait(1600) // 停一会儿让人看完
+    resultInner.innerHTML="" // 换成号码
+    resultInner.scrollTop=0 // 滚回顶部
+    resultInner.classList.remove("faded") // 号码不需要顶部淡出
+    tickets.forEach((t,i)=>{ // 每一注
+      const line=document.createElement("div") // 一行
+      line.className="result-line reveal" // 样式：依次淡入
+      line.style.animationDelay=`${i*.08}s` // 一行接一行
+      t.red.forEach(n=>line.appendChild(createBall(n,"red"))) // 红球
+      t.blue.forEach(n=>line.appendChild(createBall(n,"blue"))) // 蓝球
+      resultInner.appendChild(line) // 加到结果里
+    })
+    resultMode="deep" // 结果来自深度思考
+  }catch(error){ // 读取或分析出错
+    console.warn("深度思考失败:",error) // 在控制台记录
+    box.innerHTML="" // 清空
+    resultInner.scrollTop=0 // 滚回顶部
+    resultInner.classList.remove("faded") // 去掉顶部淡出
+    say("读取开奖历史失败，请联网后重试，或先用“随机抽取”") // 提示
+  }finally{ // 无论成败
+    isRolling=false // 标记为生成结束
+    resultInner.removeAttribute("aria-busy") // 读屏软件播报结果
+    toggleButtons(false) // 恢复按钮和切换
+  }
+}
+document.getElementById("generate-btn").onclick=()=>getMode()==="deep"?generateDeep():generateRolling() // 点击“生成号码”：按选号方式生成
 function formatDateLocal(date){ // 时间格式化为 2026-10-30_123456
   const y=date.getFullYear() // 年
   const m=String(date.getMonth()+1).padStart(2,"0") // 月，补零
@@ -994,7 +1260,7 @@ function saveAsImage(){ // 保存图片
     alert("请等待生成完成再保存") // 提示等待
     return // 不保存
   }
-  if(!resultInner.innerHTML.trim()){ // 还没有生成结果时
+  if(!resultInner.querySelector(".result-line")){ // 还没有生成号码时（只有提示文字也不算）
     alert("当前没有生成结果") // 提示没有结果
     return // 不保存
   }
@@ -1003,7 +1269,7 @@ function saveAsImage(){ // 保存图片
   const dateText=formatDateLocal(new Date()) // 当前时间，用在标题和文件名里
   let canvas // 导出用的画布
   try{ // 尝试
-    canvas=drawExportImage(`${dateText} ${typeText}`) // 画出导出图片，标题为“时间 彩种”
+    canvas=drawExportImage(`${dateText} ${typeText}${resultMode==="deep"?" 深度思考":""}`) // 画出导出图片，标题为“时间 彩种”，深度思考的结果加上注明
   }catch(error){ // 画图出错时
     console.error("保存图片失败:",error) // 在控制台记录错误
     alert("图片生成失败，请重试") // 提示失败
