@@ -712,16 +712,17 @@ button:disabled { /* 禁用的按钮 */
   flex-direction: column; /* 纵向排列：图片、提示、关闭按钮 */
   align-items: center; /* 水平居中 */
   overflow: hidden; /* 超出部分裁掉 */
-  -webkit-transform: translateZ(0) scale(.9); /* 初始缩小到 90%（Safari） */
-  transform: translateZ(0) scale(.9); /* 初始缩小到 90% */
+  /* --dy：弹窗上下微调，让它和页面内容的中心对齐（由脚本按实际位置算出） */
+  -webkit-transform: translateY(var(--dy, 0px)) translateZ(0) scale(.9); /* 初始缩小到 90%（Safari） */
+  transform: translateY(var(--dy, 0px)) translateZ(0) scale(.9); /* 初始缩小到 90% */
   -webkit-filter: blur(10px); /* 初始模糊（Safari） */
   filter: blur(10px); /* 初始模糊 */
   opacity: 0; /* 初始透明 */
   transition: transform .45s cubic-bezier(.34,1.56,.64,1), filter .3s ease, -webkit-filter .3s ease, opacity .22s ease; /* 缩放带回弹，模糊和透明度平滑过渡 */
 }
 .ios-save-overlay.show .ios-save-modal { /* 显示时的弹窗 */
-  -webkit-transform: translateZ(0) scale(1); /* 恢复原大小（Safari） */
-  transform: translateZ(0) scale(1); /* 恢复原大小 */
+  -webkit-transform: translateY(var(--dy, 0px)) translateZ(0) scale(1); /* 恢复原大小（Safari） */
+  transform: translateY(var(--dy, 0px)) translateZ(0) scale(1); /* 恢复原大小 */
   -webkit-filter: none; /* 变清晰（Safari） */
   filter: none; /* 变清晰 */
   opacity: 1; /* 完全不透明 */
@@ -1471,6 +1472,15 @@ function showSavePreview(src,alt){ // 弹出保存预览：src 为图片地址�
   closeBtn.className="ios-save-close" // 关闭按钮样式
   closeBtn.textContent="关闭" // 按钮文字
   let closing=false // 是否正在关闭（防止重复关闭）
+  // 弹窗按遮罩居中，页面内容按 body 居中。主屏幕 App 里遮罩会多往下延伸一个状态栏（--screen-extra），
+  // iOS 26 还可能把固定定位的元素挪位置，两个中心就会错开。这里按实际位置量出差值，把弹窗挪到和页面内容同一个中心
+  function center(){ // 让弹窗和页面内容的中心对齐
+    const page=document.body.getBoundingClientRect() // 页面内容居中所在的区域
+    const box=overlay.getBoundingClientRect() // 遮罩（弹窗原本居中所在的区域）
+    const room=Math.max(0,(box.height-40-modal.offsetHeight)/2) // 弹窗上下最多能挪多少（遮罩上下各留 20px）
+    const dy=(page.top+page.bottom-box.top-box.bottom)/2 // 两个中心相差多少
+    modal.style.setProperty("--dy",`${Math.round(Math.max(-room,Math.min(room,dy)))}px`) // 挪过去，但不超出屏幕
+  }
   function onKey(e){ // 键盘按下时
     if(e.key==="Escape") closePreview() // 按 Esc 关闭
   }
@@ -1478,6 +1488,7 @@ function showSavePreview(src,alt){ // 弹出保存预览：src 为图片地址�
     if(closing) return // 已经在关闭就忽略
     closing=true // 标记为正在关闭
     document.removeEventListener("keydown",onKey) // 不再监听键盘
+    removeEventListener("resize",center) // 不再跟随尺寸变化
     overlay.classList.remove("show") // 开始淡出
     setTimeout(()=>{ // 等淡出动画结束
       if(overlay.parentNode){ // 遮罩还在页面里
@@ -1487,6 +1498,8 @@ function showSavePreview(src,alt){ // 弹出保存预览：src 为图片地址�
     },230) // 230 毫秒，比淡出动画稍长
   }
   document.addEventListener("keydown",onKey) // 监听键盘
+  addEventListener("resize",center) // 旋转屏幕等尺寸变化时重新对齐
+  preview.addEventListener("load",center) // 图片载入后弹窗高度确定，再对齐一次
   closeBtn.addEventListener("click",closePreview) // 点关闭按钮时关闭
   overlay.addEventListener("click",e=>{ // 点击遮罩时
     if(e.target===overlay) closePreview() // 点在弹窗外面才关闭
@@ -1498,6 +1511,7 @@ function showSavePreview(src,alt){ // 弹出保存预览：src 为图片地址�
   overlay.appendChild(blur) // 先放模糊层
   overlay.appendChild(modal) // 再放弹窗（盖在模糊层上面）
   document.body.appendChild(overlay) // 遮罩放进页面
+  center() // 先对齐一次
   requestAnimationFrame(()=>{ // 等下一帧
     requestAnimationFrame(()=>{ // 再等一帧，确保初始样式已生效，淡入动画才会播放
       overlay.classList.add("show") // 显示，开始淡入
