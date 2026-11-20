@@ -503,13 +503,6 @@ button::after, /* 按钮、 */
   color:var(--primary); /* 主题色 */
   flex:none; /* 不伸缩 */
 }
-.think-note { /* 提示：不能提高中奖概率 */
-  color:var(--text-sub); /* 次要文字颜色 */
-  font-size:12px; /* 字号小一点 */
-}
-.think-note::before { /* 提示前的图标 */
-  content:"ⓘ"; /* 信息图标 */
-}
 .result-inner.faded { /* 深度思考步骤滚动之后：顶部淡出，不会被硬生生切掉半行 */
   -webkit-mask-image:linear-gradient(to bottom,transparent,#000 22px); /* 顶部 22px 由透明过渡到不透明（Safari） */
   mask-image:linear-gradient(to bottom,transparent,#000 22px); /* 顶部 22px 由透明过渡到不透明 */
@@ -1133,8 +1126,7 @@ async function generateDeep(){ // 深度思考：读历史、显示分析过程�
       say(step) // 显示
       await wait(650) // 间隔 0.65 秒
     }
-    say("开奖是独立随机事件，统计不能提高中奖概率，仅供娱乐","think-line think-note") // 如实说明
-    await wait(1600) // 停一会儿让人看完
+    await wait(1200) // 停一会儿让人看完
     resultInner.innerHTML="" // 换成号码
     resultInner.scrollTop=0 // 滚回顶部
     resultInner.classList.remove("faded") // 号码不需要顶部淡出
