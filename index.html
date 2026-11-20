@@ -503,6 +503,12 @@ button::after, /* 按钮、 */
   color:var(--primary); /* 主题色 */
   flex:none; /* 不伸缩 */
 }
+.think-line.working::before { /* 正在训练神经网络：图标闪动，像在思考 */
+  animation:think-pulse 1s ease-in-out infinite; /* 一秒闪一次，一直循环 */
+}
+@keyframes think-pulse { /* 闪动 */
+  50% {opacity:.25;} /* 中间变淡 */
+}
 .result-inner.faded { /* 深度思考步骤滚动之后：顶部淡出，不会被硬生生切掉半行 */
   -webkit-mask-image:linear-gradient(to bottom,transparent,#000 22px); /* 顶部 22px 由透明过渡到不透明（Safari） */
   mask-image:linear-gradient(to bottom,transparent,#000 22px); /* 顶部 22px 由透明过渡到不透明 */
@@ -515,7 +521,8 @@ button::after, /* 按钮、 */
   to {opacity:1;transform:none;} /* 结束：不透明、原位 */
 }
 @media (prefers-reduced-motion: reduce) { /* 减弱动态效果时 */
-  .think-line, /* 分析步骤和 */
+  .think-line, /* 分析步骤、 */
+  .think-line.working::before, /* 训练中的闪动图标和 */
   .result-line.reveal {animation:none;} /* 号码行不做动画 */
 }
 .segmented:active input:enabled ~ .segmented-thumb { /* 按住分段控件（且未禁用）时的滑块 */
@@ -955,15 +962,15 @@ function generateRolling(){ // 生成号码（滚动 10 秒后停下）
   }
   requestAnimationFrame(frame) // 开始第一帧
 }
-// ===== 深度思考：参考历史开奖统计选号 =====
+// ===== 深度思考：用神经网络学习开奖历史选号 =====
 // 开奖是独立随机事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。
-// 这里做的是：按历史冷热和遗漏给号码加权抽取，再筛掉历史上很少出现的组合形态（和值、奇偶、大小、区间、连号），
-// 并避开历史上开出过的头奖组合。每次结果都不同，仅供参考和娱乐
+// 这里做的是：在页面里用开奖历史现场训练两个小型神经网络（红球、蓝球各一个），按网络给每个号码的评分加权抽取，
+// 再筛掉历史上很少出现的组合形态（和值、奇偶、大小、区间、连号），并避开历史上开出过的头奖组合。每次结果都不同，仅供参考和娱乐
 const DEEP_RULES={ // 两种彩票的规则
   ssq:{name:"双色球",red:[6,33],blue:[1,16],zones:[[1,11],[12,22],[23,33]],maxShare:3}, // 双色球：6 红（1～33）+ 1 蓝（1～16），红球分三区；5 注之间最多共用 3 个红球
   dlt:{name:"大乐透",red:[5,35],blue:[2,12],zones:[[1,12],[13,24],[25,35]],maxShare:2}, // 大乐透：5 红（1～35）+ 2 蓝（1～12）；最多共用 2 个红球
 }
-const RECENT=100 // 统计“近期冷热”用的期数
+const NN={features:10,hidden:16,epochs:6,train:1100,valid:100,sharp:3} // 神经网络设置：每个号码 10 项特征、隐藏层 16 个神经元、训练 6 轮、用 1100 期训练、近 100 期验证、抽号时把评分差距放大（3 次方）
 const historyCache={} // 已读取的开奖历史：彩种 → 数据
 async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/dlt.json，每期：[期号, 日期, 红球, 蓝球]，新的在前）
   if(historyCache[type]) return historyCache[type] // 读过就直接用
@@ -990,25 +997,173 @@ function weightedPick(weights,count){ // 按权重不放回地抽 count 个号�
   }
   return picked.sort((a,b)=>a-b) // 从小到大
 }
-function poolStats(draws,col,count,max){ // 统计一组号码（col=2 红球，col=3 蓝球）：全部和近期出现次数、遗漏期数、加权抽取的权重
-  const all=new Array(max+1).fill(0) // 全部历史中出现的次数
-  const recent=new Array(max+1).fill(0) // 近 RECENT 期出现的次数
-  const omit=new Array(max+1).fill(draws.length) // 遗漏期数：距离上次出现隔了几期（从没出现过就是总期数）
-  draws.forEach((d,i)=>d[col].forEach(n=>{ // 每期的每个号码（新的在前）
-    all[n]++ // 全部次数加一
-    if(i<RECENT) recent[n]++ // 近期次数加一
-    if(omit[n]===draws.length) omit[n]=i // 第一次遇到就是遗漏期数
-  }))
-  const expAll=draws.length*count/max // 全部历史中每个号码平均出现的次数
-  const expRecent=Math.min(RECENT,draws.length)*count/max // 近期每个号码平均出现的次数
-  const weights=all.map((a,n)=>{ // 每个号码的权重
-    if(!n) return 0 // 下标 0 不用
-    const hot=recent[n]/expRecent // 近期热度：1 为平均，越大越热
-    const due=Math.min(omit[n]/(draws.length/Math.max(a,1)),3) // 遗漏程度：遗漏期数 ÷ 平均间隔，越大越“该出”（最多按 3 算）
-    const long=a/expAll // 长期频率：1 为平均
-    return Math.max(.15,.45*hot+.35*due+.2*long) // 近期冷热占 45%、遗漏占 35%、长期频率占 20%；最低 0.15，每个号码都有机会
+function nnTrainSpan(total){ // 训练用几期：最多 1100 期，前面至少留 100 期用来算特征
+  return Math.max(100,Math.min(NN.train,total-NN.valid-100)) // 期数
+}
+function nnSamples(draws,col,k,max){ // 把开奖历史整理成样本：每一期的每个号码一个样本（10 项特征 → 这一期有没有开出）
+  const F=NN.features // 特征个数
+  const ch=draws.slice().reverse() // 按时间从早到晚排列
+  const T=ch.length // 总期数
+  const valid=NN.valid // 验证期数
+  const train=nnTrainSpan(T) // 训练期数
+  const start=T-train-valid // 第一个样本所在的期
+  const W=max+1 // 每期一行（下标 0 不用）
+  const pre=new Int32Array((T+1)*W) // 前缀和：pre[t*W+n] 是前 t 期里号码 n 开出的次数
+  for(let t=0;t<T;t++){ // 每一期
+    for(let n=1;n<=max;n++) pre[(t+1)*W+n]=pre[t*W+n] // 先抄上一行
+    for(const n of ch[t][col]) pre[(t+1)*W+n]++ // 这一期开出的号码加一
+  }
+  const count=(t,w,n)=>pre[t*W+n]-pre[Math.max(0,t-w)*W+n] // 第 t 期之前 w 期里号码 n 开出的次数
+  const expect=w=>w*k/max // w 期里每个号码平均开出的次数
+  const rows=(T-start+1)*max // 样本数：训练 + 验证 + 最后一组（下一期，用来预测）
+  const X=new Float32Array(rows*F) // 特征
+  const Y=new Uint8Array(rows) // 答案：这一期开出了就是 1
+  const last=new Int32Array(W).fill(-1) // 每个号码最近一次开出的期
+  for(let t=0;t<=T;t++){ // 每一期（t=T 是还没开奖的下一期）
+    if(t>=start) for(let n=1;n<=max;n++){ // 进入样本范围后的每个号码
+      const r=(t-start)*max+n-1 // 样本序号
+      const o=r*F // 这个样本的特征从这里开始
+      const all=pre[t*W+n] // 之前一共开出几次
+      const gap=last[n]<0?t:t-1-last[n] // 遗漏：已经连续几期没开出
+      X[o]=count(t,5,n)/expect(5) // 近 5 期热度（1 为平均）
+      X[o+1]=count(t,10,n)/expect(10) // 近 10 期热度
+      X[o+2]=count(t,30,n)/expect(30) // 近 30 期热度
+      X[o+3]=count(t,100,n)/expect(100) // 近 100 期热度
+      X[o+4]=all/expect(t) // 长期频率
+      X[o+5]=Math.min(gap*Math.max(all,1)/t,5) // 遗漏 ÷ 平均间隔（最多按 5 算）
+      X[o+6]=Math.min(gap,60)/60 // 遗漏期数（最多按 60 算）
+      X[o+7]=t>=1&&ch[t-1][col].includes(n)?1:0 // 上一期开出过
+      X[o+8]=t>=2&&ch[t-2][col].includes(n)?1:0 // 上上期开出过
+      X[o+9]=(n-1)/(max-1) // 号码本身的大小
+      Y[r]=t<T&&ch[t][col].includes(n)?1:0 // 这一期有没有开出
+    }
+    if(t<T) for(const n of ch[t][col]) last[n]=t // 记下最近开出的期
+  }
+  const nTrain=train*max // 训练样本数（排在最前面）
+  for(let f=0;f<F;f++){ // 每项特征按训练样本标准化：减平均、除标准差，网络更好学
+    let mean=0,sq=0 // 平均值、平方和
+    for(let i=0;i<nTrain;i++) mean+=X[i*F+f] // 求和
+    mean/=nTrain // 平均值
+    for(let i=0;i<nTrain;i++) sq+=(X[i*F+f]-mean)**2 // 平方和
+    const sd=Math.sqrt(sq/nTrain)||1 // 标准差（全一样时按 1 算）
+    for(let i=0;i<rows;i++) X[i*F+f]=(X[i*F+f]-mean)/sd // 标准化全部样本
+  }
+  return {X,Y,k,max,train,valid,nTrain,predictAt:(T-start)*max} // 样本、号码规则、训练和验证期数、下一期样本的位置
+}
+async function trainNet(s,onEpoch,sliceMs=12){ // 训练一个小型神经网络：10 个输入 → 16 个神经元（tanh）→ 1 个输出（这个号码这一期开出的概率）；在主线程上每算 sliceMs 毫秒让一下
+  const F=NN.features,H=NN.hidden // 输入个数、隐藏层神经元个数
+  const W2=H*F,B1=W2+H,B2=B1+H,size=B2+1 // 参数排布：[输入→隐藏的权重 | 隐藏→输出的权重 | 隐藏层偏置 | 输出偏置]，共 size 个
+  const w=new Float64Array(size),m=new Float64Array(size),v=new Float64Array(size),g=new Float64Array(size) // 参数、Adam 的一阶和二阶动量、梯度
+  for(let i=0;i<B1;i++) w[i]=(randomFloat()*2-1)*Math.sqrt(6/(i<W2?F+H:H+1)) // 权重随机起步（Xavier 初始化），所以每次训练出的网络都略有不同
+  const base=s.k/s.max // 平均开出概率
+  w[B2]=Math.log(base/(1-base)) // 输出偏置从平均概率起步
+  const X=s.X,h=new Float64Array(H) // 特征、隐藏层输出
+  const forward=i=>{ // 前向计算第 i 个样本，返回开出的概率
+    let z=w[B2] // 输出层从偏置开始
+    for(let j=0;j<H;j++){ // 每个隐藏神经元
+      let a=w[B1+j] // 偏置
+      for(let f=0;f<F;f++) a+=w[j*F+f]*X[i*F+f] // 加权求和
+      h[j]=Math.tanh(a) // 激活
+      z+=w[W2+j]*h[j] // 汇总到输出
+    }
+    return 1/(1+Math.exp(-z)) // sigmoid 转成概率
+  }
+  const order=Array.from({length:s.nTrain},(_,i)=>i) // 训练样本的顺序
+  const BATCH=128,LR=.005 // 每批样本数、学习率
+  let step=0,loss=0,slice=performance.now() // Adam 步数、本轮误差、这一段计算的开始时间
+  for(let e=1;e<=NN.epochs;e++){ // 每一轮
+    for(let i=order.length-1;i>0;i--){ // 打乱样本顺序
+      const j=randomIntUnbiased(i+1) // 随机位置
+      ;[order[i],order[j]]=[order[j],order[i]] // 交换
+    }
+    loss=0 // 本轮误差清零
+    for(let b=0;b<order.length;b+=BATCH){ // 每一批
+      g.fill(0) // 梯度清零
+      const end=Math.min(b+BATCH,order.length) // 这一批的结尾
+      for(let q=b;q<end;q++){ // 批里的每个样本
+        const i=order[q],p=forward(i),y=s.Y[i] // 样本、预测概率、答案
+        loss-=Math.log(Math.max(y?p:1-p,1e-12)) // 交叉熵误差
+        const dz=p-y // 输出层的误差信号
+        g[B2]+=dz // 输出偏置的梯度
+        for(let j=0;j<H;j++){ // 反向传播到每个隐藏神经元
+          g[W2+j]+=dz*h[j] // 隐藏→输出权重的梯度
+          const dh=dz*w[W2+j]*(1-h[j]*h[j]) // 隐藏神经元的误差信号（tanh 的导数）
+          g[B1+j]+=dh // 隐藏层偏置的梯度
+          for(let f=0;f<F;f++) g[j*F+f]+=dh*X[i*F+f] // 输入→隐藏权重的梯度
+        }
+      }
+      step++ // Adam 步数加一
+      const n=end-b,c1=1-.9**step,c2=1-.999**step // 批大小、动量的偏差修正
+      for(let p=0;p<size;p++){ // 用 Adam 更新每个参数
+        const gr=g[p]/n // 平均梯度
+        m[p]=.9*m[p]+.1*gr // 一阶动量
+        v[p]=.999*v[p]+.001*gr*gr // 二阶动量
+        w[p]-=LR*(m[p]/c1)/(Math.sqrt(v[p]/c2)+1e-8) // 更新
+      }
+      if(performance.now()-slice>sliceMs){ // 连续算了 sliceMs 毫秒
+        await new Promise(r=>setTimeout(r)) // 让一下，液体动画和页面不卡
+        slice=performance.now() // 重新计时
+      }
+    }
+    loss/=order.length // 本轮平均误差
+    await onEpoch(e,loss) // 报告进度
+    slice=performance.now() // 重新计时
+  }
+  return {forward,loss} // 网络（前向计算）和最后一轮的误差
+}
+function nnResult(net,s){ // 用训练好的网络：检验近 100 期的命中，并给下一期每个号码打分
+  const {k,max}=s // 每期开出几个、号码范围
+  const probsAt=base=>Array.from({length:max},(_,n)=>net.forward(base+n)) // 某一期每个号码的概率
+  let hits=0 // 验证期里的命中个数
+  for(let t=0;t<s.valid;t++){ // 验证的每一期（网络训练时没见过）
+    const base=s.nTrain+t*max // 这一期样本的位置
+    const p=probsAt(base) // 网络给的概率
+    const top=p.map((x,n)=>n).sort((x,y)=>p[y]-p[x]).slice(0,k) // 网络最看好的 k 个号码
+    hits+=top.filter(n=>s.Y[base+n]).length // 其中真正开出的个数
+  }
+  const probs=[0,...probsAt(s.predictAt)] // 下一期每个号码的概率（下标就是号码）
+  const mean=k/max // 平均概率
+  return {probs,weights:probs.map((p,n)=>n?(p/mean)**NN.sharp:0),hits:hits/s.valid} // 概率、抽号权重（差距放大）、验证期平均命中个数
+}
+let nnWorkerUrl=null // 后台线程的脚本地址（只生成一次）
+function nnWorkerURL(){ // 把上面几个函数拼成后台线程（Web Worker）的脚本：训练在后台跑，液体动画完全不受影响
+  if(!nnWorkerUrl) nnWorkerUrl=URL.createObjectURL(new Blob([[ // 生成脚本地址
+    `const NN=${JSON.stringify(NN)}`, // 网络设置
+    "const randomWord=new Uint32Array(1)", // 随机数缓冲区
+    randomIntUnbiased,randomFloat,nnTrainSpan,nnSamples,trainNet,nnResult, // 直接用页面里同一份函数代码
+    `let resume=null
+onmessage=async event=>{
+  if(event.data==="next"){resume&&resume();return}
+  const {draws,col,k,max}=event.data
+  const s=nnSamples(draws,col,k,max)
+  const net=await trainNet(s,(epoch,loss)=>new Promise(r=>{resume=r;postMessage({epoch,loss})}),1e9)
+  postMessage({done:true,loss:net.loss,...nnResult(net,s)})
+}`, // 收到开奖数据就训练；每轮报告进度，等页面说“next”再继续
+  ].join("\n")],{type:"text/javascript"})) // 脚本类型
+  return nnWorkerUrl // 返回地址
+}
+async function runNet(draws,col,k,max,onEpoch){ // 训练一个网络并给下一期打分：优先放到后台线程，不支持时在主线程上分段算
+  const onMainThread=async()=>{ // 在主线程上训练
+    const s=nnSamples(draws,col,k,max) // 样本
+    const net=await trainNet(s,onEpoch) // 训练
+    return {...nnResult(net,s),loss:net.loss} // 结果
+  }
+  let worker // 后台线程
+  try{ worker=new Worker(nnWorkerURL()) }catch(error){ return onMainThread() } // 创建不了就在主线程上算
+  return new Promise((resolve,reject)=>{ // 等后台线程算完
+    worker.onmessage=async event=>{ // 收到后台线程的消息
+      const d=event.data // 消息内容
+      if(d.done){ worker.terminate(); resolve(d); return } // 训练完成：关掉线程，返回结果
+      try{ await onEpoch(d.epoch,d.loss) }catch(error){ worker.terminate(); reject(error); return } // 显示这一轮的进度
+      worker.postMessage("next") // 让后台线程继续下一轮
+    }
+    worker.onerror=event=>{ // 后台线程出错（例如浏览器不允许）
+      event.preventDefault() // 不在控制台报错
+      worker.terminate() // 关掉线程
+      onMainThread().then(resolve,reject) // 改在主线程上算
+    }
+    worker.postMessage({draws,col,k,max}) // 把开奖数据交给后台线程
   })
-  return {all,recent,omit,weights,avgGap:all.map(a=>a?draws.length/a:Infinity)} // 返回统计结果
 }
 function commonSet(values){ // 历史上最常见的取值，合计占到 85% 为止
   const counts={} // 每个取值出现的次数
@@ -1041,15 +1196,13 @@ function shapeOf(reds,rule){ // 一注红球的形态：和值、奇数个数、
 function analyze(type,data){ // 分析开奖历史，得到加权和筛选条件
   const rule=DEEP_RULES[type] // 规则
   const draws=data.draws // 全部开奖（新的在前）
-  const red=poolStats(draws,2,rule.red[0],rule.red[1]) // 红球统计
-  const blue=poolStats(draws,3,rule.blue[0],rule.blue[1]) // 蓝球统计
   const shapes=draws.map(d=>shapeOf(d[2],rule)) // 每期红球的形态
   const sums=shapes.map(x=>x.sum).sort((a,b)=>a-b) // 和值从小到大
   const pct=q=>sums[Math.floor((sums.length-1)*q)] // 百分位数
   const zoneLimit=Math.max(...commonSet(shapes.map(x=>x.zoneMax))) // 历史 85% 的开奖里，单区最多几个号
   const runLimit=Math.max(...commonSet(shapes.map(x=>x.longest))) // 历史 85% 的开奖里，最长连号
   return { // 返回
-    rule,draws,red,blue, // 规则、开奖、红蓝球统计
+    rule,draws, // 规则、开奖
     sumRange:[pct(.1),pct(.9)], // 历史 80% 的开奖落在这个和值范围里
     oddSet:commonSet(shapes.map(x=>x.odd)), // 常见的奇数个数
     bigSet:commonSet(shapes.map(x=>x.big)), // 常见的大号个数
@@ -1064,11 +1217,11 @@ function fitsHistory(reds,a){ // 这注红球的形态是不是历史上常见�
 function deepTickets(a,count){ // 生成 count 注
   const tickets=[] // 结果
   for(let tries=0;tickets.length<count&&tries<5000;tries++){ // 最多尝试 5000 次
-    const reds=weightedPick(a.red.weights,a.rule.red[0]) // 按权重抽红球
+    const reds=weightedPick(a.redWeights,a.rule.red[0]) // 按神经网络的评分抽红球
     if(!fitsHistory(reds,a)) continue // 形态不常见就重抽
     const loose=tries>3000 // 试了很多次还不够就放宽“5 注之间不要太像”的要求
     if(!loose&&tickets.some(t=>t.red.filter(n=>reds.includes(n)).length>a.rule.maxShare)) continue // 与已选的某注共用太多红球就重抽
-    const blues=weightedPick(a.blue.weights,a.rule.blue[0]) // 按权重抽蓝球
+    const blues=weightedPick(a.blueWeights,a.rule.blue[0]) // 按神经网络的评分抽蓝球
     if(a.jackpots.has(reds.join(",")+"|"+blues.join(","))) continue // 开出过的头奖组合不要
     if(tickets.some(t=>t.red.join()===reds.join()&&t.blue.join()===blues.join())) continue // 与已选的完全相同就不要
     tickets.push({red:reds,blue:blues}) // 选中
@@ -1081,22 +1234,7 @@ function pad2(n){ // 号码补零成两位
 function topBy(arr,count,desc){ // 按数值取前几个号码（desc=true 取最大的）
   return arr.map((v,n)=>[n,v]).filter(([n])=>n>0).sort((x,y)=>desc?y[1]-x[1]:x[1]-y[1]).slice(0,count) // [号码, 数值]
 }
-function thinkingSteps(a){ // 根据真实统计写出分析步骤
-  const d=a.draws // 全部开奖
-  const hot=topBy(a.red.recent,3,true).map(([n])=>pad2(n)).join("、") // 近期最热的 3 个红球
-  const cold=topBy(a.red.recent,3,false).map(([n])=>pad2(n)).join("、") // 近期最冷的 3 个红球
-  const [dueN]=topBy(a.red.omit.map((o,n)=>n?o/a.red.avgGap[n]:0),1,true)[0] // 遗漏最“该出”的红球
-  const blueHot=topBy(a.blue.recent,2,true).map(([n])=>pad2(n)).join("、") // 近期最热的 2 个蓝球
-  const odds=[...a.oddSet].sort((x,y)=>y-x).map(o=>`${o}:${a.rule.red[0]-o}`).join("、") // 常见奇偶比
-  return [ // 每一步一句话（结果卡片不高，句子尽量短）
-    `${a.rule.name}开奖历史 ${d.length.toLocaleString()} 期（${d[d.length-1][1]} 至 ${d[0][1]}）`, // 数据范围
-    `近 ${RECENT} 期红球热号 ${hot}，冷号 ${cold}`, // 红球冷热
-    `蓝球热号 ${blueHot}；红球 ${pad2(dueN)} 已 ${a.red.omit[dueN]} 期未出（平均 ${Math.round(a.red.avgGap[dueN])} 期一次）`, // 蓝球冷热和遗漏
-    `80% 的开奖红球和值 ${a.sumRange[0]}～${a.sumRange[1]}，奇偶比多为 ${odds}`, // 形态
-    `按冷热、遗漏加权抽号，排除少见形态和历史头奖组合`, // 方法
-  ]
-}
-async function generateDeep(){ // 深度思考：读历史、显示分析过程、给出 5 注
+async function generateDeep(){ // 深度思考：读历史、现场训练神经网络、显示思考过程、给出 5 注
   if(isRolling) return // 正在生成就忽略
   const type=getType() // 记下开始时的彩种
   isRolling=true // 标记为生成中
@@ -1113,19 +1251,41 @@ async function generateDeep(){ // 深度思考：读历史、显示分析过程�
     box.appendChild(line) // 放进去
     resultInner.scrollTop=resultInner.scrollHeight // 放不下时滚到最新一行（窄屏上最后的提示也能看到）
     resultInner.classList.toggle("faded",resultInner.scrollTop>0) // 滚动过就让顶部淡出
+    return line // 返回这一行，训练时用来更新进度
   }
   resultInner.innerHTML="" // 清空结果
   resultInner.appendChild(box) // 显示分析过程
   say(`正在读取${DEEP_RULES[type].name}开奖历史…`) // 第一行
   try{ // 尝试
     const [data]=await Promise.all([loadHistory(type),wait(500)]) // 读取开奖历史（至少停留半秒）
-    const a=analyze(type,data) // 分析
-    const tickets=deepTickets(a,5) // 生成 5 注
-    box.innerHTML="" // 换成真实的分析步骤
-    for(const step of thinkingSteps(a)){ // 每一步
-      say(step) // 显示
-      await wait(650) // 间隔 0.65 秒
+    const a=analyze(type,data) // 分析形态，得到筛选条件
+    const {rule,draws}=a // 规则、全部开奖
+    box.innerHTML="" // 换成真实的思考过程
+    say(`${rule.name}开奖历史 ${draws.length.toLocaleString()} 期（${draws[draws.length-1][1]} 至 ${draws[0][1]}）`) // 数据范围
+    await wait(650) // 间隔 0.65 秒
+    say(`取近 ${(nnTrainSpan(draws.length)+NN.valid).toLocaleString()} 期做样本，每个号码 ${NN.features} 项特征：冷热、遗漏、间隔等`) // 样本说明
+    await wait(650) // 间隔
+    const learn=async(label,col,[k,max])=>{ // 训练一个网络，同一行实时显示进度
+      const line=say(`训练${label}神经网络…`,"think-line working") // 进度行（图标闪动表示正在思考）
+      const result=await runNet(draws,col,k,max,async(epoch,loss)=>{ // 每训练完一轮
+        line.textContent=`训练${label}神经网络 ${"■".repeat(epoch)}${"□".repeat(NN.epochs-epoch)} 误差 ${loss.toFixed(4)}` // 更新进度和误差
+        await wait(160) // 每轮至少停留 0.16 秒，看得到误差在变化
+      })
+      line.classList.remove("working") // 训练完成，图标停止闪动
+      line.textContent=`${label}神经网络训练完成（${NN.features}→${NN.hidden}→1，${NN.epochs} 轮，误差 ${result.loss.toFixed(4)}）` // 完成
+      return result // 验证结果和下一期的评分
     }
+    const red=await learn("红球",2,rule.red) // 训练红球网络
+    const blue=await learn("蓝球",3,rule.blue) // 训练蓝球网络
+    a.redWeights=red.weights // 红球抽号权重
+    a.blueWeights=blue.weights // 蓝球抽号权重
+    say(`验证近 ${NN.valid} 期：红球前 ${rule.red[0]} 名平均中 ${red.hits.toFixed(2)} 个（随机挑约 ${(rule.red[0]**2/rule.red[1]).toFixed(2)} 个）`) // 网络没见过的近期开奖上检验一下
+    await wait(650) // 间隔
+    const top=(result,count)=>topBy(result.probs,count,true).map(([n])=>pad2(n)).join("、") // 评分最高的几个号码
+    say(`网络最看好：红球 ${top(red,3)}，蓝球 ${top(blue,2)}`) // 网络的判断
+    await wait(650) // 间隔
+    const tickets=deepTickets(a,5) // 生成 5 注
+    say(`按网络评分抽号，和值限 ${a.sumRange[0]}～${a.sumRange[1]}，排除少见形态和历史头奖组合`) // 抽号方法
     await wait(1200) // 停一会儿让人看完
     resultInner.innerHTML="" // 换成号码
     resultInner.scrollTop=0 // 滚回顶部
