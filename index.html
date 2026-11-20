@@ -130,6 +130,7 @@ SOFTWARE.
   --thumb-lens:rgba(255,255,255,.4); /* 按住滑块时的透镜底色（更透） */
   /* 保存弹窗：遮罩、玻璃底色、背景模糊、提示文字 */
   --overlay-bg:rgba(15,23,42,.25); /* 保存弹窗遮罩的颜色 */
+  --scrim-filter:blur(18px) saturate(120%); /* 保存弹窗后面的页面：模糊并略提饱和 */
   --glass-modal:rgba(255,255,255,.22); /* 保存弹窗的玻璃底色 */
   --modal-filter:blur(12px) saturate(160%) brightness(1.08); /* 保存弹窗的背景模糊、提饱和、提亮 */
   --modal-tip:rgba(17,24,39,.78); /* 弹窗提示文字颜色 */
@@ -208,6 +209,8 @@ SOFTWARE.
     --glass-bg-strong:#ffffff; /* 较实的玻璃也改为白色实底 */
     --glass-modal:#ffffff; /* 弹窗改为白色实底 */
     --glass-blur:none; /* 不做背景模糊 */
+    --scrim-filter:none; /* 弹窗后面的页面只压暗、不模糊 */
+    --overlay-bg:rgba(15,23,42,.55); /* 不模糊时压得更暗，背后的内容不抢眼 */
     --glass-spec:none; /* 去掉镜面反光 */
   }
 }
@@ -216,6 +219,7 @@ SOFTWARE.
     --glass-bg:#1e2333; /* 玻璃改为深色实底 */
     --glass-bg-strong:#1e2333; /* 较实的玻璃改为深色实底 */
     --glass-modal:#1e2333; /* 弹窗改为深色实底 */
+    --overlay-bg:rgba(0,0,0,.65); /* 深色遮罩压得更暗 */
   }
 }
 * {box-sizing:border-box;} /* 所有元素的宽高包含内边距和边框 */
@@ -668,7 +672,8 @@ button:disabled { /* 禁用的按钮 */
   align-items: center; /* 弹窗垂直居中 */
   justify-content: center; /* 弹窗水平居中 */
   padding: 20px; /* 四周留白 */
-  /* 遮罩只压暗、不模糊，并用背景色淡入：遮罩带模糊或透明度小于 1 时，弹窗自己的背景模糊看不到后面的页面 */
+  /* 遮罩本身只压暗，并用背景色淡入：遮罩带模糊或透明度小于 1 时，弹窗自己的背景模糊看不到后面的页面；
+     页面模糊交给遮罩里、弹窗旁边的单独一层（.ios-save-blur） */
   background: rgba(0, 0, 0, 0); /* 初始完全透明 */
   transition: background-color 0.22s ease; /* 遮罩颜色 0.22 秒淡入淡出 */
   isolation: isolate; /* 新建层叠上下文 */
@@ -678,6 +683,18 @@ button:disabled { /* 禁用的按钮 */
 }
 .ios-save-overlay.show { /* 显示时的遮罩 */
   background: var(--overlay-bg); /* 压暗背后的页面 */
+}
+.ios-save-blur { /* 弹窗后面的模糊层：和弹窗并列（不是弹窗的父元素），弹窗的玻璃仍能透出后面 */
+  position: absolute; /* 铺满遮罩 */
+  inset: 0; /* 四边贴齐 */
+  -webkit-backdrop-filter: var(--scrim-filter); /* 模糊后面的页面（Safari） */
+  backdrop-filter: var(--scrim-filter); /* 模糊后面的页面 */
+  opacity: 0; /* 初始看不到 */
+  transition: opacity .22s ease; /* 和遮罩一起淡入淡出 */
+  pointer-events: none; /* 不挡点击：点弹窗外面仍能关闭 */
+}
+.ios-save-overlay.show .ios-save-blur { /* 显示时的模糊层 */
+  opacity: 1; /* 完全显示 */
 }
 .ios-save-modal { /* 保存图片弹窗 */
   position: relative; /* 建立定位上下文，供高光描边定位 */
@@ -1435,6 +1452,8 @@ function showSavePreview(src,alt){ // 弹出保存预览：src 为图片地址�
   const opener=document.activeElement // 当前获得焦点的元素（保存按钮）
   const overlay=document.createElement("div") // 遮罩
   overlay.className="ios-save-overlay" // 遮罩样式
+  const blur=document.createElement("div") // 弹窗后面的模糊层
+  blur.className="ios-save-blur" // 模糊层样式
   const modal=document.createElement("div") // 弹窗
   modal.className="ios-save-modal" // 弹窗样式
   modal.setAttribute("role","dialog") // 读屏软件当作对话框
@@ -1476,7 +1495,8 @@ function showSavePreview(src,alt){ // 弹出保存预览：src 为图片地址�
   modal.appendChild(preview) // 放入预览图
   modal.appendChild(tip) // 放入提示文字
   modal.appendChild(closeBtn) // 放入关闭按钮
-  overlay.appendChild(modal) // 弹窗放进遮罩
+  overlay.appendChild(blur) // 先放模糊层
+  overlay.appendChild(modal) // 再放弹窗（盖在模糊层上面）
   document.body.appendChild(overlay) // 遮罩放进页面
   requestAnimationFrame(()=>{ // 等下一帧
     requestAnimationFrame(()=>{ // 再等一帧，确保初始样式已生效，淡入动画才会播放
