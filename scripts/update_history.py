@@ -1,26 +1,37 @@
 #!/usr/bin/env python3
 # 抓取双色球、大乐透的全部历史开奖号码，校验后写入 data/ssq.json 和 data/dlt.json（网页“深度思考”用）
-# 数据来源：500.com 历史开奖页面（官方网站不允许程序访问）。只用 Python 标准库，GitHub Actions 每天运行一次
+# 数据来源：500.com 历史开奖页面。官方网站（中国福彩网、中国体彩网）和中彩网的数据接口都拒绝程序访问，
+# 所以用中彩网仍可访问的一份开奖数据（2019-12-29～2020-10-08，每种 100 期）交叉核对 500.com 的历史，
+# 新开奖再按开奖日、期号连续、日期先后检查。任何一项不通过就报错退出，不写入。
+# 只用 Python 标准库，GitHub Actions 每天运行
 import json  # 读写 JSON
 import re  # 解析网页
 import sys  # 退出码
+import time  # 重试前等待
 import urllib.request  # 下载网页
 from datetime import datetime, timezone, timedelta  # 记录更新时间（北京时间）
 from pathlib import Path  # 文件路径
 
 # 两种彩票：页面地址、红球个数和范围、蓝球个数和范围、第一期期号
 GAMES = {  # 彩种配置
-    "ssq": {"name": "双色球", "url": "https://datachart.500.com/ssq/history/newinc/history.php?start=03001&end=99999", "red": (6, 33), "blue": (1, 16), "first": "2003001"},  # 双色球：6 红（1～33）+ 1 蓝（1～16）
-    "dlt": {"name": "大乐透", "url": "https://datachart.500.com/dlt/history/newinc/history.php?start=07001&end=99999", "red": (5, 35), "blue": (2, 12), "first": "2007001"},  # 大乐透：5 红（1～35）+ 2 蓝（1～12）
+    "ssq": {"name": "双色球", "url": "https://datachart.500.com/ssq/history/newinc/history.php?start=03001&end=99999", "red": (6, 33), "blue": (1, 16), "first": "2003001",  # 双色球：6 红（1～33）+ 1 蓝（1～16）
+            "check": "https://www.zhcw.com/chartstatic/json/kj_ssq.json", "weekdays": {1, 3, 6}},  # 中彩网核对数据；开奖日：周二、四、日（Python 里周一为 0）
+    "dlt": {"name": "大乐透", "url": "https://datachart.500.com/dlt/history/newinc/history.php?start=07001&end=99999", "red": (5, 35), "blue": (2, 12), "first": "2007001",  # 大乐透：5 红（1～35）+ 2 蓝（1～12）
+            "check": "https://www.zhcw.com/chartstatic/json/kj_dlt.json", "weekdays": {0, 2, 5}},  # 中彩网核对数据；开奖日：周一、三、六
 }
-UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"  # 浏览器标识
 OUT = Path(__file__).resolve().parent.parent / "data"  # 输出目录：仓库根目录下的 data
 
 
-def fetch(url):  # 下载网页并按 UTF-8 解码
-    req = urllib.request.Request(url, headers={"User-Agent": UA})  # 带上浏览器标识
-    with urllib.request.urlopen(req, timeout=60) as resp:  # 最多等 60 秒
-        return resp.read().decode("utf-8")  # 页面是 UTF-8
+def fetch(url, tries=3):  # 下载网页并按 UTF-8 解码；网络偶尔断开时等一会儿再试，最多 3 次
+    # 用 Python 默认的标识如实访问，不伪装成浏览器（中彩网会拒绝自称浏览器、实际不是浏览器的请求）
+    for attempt in range(1, tries + 1):  # 第几次
+        try:  # 尝试下载
+            with urllib.request.urlopen(url, timeout=60) as resp:  # 最多等 60 秒
+                return resp.read().decode("utf-8")  # 页面是 UTF-8
+        except OSError:  # 连接被重置、超时等网络问题
+            if attempt == tries:  # 最后一次也失败
+                raise  # 交给调用方处理
+            time.sleep(10 * attempt)  # 等 10 秒、20 秒再试
 
 
 def parse(html, game):  # 从页面表格里取出每一期：期号、日期、红球、蓝球
@@ -53,14 +64,55 @@ def validate(draws, game):  # 校验：号码个数、范围、不重复、从�
             assert d["issue"] < draws[i - 1]["issue"] and d["date"] <= draws[i - 1]["date"], f"{d['issue']} 顺序不对"  # 期号递减、日期不增
 
 
+def cross_check(draws, game):  # 与中彩网的开奖数据逐期核对（号码和日期都要一致）
+    try:  # 尝试读取中彩网数据
+        rows = json.loads(fetch(game["check"]))["zjxq"]  # 每期开奖详情
+    except Exception as error:  # 中彩网暂时访问不了
+        print(f"警告：{game['name']}读取中彩网核对数据失败（{error}），本次跳过交叉核对")  # 不阻止更新，但在日志里写明
+        return  # 结束
+    ours = {d["issue"]: d for d in draws}  # 期号 → 500.com 的数据
+    for r in rows:  # 中彩网的每一期
+        issue = r["qh"] if len(r["qh"]) == 7 else "20" + r["qh"]  # 大乐透期号是 5 位，补上世纪前缀
+        red = sorted(int(x) for x in r["kjjgqq"].split())  # 红球（中彩网按出球顺序给出，排序后比较）
+        blue = sorted(int(x) for x in r["kjjghq"].split())  # 蓝球
+        date = re.sub(r"(\d{4})年(\d{2})月(\d{2})日", r"\1-\2-\3", r["kjsj"])  # 日期统一成 2020-10-07
+        mine = ours.get(issue)  # 500.com 的同一期
+        assert mine, f"{game['name']} 500.com 缺少第 {issue} 期"  # 不能缺期
+        assert (mine["red"], mine["blue"], mine["date"]) == (red, blue, date), f"{game['name']}第 {issue} 期与中彩网不一致：500.com {mine}，中彩网 {red} {blue} {date}"  # 号码和日期都要一致
+    print(f"{game['name']}：与中彩网 {len(rows)} 期逐期核对一致")  # 提示
+
+
+def check_new(draws, old_rows, game):  # 新开奖的检查：开奖日、期号连续、日期先后、不在未来
+    known = {r[0] for r in old_rows}  # 已有的期号
+    today = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")  # 北京时间今天
+    new = [d for d in draws if d["issue"] not in known]  # 新开的期
+    for d in new:  # 每一期新开奖
+        i = draws.index(d)  # 在全部数据里的位置（新的在前）
+        prev = draws[i + 1]  # 上一期
+        assert d["date"] <= today, f"{game['name']}第 {d['issue']} 期日期 {d['date']} 在未来"  # 不能在未来
+        assert d["date"] > prev["date"], f"{game['name']}第 {d['issue']} 期日期没有晚于上一期"  # 日期要往后
+        weekday = datetime.strptime(d["date"], "%Y-%m-%d").weekday()  # 星期几（周一为 0）
+        assert weekday in game["weekdays"], f"{game['name']}第 {d['issue']} 期开奖日 {d['date']} 不是开奖的星期"  # 必须是开奖日
+        year, num = d["issue"][:4], int(d["issue"][4:])  # 年份和当年的序号
+        if year == prev["issue"][:4]:  # 同一年
+            assert num == int(prev["issue"][4:]) + 1, f"{game['name']}第 {d['issue']} 期期号不连续（上一期 {prev['issue']}）"  # 序号加一
+        else:  # 跨年
+            assert num == 1 and year == d["date"][:4], f"{game['name']}第 {d['issue']} 期跨年期号不对"  # 新一年从 001 开始
+    return new  # 返回新开的期
+
+
 def main():  # 抓取、校验、写入
     beijing = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")  # 北京时间
     for key, game in GAMES.items():  # 每种彩票
         draws = parse(fetch(game["url"]), game)  # 抓取并解析
         validate(draws, game)  # 校验，不通过就报错退出，不覆盖旧数据
+        cross_check(draws, game)  # 与中彩网交叉核对
         rows = [[d["issue"], d["date"], d["red"], d["blue"]] for d in draws]  # 紧凑格式：[期号, 日期, 红球, 蓝球]
         path = OUT / f"{key}.json"  # 输出文件
         old = json.loads(path.read_text("utf-8")) if path.exists() else None  # 旧数据
+        if old:  # 已有旧数据时
+            assert rows[len(rows) - len(old["draws"]):] == old["draws"], f"{game['name']}的历史开奖和上次不一样（数据源改动了历史？）"  # 旧的期不能变
+            check_new(draws, old["draws"], game)  # 检查新开的期
         if old and old["draws"] == rows:  # 没有新的开奖
             print(f"{game['name']}：没有新数据（最新 {rows[0][0]} 期）")  # 提示
             continue  # 不改文件
