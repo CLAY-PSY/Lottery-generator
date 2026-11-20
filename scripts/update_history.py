@@ -1,54 +1,59 @@
 #!/usr/bin/env python3
 # 抓取双色球、大乐透的全部历史开奖号码，校验后写入 data/ssq.json 和 data/dlt.json（网页“深度思考”用）
-# 数据来源：全部来自 500.com 历史开奖页面。新开奖按开奖日、期号连续、日期先后检查，已有的历史不允许变化，
+# 数据来源：500.com 提供的开奖 XML（每期一行：期号、开奖号码、开奖时间），比解析网页表格更直接可靠。
+# 新开奖按开奖日、期号连续、日期先后检查，已有的历史不允许变化，
 # 任何一项不通过就报错退出，不写入。
 # 只用 Python 标准库，GitHub Actions 每天运行
 import json  # 读写 JSON
-import re  # 解析网页
+import re  # 解析 XML 的每一行
 import sys  # 退出码
 import time  # 重试前等待
 import urllib.request  # 下载网页
 from datetime import datetime, timezone, timedelta  # 记录更新时间（北京时间）
 from pathlib import Path  # 文件路径
 
-# 两种彩票：页面地址、红球个数和范围、蓝球个数和范围、第一期期号
+# 两种彩票：开奖 XML 地址、红球个数和范围、蓝球个数和范围、第一期期号
 GAMES = {  # 彩种配置
-    "ssq": {"name": "双色球", "url": "https://datachart.500.com/ssq/history/newinc/history.php?start=03001&end=99999", "red": (6, 33), "blue": (1, 16), "first": "2003001",  # 双色球：6 红（1～33）+ 1 蓝（1～16）
+    "ssq": {"name": "双色球", "url": "https://kaijiang.500.com/static/info/kaijiang/xml/ssq/list.xml", "red": (6, 33), "blue": (1, 16), "first": "2003001",  # 双色球：6 红（1～33）+ 1 蓝（1～16）
             "weekdays": {1, 3, 6}},  # 开奖日：周二、四、日（Python 里周一为 0）
-    "dlt": {"name": "大乐透", "url": "https://datachart.500.com/dlt/history/newinc/history.php?start=07001&end=99999", "red": (5, 35), "blue": (2, 12), "first": "2007001",  # 大乐透：5 红（1～35）+ 2 蓝（1～12）
+    "dlt": {"name": "大乐透", "url": "https://kaijiang.500.com/static/info/kaijiang/xml/dlt/list.xml", "red": (5, 35), "blue": (2, 12), "first": "2007001",  # 大乐透：5 红（1～35）+ 2 蓝（1～12）
             "weekdays": {0, 2, 5}},  # 开奖日：周一、三、六
 }
 OUT = Path(__file__).resolve().parent.parent / "data"  # 输出目录：仓库根目录下的 data
 
 
-def fetch(url, tries=3):  # 下载网页并按 UTF-8 解码；网络偶尔断开时等一会儿再试，最多 3 次
+def fetch(url, tries=3):  # 下载并按 UTF-8 解码；网络偶尔断开时等一会儿再试，最多 3 次
     # 用 Python 默认的标识如实访问，不伪装成浏览器
     for attempt in range(1, tries + 1):  # 第几次
         try:  # 尝试下载
             with urllib.request.urlopen(url, timeout=60) as resp:  # 最多等 60 秒
-                return resp.read().decode("utf-8")  # 页面是 UTF-8
+                return resp.read().decode("utf-8")  # XML 是 UTF-8
         except OSError:  # 连接被重置、超时等网络问题
             if attempt == tries:  # 最后一次也失败
                 raise  # 交给调用方处理
             time.sleep(10 * attempt)  # 等 10 秒、20 秒再试
 
 
-def parse(html, game):  # 从页面表格里取出每一期：期号、日期、红球、蓝球
+def parse(xml, game):  # 从开奖 XML 里取出每一期：期号、日期、红球、蓝球
+    # 每期一行，例如 <row expect="26133" opencode="07,10,11,14,21,26|13" opentime="2026-11-19 21:15:00" .../>
+    # 只用正则读属性，不解析 XML 实体，外部数据里有恶意构造的内容也不会出问题
     red_n, blue_n = game["red"][0], game["blue"][0]  # 红球、蓝球个数
     draws = []  # 结果
-    for row in re.findall(r'<tr class="t_tr1">(.*?)</tr>', html, re.S):  # 每一行开奖记录
-        cells = [re.sub(r"<[^>]+>|&nbsp;", "", c).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)]  # 去掉标签后的单元格
-        if len(cells) < 3 + red_n + blue_n or not re.fullmatch(r"\d{5}", cells[1]):  # 不是开奖记录（例如表头）
-            continue  # 跳过
-        nums = [int(c) for c in cells[2:2 + red_n + blue_n]]  # 红球和蓝球
-        date = cells[-1]  # 最后一列是开奖日期
-        draws.append({"issue": "20" + cells[1], "date": date, "red": nums[:red_n], "blue": nums[red_n:]})  # 期号补上世纪前缀，如 26133 → 2026133
+    for row in re.findall(r"<row\b([^>]*)/?>", xml):  # 每一期
+        attr = dict(re.findall(r'(\w+)="([^"]*)"', row))  # 这一行的属性
+        expect, code, opened = attr.get("expect", ""), attr.get("opencode", ""), attr.get("opentime", "")  # 期号、号码、开奖时间
+        assert re.fullmatch(r"\d{5}", expect), f"{game['name']}期号格式不对：{expect!r}"  # 期号是 5 位数字，如 26133
+        assert re.fullmatch(r"\d+(,\d+)*\|\d+(,\d+)*", code), f"{game['name']}第 {expect} 期号码格式不对：{code!r}"  # 红球|蓝球
+        assert re.match(r"\d{4}-\d{2}-\d{2}", opened), f"{game['name']}第 {expect} 期开奖时间格式不对：{opened!r}"  # 以日期开头
+        red, blue = ([int(n) for n in part.split(",")] for part in code.split("|"))  # 红球、蓝球
+        assert len(red) == red_n and len(blue) == blue_n, f"{game['name']}第 {expect} 期号码个数不对：{code}"  # 个数要对
+        draws.append({"issue": "20" + expect, "date": opened[:10], "red": sorted(red), "blue": sorted(blue)})  # 期号补上世纪前缀，如 26133 → 2026133；号码从小到大
     return draws  # 新的在前
 
 
 def validate(draws, game):  # 校验：号码个数、范围、不重复、从小到大；期号唯一且递减；日期格式正确且随期号递增
     (red_n, red_max), (blue_n, blue_max) = game["red"], game["blue"]  # 规则
-    assert len(draws) > 1000, f"{game['name']} 只有 {len(draws)} 期，页面可能有变化"  # 期数太少说明解析出了问题
+    assert len(draws) > 1000, f"{game['name']} 只有 {len(draws)} 期，数据源可能有变化"  # 期数太少说明解析出了问题
     assert draws[-1]["issue"] == game["first"], f"{game['name']} 第一期应为 {game['first']}，实际 {draws[-1]['issue']}"  # 历史要从第一期开始
     seen = set()  # 出现过的期号
     for i, d in enumerate(draws):  # 每一期
