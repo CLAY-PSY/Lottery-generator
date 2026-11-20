@@ -1,0 +1,36 @@
+# 每晚自动更新开奖历史（网页“深度思考”用）：抓取最新开奖并校验，有新数据就提交到 main，再请 GitHub Pages 重新发布
+name: 更新开奖历史  # 工作流名称
+on:  # 触发条件
+  schedule:  # 定时（UTC 时间）
+    - cron: "47 14 * * *"  # 每天北京时间 22:47：双色球（周二、四、日）、大乐透（周一、三、六）晚上 21:30 前开奖之后
+    - cron: "47 23 * * *"  # 每天北京时间次日 07:47：再补一次，防止头天晚上数据源还没更新
+  workflow_dispatch:  # 也可以在 Actions 页面手动运行
+permissions:  # 权限
+  contents: write  # 提交更新后的数据
+  pages: write  # 请 GitHub Pages 重新发布
+concurrency:  # 同一时间只跑一个
+  group: update-history  # 分组名
+  cancel-in-progress: false  # 不取消正在跑的
+jobs:  # 任务
+  update:  # 更新任务
+    runs-on: ubuntu-latest  # 运行环境
+    timeout-minutes: 10  # 最多跑 10 分钟
+    steps:  # 步骤
+      - uses: actions/checkout@v4  # 取出仓库代码
+      - name: 抓取并校验开奖历史  # 运行更新脚本（只用 Python 标准库，系统自带 Python 3）
+        run: python3 scripts/update_history.py  # 校验不通过会报错退出，不会写入坏数据
+      - name: 有新数据就提交  # 提交并推送
+        id: commit  # 供下一步判断
+        run: |  # 多行脚本
+          if git diff --quiet -- data; then echo "没有新开奖"; exit 0; fi  # 数据没变就结束
+          git config user.name "github-actions[bot]"  # 提交者名字
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"  # 提交者邮箱
+          git add data  # 加入数据文件
+          git commit -m "更新开奖历史 $(TZ=Asia/Shanghai date +%F)"  # 提交说明带上日期
+          git push  # 推送到 main
+          echo "pushed=true" >> "$GITHUB_OUTPUT"  # 记下已推送
+      - name: 请 GitHub Pages 重新发布  # 用 GITHUB_TOKEN 推送的提交不一定会触发 Pages 发布，这里主动请求一次
+        if: steps.commit.outputs.pushed == 'true'  # 只有推送了新数据才需要
+        env:  # 环境变量
+          GH_TOKEN: ${{ github.token }}  # 调用 GitHub API 用的令牌
+        run: gh api --method POST "repos/${{ github.repository }}/pages/builds" || echo "没能请求重新发布（Pages 可能不是“从分支发布”），下次推送时会一起发布"  # 失败不影响数据更新
