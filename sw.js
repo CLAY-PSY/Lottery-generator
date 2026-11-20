@@ -1,14 +1,15 @@
 // 离线缓存：从主屏幕打开时，没有网络也能用
 // 页面优先联网取最新版（有更新时自动用上），断网时才用缓存；图标和清单优先用缓存
-const CACHE="lottery-v3" // 缓存名称：缓存的文件列表有变化时把版本号加 1，旧缓存会被清掉（v2 加入开奖历史，v3 加入开屏图片）
+const CACHE="lottery-v4" // 缓存名称：缓存的文件列表有变化时把版本号加 1，旧缓存会被清掉（v2 加入开奖历史，v3 加入开屏图片，v4 换新图标）
 const FILES=[ // 安装时预先缓存的文件
   "./", // 首页
   "./index.html", // 页面本身
   "./manifest.webmanifest", // 网页应用清单
-  "./icons/apple-touch-icon.png", // 主屏幕图标
-  "./icons/icon-192.png", // 192 图标
-  "./icons/icon-512.png", // 512 图标
-  "./icons/favicon-32.png", // 标签页图标
+  "./icons/apple-touch-icon.png?v=2", // 主屏幕图标（地址和页面里引用的一致，带版本号）
+  "./icons/icon-192.png?v=2", // 192 图标
+  "./icons/icon-512.png?v=2", // 512 图标
+  "./icons/icon-maskable-512.png?v=2", // 安卓自适应图标
+  "./icons/favicon-32.png?v=2", // 标签页图标
   "./images/splash.jpg", // 开屏图片
   "./data/ssq.json", // 双色球开奖历史（深度思考用）
   "./data/dlt.json" // 大乐透开奖历史
