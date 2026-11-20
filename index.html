@@ -33,8 +33,8 @@ SOFTWARE.
 <meta name="mobile-web-app-capable" content="yes"> <!-- 同上，标准写法（安卓 Chrome 等） -->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <!-- 状态栏透明，液体背景一直延伸到状态栏下面 -->
 <meta name="apple-mobile-web-app-title" content="随机选号"> <!-- 主屏幕图标下面显示的名字 -->
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png"> <!-- iPhone、iPad 主屏幕图标（180×180） -->
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png"> <!-- 浏览器标签页图标 -->
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2"> <!-- iPhone、iPad 主屏幕图标（180×180）；?v=2 让浏览器换掉缓存里的旧图标 -->
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2"> <!-- 浏览器标签页图标 -->
 <link rel="preload" as="image" href="images/splash.jpg" fetchpriority="high"> <!-- 开屏图片优先下载 -->
 <link rel="manifest" href="manifest.webmanifest"> <!-- 网页应用清单：名字、图标、全屏显示（iOS 16.4 起和安卓都读它） -->
 <script> // 主屏幕 App 底部白边修正（放在页面最前面，第一帧就生效）
