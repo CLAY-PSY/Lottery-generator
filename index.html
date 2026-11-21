@@ -526,7 +526,7 @@ button::after, /* 按钮、 */
   font-weight:500; /* 常规粗细 */
   font-variant-numeric:tabular-nums; /* 数字等宽，计时时不跳动 */
 }
-.deep-log { /* 思考过程正文：左侧一条竖线，像推理模型的思考区 */
+.deep-log { /* 思考过程正文 */
   flex:1 1 auto; /* 占满标题行下面的空间 */
   min-height:0; /* 允许比内容矮（才能滚动） */
   align-self:stretch; /* 占满宽度 */
@@ -534,8 +534,6 @@ button::after, /* 按钮、 */
   overscroll-behavior:contain; /* 滚到头不带动页面 */
   touch-action:pan-y; /* 允许手指上下滑动（页面其他地方禁止滚动） */
   scrollbar-width:none; /* 不显示滚动条 */
-  padding-left:9px; /* 和竖线的间距 */
-  border-left:2px solid var(--glass-border); /* 左侧竖线 */
   font-size:12.5px; /* 字号 */
   line-height:1.5; /* 行高 */
   color:var(--text-main); /* 文字颜色 */
