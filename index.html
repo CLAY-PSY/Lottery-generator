@@ -1598,7 +1598,7 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
     const showEpoch=()=>{if(liveLine) liveLine.textContent=`正在学习近 ${(nnTrainSpan(draws.length)+NN.valid).toLocaleString()} 期 ${"■".repeat(epoch)}${"□".repeat(NN.epochs-epoch)} 误差 ${epoch?epochLoss.toFixed(4):"…"}`} // 更新进度
     const redJob=runDeepPool(draws,2,kr,Mr,(e,loss)=>{epoch=e;epochLoss=loss;showEpoch()}) // 红球分析（后台线程，和下面写字同时进行）
     const blueJob=runDeepPool(draws,3,kb,Mb,()=>{}) // 蓝球分析
-    await write("思路",`为${rule.name}选 5 注。先请四位专家给号码打分，用最近 ${DEEP.window} 期检验谁比平均水平强、就多听谁的，再从上万种组合里挑出 5 注并自我检查。全程不用随机数，开出新一期才会更新结论。`)
+    await write("思路",`为${rule.name}选 5 注。先请四位专家给号码打分，用最近 ${DEEP.window} 期检验谁比平均水平强、就多听谁的，再从上万种组合里挑出 5 注并自我检查。结论只由开奖数据决定：数据不变，结论就不变，开出新一期才会更新。`)
     await write("数据",`共 ${draws.length.toLocaleString()} 期（${draws[draws.length-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。`)
     await write("第一步｜专家打分",`频率专家看谁出现得多（越近越重要）；遗漏专家看谁多久没出；转移专家看上期号码之后常跟着出谁；神经网络从 ${NN.features} 项特征里自己学。`)
     liveLine=await write("神经网络","","live") // 训练进度这一段
@@ -1652,7 +1652,7 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
     const p=document.createElement("div") // 提示
     p.className="deep-p" // 样式
     p.style.alignSelf="stretch" // 占满宽度
-    p.textContent="读取开奖历史失败，请联网后重试，或先用“随机选号”" // 提示内容
+    p.textContent="读取开奖历史失败，请联网后重试" // 提示内容
     resultInner.appendChild(p) // 显示
   }finally{ // 无论成败
     clearInterval(clock) // 停止计时
