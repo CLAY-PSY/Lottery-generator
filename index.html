@@ -1172,13 +1172,14 @@ function generateRandom(){ // 随机抽取：立即给出 5 注
 //    转移（上一期开出某号后，下一期各号的开出率）、神经网络（现场训练）
 // 2. 回测：最近 200 期逐期检验（每期只用它之前的数据），算各专家的对数损失和命中
 // 3. 贝叶斯模型平均：把“随机基线”也当作一个模型，按回测损失算各模型的后验权重，混合成最终概率（没本事的专家自然拿不到权重）
-// 4. 候选优化：按混合概率抽 2 万注，去掉少见形态，按得分取前 400，再按得分抽 5 注，两两共用红球不超过上限
+// 4. 选号：取最被看好的 20 个红球，枚举全部组合，去掉少见形态，按得分从高到低依次选 5 注（两两共用红球不超过上限、每个红球最多用 2 次）
 // 5. 自我检查：号码规则、形态、重合、历史头奖逐项核对
+// 全程不用随机数：神经网络的起点由彩种和最新期号决定，选号按得分排序。同样的开奖数据，每次点击结果完全一样，开出新一期才会变
 const DEEP_RULES={ // 两种彩票的规则
   ssq:{name:"双色球",red:[6,33],blue:[1,16],zones:[[1,11],[12,22],[23,33]],maxShare:3}, // 双色球：6 红（1～33）+ 1 蓝（1～16），红球分三区；5 注之间最多共用 3 个红球
   dlt:{name:"大乐透",red:[5,35],blue:[2,12],zones:[[1,12],[13,24],[25,35]],maxShare:2}, // 大乐透：5 红（1～35）+ 2 蓝（1～12）；最多共用 2 个红球
 }
-const DEEP={window:200,tune:300,candidates:20000,shortlist:400} // 深度思考设置：回测最近 200 期、调参用回测前的 300 期、候选 2 万注、精选前 400 注
+const DEEP={window:200,tune:300,pool:20} // 深度思考设置：回测最近 200 期、调参用回测前的 300 期、从最被看好的 20 个红球里选号
 const NN={features:10,hidden:16,epochs:6,train:1100,valid:200} // 神经网络设置：每个号码 10 项特征、隐藏层 16 个神经元、训练 6 轮、用 1100 期训练、最近 200 期留作回测（和其他专家同一段）
 const historyCache={} // 已读取的开奖历史：彩种 → 数据
 async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/dlt.json，每期：[期号, 日期, 红球, 蓝球]，新的在前）
@@ -1193,18 +1194,16 @@ async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/d
 function randomFloat(){ // [0,1) 内的随机小数（用加密随机数）
   return randomIntUnbiased(0x100000000)/0x100000000 // 32 位随机整数除以 2^32
 }
-function weightedPick(weights,count){ // 按权重不放回地抽 count 个号码（weights[n] 是号码 n 的权重），从小到大返回
-  const pool=weights.map((w,n)=>[n,w]).filter(([n])=>n>0) // 号码和权重（下标 0 不用）
-  const picked=[] // 抽中的号码
-  while(picked.length<count){ // 抽够为止
-    const total=pool.reduce((sum,[,w])=>sum+w,0) // 剩余号码的权重之和
-    let r=randomFloat()*total // 在总权重里随机落一个点
-    let i=0 // 落点所在的号码
-    while(i<pool.length-1&&(r-=pool[i][1])>=0) i++ // 依次减去权重，找到落点所在的号码
-    picked.push(pool[i][0]) // 抽中
-    pool.splice(i,1) // 不放回
+function seededRandom(text){ // 由一段文字得到固定的“随机数”序列：同样的文字，每次得到的序列完全一样（神经网络的起点用它，结果可以复现）
+  let h=2166136261 // FNV-1a 哈希的初始值
+  for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)} // 把文字哈希成 32 位整数
+  let a=h>>>0 // 种子
+  return ()=>{ // 每调用一次给出下一个 [0,1) 的小数（mulberry32 算法）
+    a=(a+0x6D2B79F5)>>>0 // 推进状态
+    let t=Math.imul(a^a>>>15,a|1) // 打乱
+    t^=t+Math.imul(t^t>>>7,t|61) // 再打乱
+    return ((t^t>>>14)>>>0)/4294967296 // 转成 [0,1)
   }
-  return picked.sort((a,b)=>a-b) // 从小到大
 }
 function nnTrainSpan(total){ // 训练用几期：最多 1100 期，前面至少留 100 期用来算特征
   return Math.max(100,Math.min(NN.train,total-NN.valid-100)) // 期数
@@ -1259,11 +1258,11 @@ function nnSamples(draws,col,k,max){ // 把开奖历史整理成样本：每一�
   }
   return {X,Y,k,max,train,valid,nTrain,predictAt:(T-start)*max} // 样本、号码规则、训练和验证期数、下一期样本的位置
 }
-async function trainNet(s,onEpoch,sliceMs=12){ // 训练一个小型神经网络：10 个输入 → 16 个神经元（tanh）→ 1 个输出（这个号码这一期开出的概率）；在主线程上每算 sliceMs 毫秒让一下
+async function trainNet(s,onEpoch,sliceMs=12,rand=randomFloat){ // 训练一个小型神经网络：10 个输入 → 16 个神经元（tanh）→ 1 个输出（这个号码这一期开出的概率）；在主线程上每算 sliceMs 毫秒让一下；rand 决定起点和样本顺序
   const F=NN.features,H=NN.hidden // 输入个数、隐藏层神经元个数
   const W2=H*F,B1=W2+H,B2=B1+H,size=B2+1 // 参数排布：[输入→隐藏的权重 | 隐藏→输出的权重 | 隐藏层偏置 | 输出偏置]，共 size 个
   const w=new Float64Array(size),m=new Float64Array(size),v=new Float64Array(size),g=new Float64Array(size) // 参数、Adam 的一阶和二阶动量、梯度
-  for(let i=0;i<B1;i++) w[i]=(randomFloat()*2-1)*Math.sqrt(6/(i<W2?F+H:H+1)) // 权重随机起步（Xavier 初始化），所以每次训练出的网络都略有不同
+  for(let i=0;i<B1;i++) w[i]=(rand()*2-1)*Math.sqrt(6/(i<W2?F+H:H+1)) // 权重起点（Xavier 初始化），由 rand 决定
   const base=s.k/s.max // 平均开出概率
   w[B2]=Math.log(base/(1-base)) // 输出偏置从平均概率起步
   const X=s.X,h=new Float64Array(H) // 特征、隐藏层输出
@@ -1282,7 +1281,7 @@ async function trainNet(s,onEpoch,sliceMs=12){ // 训练一个小型神经网络
   let step=0,loss=0,slice=performance.now() // Adam 步数、本轮误差、这一段计算的开始时间
   for(let e=1;e<=NN.epochs;e++){ // 每一轮
     for(let i=order.length-1;i>0;i--){ // 打乱样本顺序
-      const j=randomIntUnbiased(i+1) // 随机位置
+      const j=Math.floor(rand()*(i+1)) // 交换的位置（由 rand 决定）
       ;[order[i],order[j]]=[order[j],order[i]] // 交换
     }
     loss=0 // 本轮误差清零
@@ -1370,7 +1369,7 @@ async function deepPool(draws,col,k,M,onEpoch,sliceMs){ // 一种球（红球或
   const ch=draws.slice().reverse(),T=ch.length,u=k/M // 按时间从早到晚、总期数、平均概率
   const E=deepExperts(ch,col,k,M) // 三位统计专家
   const s=nnSamples(draws,col,k,M) // 神经网络的样本（最近 200 期留作回测）
-  const net=await trainNet(s,onEpoch,sliceMs) // 训练
+  const net=await trainNet(s,onEpoch,sliceMs,seededRandom(`${draws[0][0]}|${draws.length}|${col}|${k}|${M}`)) // 训练：起点由最新期号等固定下来，同样的数据每次训练出同样的网络
   const models=[{key:"uniform",name:"随机基线",P:null},{key:"freq",name:"频率专家",P:E.freq},{key:"gap",name:"遗漏专家",P:E.gap},{key:"markov",name:"转移专家",P:E.markov},{key:"nn",name:"神经网络",P:nnWindow(net,s)}] // 参与评比的模型
   const prob=(m,r,n)=>m.P?m.P[r*M+n-1]:u // 模型 m 给第 start+r 期号码 n 的概率
   for(const m of models){ // 回测每个模型
@@ -1396,7 +1395,7 @@ function deepWorkerURL(){ // 把分析用到的函数拼成后台线程（Web Wo
   if(!deepWorkerUrl) deepWorkerUrl=URL.createObjectURL(new Blob([[ // 生成脚本地址
     `const NN=${JSON.stringify(NN)}`,`const DEEP=${JSON.stringify(DEEP)}`, // 设置
     "const randomWord=new Uint32Array(1)", // 随机数缓冲区
-    randomIntUnbiased,randomFloat,nnTrainSpan,nnSamples,trainNet,deepExperts,nnWindow,deepPool, // 直接用页面里同一份函数代码
+    randomIntUnbiased,randomFloat,seededRandom,nnTrainSpan,nnSamples,trainNet,deepExperts,nnWindow,deepPool, // 直接用页面里同一份函数代码
     `onmessage=async event=>{
   const {draws,col,k,max}=event.data
   const result=await deepPool(draws,col,k,max,(epoch,loss)=>{postMessage({epoch,loss})},1e9)
@@ -1472,46 +1471,45 @@ function fitsHistory(reds,a){ // 这注红球的形态是不是历史上常见�
   const x=shapeOf(reds,a.rule) // 形态
   return x.sum>=a.sumRange[0]&&x.sum<=a.sumRange[1]&&a.oddSet.has(x.odd)&&a.bigSet.has(x.big)&&x.zoneMax<=a.zoneLimit&&x.longest<=a.runLimit // 和值、奇偶、大小、区间、连号都在常见范围内
 }
-function deepPick(a,red,blue,count){ // 候选优化：按混合概率抽候选，去掉少见形态，按得分精选，再挑出彼此不太像的 count 注
-  const R=a.rule,[kr,Mr]=R.red,[kb]=R.blue,ur=kr/Mr // 规则、红球个数和范围、蓝球个数、红球平均概率
-  const score=nums=>nums.reduce((sum,n)=>sum+Math.log(red.mix[n]/ur),0) // 得分：各号概率相对平均值的对数之和（越高越被看好）
-  const seen=new Map();let valid=0 // 不重复的候选、形态合格的数量
-  for(let i=0;i<DEEP.candidates;i++){ // 抽候选
-    const reds=weightedPick(red.mix,kr) // 按混合概率抽红球
-    if(!fitsHistory(reds,a)) continue // 形态少见的不要
-    valid++ // 合格
-    const key=reds.join(",") // 去重用
-    if(!seen.has(key)) seen.set(key,{red:reds,score:score(reds)}) // 记下
-  }
-  const all=[...seen.values()].sort((x,y)=>y.score-x.score),list=all.slice(0,DEEP.shortlist) // 全部候选按得分排序；前 400 注为精选
-  const tau=Math.max(.02,(list[0].score-list[list.length-1].score)/4) // 挑选时的“温度”：得分越高越容易被挑中，但不是只挑第一名
-  const chosen=[],uses=new Array(Mr+1).fill(0) // 选中的、每个红球已用了几次
-  const allowed=c=>!chosen.includes(c)&&c.red.every(n=>uses[n]<2)&&chosen.every(t=>t.red.filter(n=>c.red.includes(n)).length<=R.maxShare) // 没选过、每个红球最多用 2 次、和已选的共用红球不超过上限
-  while(chosen.length<count){ // 挑够为止
-    let pool=list.filter(allowed) // 先在精选里找
-    if(!pool.length) pool=all.filter(allowed) // 精选里没有合适的，扩大到全部候选
-    if(!pool.length) pool=list.filter(c=>!chosen.includes(c)) // 实在没有就放宽
-    const adj=pool.map(c=>c.score-tau*c.red.reduce((sum,n)=>sum+uses[n],0)) // 已用过的号码再用要扣分：尽量多覆盖不同号码
-    const top=Math.max(...adj),ws=adj.map(x=>Math.exp((x-top)/tau)) // 按调整后的得分算被挑中的权重
-    let r=randomFloat()*ws.reduce((x,y)=>x+y,0),i=0 // 随机落点
-    while(i<pool.length-1&&(r-=ws[i])>=0) i++ // 找到落点
-    chosen.push(pool[i]) // 选中
-    pool[i].red.forEach(n=>uses[n]++) // 记下用过的红球
-  }
-  const used=new Set() // 已用过的蓝球
-  const tickets=chosen.map(c=>{ // 给每注配蓝球
-    let pick=null // 选中的蓝球
-    for(let tries=0;tries<40;tries++){ // 多试几次：尽量不和前面的注重复、不是历史头奖
-      const b=weightedPick(blue.mix,kb) // 按混合概率抽蓝球
-      if(a.jackpots.has(c.red.join(",")+"|"+b.join(","))) continue // 开出过的头奖组合不要
-      pick=b // 先记下
-      if(b.every(n=>!used.has(n))) break // 和前面的注不重复就用它
+function deepPick(a,red,blue,count){ // 选号（不用随机数）：从最被看好的红球里枚举全部组合，去掉少见形态，按得分从高到低依次选出彼此不太像的 count 注
+  const R=a.rule,[kr,Mr]=R.red,[kb,Mb]=R.blue // 规则：红球、蓝球的个数和范围
+  const byArray=(x,y)=>{for(let i=0;i<x.length;i++) if(x[i]!==y[i]) return x[i]-y[i];return 0} // 两组号码按数字逐个比较（得分一样时用，保证顺序固定）
+  const rank=(mix,M)=>Array.from({length:M},(_,i)=>i+1).sort((x,y)=>mix[y]-mix[x]||x-y) // 号码按被看好程度从高到低（一样时号码小的在前）
+  const combos=(nums,size,score)=>{ // 列出 nums 里取 size 个的全部组合，算好得分，按得分从高到低排好
+    const out=[],cur=[] // 结果、当前组合
+    const walk=start=>{ // 逐个往组合里加号码
+      if(cur.length===size){out.push({nums:cur.slice(),score:cur.reduce((sum,n)=>sum+score(n),0)});return} // 凑够了
+      for(let i=start;i<=nums.length-(size-cur.length);i++){cur.push(nums[i]);walk(i+1);cur.pop()} // 依次尝试
     }
-    pick=pick||weightedPick(blue.mix,kb) // 保险
-    pick.forEach(n=>used.add(n)) // 记下
-    return {red:c.red,blue:pick} // 这一注
+    walk(0) // 开始
+    return out.sort((x,y)=>y.score-x.score||byArray(x.nums,y.nums)) // 得分从高到低
+  }
+  const top=rank(red.mix,Mr).slice(0,DEEP.pool).sort((x,y)=>x-y) // 最被看好的 20 个红球
+  const all=combos(top,kr,n=>Math.log(red.mix[n]*Mr/kr)) // 它们的全部组合（得分：各号概率相对平均值的对数之和）
+  const list=all.filter(c=>fitsHistory(c.nums,a)) // 去掉少见形态
+  const penalty=Math.max(.02,(list[0].score-list[Math.min(list.length,400)-1].score)/4) // 号码重复使用的扣分（按得分的分布定）
+  const chosen=[],uses=new Array(Mr+1).fill(0) // 选中的、每个红球已用了几次
+  const allowed=c=>!chosen.includes(c)&&c.nums.every(n=>uses[n]<2)&&chosen.every(t=>t.nums.filter(n=>c.nums.includes(n)).length<=R.maxShare) // 没选过、每个红球最多用 2 次、和已选的共用红球不超过上限
+  while(chosen.length<count){ // 依次选
+    let best=null,bestScore=-Infinity // 这一轮最好的
+    for(const c of list){ // 从高分往低分看
+      if(!allowed(c)) continue // 不符合规矩
+      const adjusted=c.score-penalty*c.nums.reduce((sum,n)=>sum+uses[n],0) // 用过的号码再用要扣分：尽量多覆盖不同号码
+      if(adjusted>bestScore){best=c;bestScore=adjusted} // 更好就换（一样时保留先看到的，结果固定）
+    }
+    best=best||list.find(c=>!chosen.includes(c)) // 实在没有合适的就放宽
+    chosen.push(best) // 选中
+    best.nums.forEach(n=>uses[n]++) // 记下用过的红球
+  }
+  const blueSets=combos(Array.from({length:Mb},(_,i)=>i+1),kb,n=>Math.log(blue.mix[n]*Mb/kb)) // 蓝球的全部组合，按得分从高到低
+  const usedBlue=new Set() // 已用过的蓝球
+  const tickets=chosen.map(c=>{ // 给每注配蓝球
+    const fine=blueSets.filter(b=>!a.jackpots.has(c.nums.join(",")+"|"+b.nums.join(","))) // 不和这注红球凑成历史头奖
+    const b=fine.find(b=>b.nums.every(n=>!usedBlue.has(n)))||fine[0] // 优先选得分最高、又没用过的
+    b.nums.forEach(n=>usedBlue.add(n)) // 记下
+    return {red:c.nums,blue:b.nums} // 这一注
   })
-  return {tickets,sampled:DEEP.candidates,valid,unique:seen.size,shortlist:list.length} // 结果和过程数据
+  return {tickets,pool:top.length,total:all.length,valid:list.length} // 结果和过程数据
 }
 function deepCheck(a,tickets){ // 自我检查：逐项核对 5 注号码
   const R=a.rule,reds=new Set(),blues=new Set(),sums=[] // 规则、覆盖的红球、蓝球、和值
@@ -1579,13 +1577,13 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
     const showEpoch=()=>{if(liveLine) liveLine.textContent=`神经网络专家正在学习近 ${(nnTrainSpan(draws.length)+NN.valid).toLocaleString()} 期的样本 ${"■".repeat(epoch)}${"□".repeat(NN.epochs-epoch)} 误差 ${epoch?epochLoss.toFixed(4):"…"}`} // 更新进度
     const redJob=runDeepPool(draws,2,kr,Mr,(e,loss)=>{epoch=e;epochLoss=loss;showEpoch()}) // 红球分析（后台线程，和下面写字同时进行）
     const blueJob=runDeepPool(draws,3,kb,Mb,()=>{}) // 蓝球分析
-    await write(`好，要为${rule.name}选 5 注。先理清问题：每期从 1～${Mr} 开 ${kr} 个红球，从 1～${Mb} 开 ${kb} 个蓝球。我的思路是请四位“专家”各自给每个号码估概率，再用最近 ${DEEP.window} 期回测谁真的比随机强，按实际表现决定听谁的；然后从几万注候选里优化出 5 注，最后自我检查一遍。`)
+    await write(`好，要为${rule.name}选 5 注。先理清问题：每期从 1～${Mr} 开 ${kr} 个红球，从 1～${Mb} 开 ${kb} 个蓝球。我的思路是请四位“专家”各自给每个号码估概率，再用最近 ${DEEP.window} 期回测谁真的比随机强，按实际表现决定听谁的；然后从上万种组合里选出 5 注，最后自我检查一遍。整个过程不用随机数：同样的开奖数据，每次得出的结论都一样，开出新一期才会变。`)
     await write(`读取开奖历史：共 ${draws.length.toLocaleString()} 期，${draws[draws.length-1][1]} 至 ${latest[1]}。最新一期第 ${latest[0]} 期：红球 ${nums(latest[2])}，蓝球 ${nums(latest[3])}。`)
     await write(`第一步，专家打分。频率专家按时间衰减统计出现次数，半衰期用回测前的 ${DEEP.tune} 期来调；遗漏专家看每个号码隔了几期没出，查历史上同样遗漏时下一期的开出率；转移专家看上一期开出的号码之后，下一期常跟着出现谁；神经网络专家从 ${NN.features} 项特征里自己学规律。`)
     liveLine=await write("","live") // 训练进度这一段
     showEpoch() // 先显示当前进度
     const red=await redJob // 等红球分析完成
-    liveLine.textContent=`神经网络专家学完了：${NN.features}→${NN.hidden}→1，${NN.epochs} 轮，误差 ${red.nnLoss.toFixed(4)}。` // 完成
+    liveLine.textContent=`神经网络专家学完了：${NN.features}→${NN.hidden}→1，${NN.epochs} 轮，误差 ${red.nnLoss.toFixed(4)}（训练起点由第 ${latest[0]} 期固定，可以复现）。` // 完成
     liveLine.classList.remove("live") // 不再是进度
     const M=key=>red.models.find(m=>m.key===key) // 按名字找模型
     await write(`各位专家对下一期红球的看法：频率专家（半衰期 ${red.halfLife} 期）最看好 ${nums(M("freq").top)}；遗漏专家看好 ${nums(M("gap").top)}；转移专家看好 ${nums(M("markov").top)}；神经网络看好 ${nums(M("nn").top)}。意见并不一致，得看谁靠谱。`)
@@ -1598,7 +1596,7 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
       ?`${best.name}的回测误差比随机低一些，算是有点信号，但优势很小，不能全信。按贝叶斯模型平均，把随机基线也当作一个模型，按回测表现分配权重：${ranked}。蓝球同样处理，权重最高的是${blueTop.name}（${pct(blueTop.weight)}）。`
       :`嗯……没有哪位专家明显胜过随机。这其实合理：开奖是独立随机的，历史“规律”多半是噪声，不能硬找。所以不盲目相信任何一位，用贝叶斯模型平均，把随机基线也当作一个模型，按回测表现分配权重：${ranked}。蓝球同样处理，权重最高的是${blueTop.name}（${pct(blueTop.weight)}）。`)
     const pick=deepPick(a,red,blue,5) // 候选优化
-    await write(`第三步，候选优化。按加权后的概率抽了 ${pick.sampled.toLocaleString()} 注，去掉和值、奇偶、大小、分区、连号少见的形态，剩 ${pick.valid.toLocaleString()} 注（不重复 ${pick.unique.toLocaleString()} 注）。按得分排序取前 ${pick.shortlist} 注，再从中挑 5 注：两两最多共用 ${rule.maxShare} 个红球，每个红球最多用 2 次，尽量多覆盖不同号码，蓝球尽量不重复。`)
+    await write(`第三步，选号。取最被看好的 ${pick.pool} 个红球，列出它们的全部 ${pick.total.toLocaleString()} 种组合，去掉和值、奇偶、大小、分区、连号少见的形态，剩 ${pick.valid.toLocaleString()} 种。按得分从高到低依次选出 5 注：两两最多共用 ${rule.maxShare} 个红球，每个红球最多用 2 次，用过的号码再用要扣分；蓝球按看好程度依次分配，尽量不重复。`)
     const check=deepCheck(a,pick.tickets) // 自我检查
     await write(check.ok // 检查通过
       ?`最后自我检查：号码个数和范围都对；5 注覆盖 ${check.reds} 个不同红球、${check.blues} 个不同蓝球；和值 ${check.sumMin}～${check.sumMax}，在常见范围 ${a.sumRange[0]}～${a.sumRange[1]} 内；两注之间最多共用 ${check.maxShare} 个红球，单个红球最多出现 ${check.maxUse} 次；都不是历史头奖组合。检查通过，给出结果。`
