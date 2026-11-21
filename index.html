@@ -32,7 +32,7 @@ SOFTWARE.
 <meta name="apple-mobile-web-app-capable" content="yes"> <!-- 从 iPhone 主屏幕打开时全屏显示，不显示 Safari 的地址栏和工具栏（iOS 16.3 及更早靠这一项） -->
 <meta name="mobile-web-app-capable" content="yes"> <!-- 同上，标准写法（安卓 Chrome 等） -->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <!-- 状态栏透明，液体背景一直延伸到状态栏下面 -->
-<meta name="apple-mobile-web-app-title" content="随机选号"> <!-- 主屏幕图标下面显示的名字 -->
+<meta name="apple-mobile-web-app-title" content="幸运选号"> <!-- 主屏幕图标下面显示的名字 -->
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2"> <!-- iPhone、iPad 主屏幕图标（180×180）；?v=2 让浏览器换掉缓存里的旧图标 -->
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2"> <!-- 浏览器标签页图标 -->
 <link rel="preload" as="image" href="images/splash.jpg" fetchpriority="high"> <!-- 开屏图片优先下载 -->
@@ -439,7 +439,7 @@ button::after, /* 按钮、 */
 }
 #type-ssq:checked ~ label[for="type-ssq"], /* 选中“双色球”时它的文字、 */
 #type-dlt:checked ~ label[for="type-dlt"], /* 选中“大乐透”时它的文字、 */
-#mode-random:checked ~ label[for="mode-random"], /* 选中“随机抽取”时它的文字、 */
+#mode-random:checked ~ label[for="mode-random"], /* 选中“随机选号”时它的文字、 */
 #mode-deep:checked ~ label[for="mode-deep"] { /* 选中“深度思考”时它的文字： */
   color:var(--text-main); /* 用主要文字颜色 */
   font-weight:600; /* 加粗 */
@@ -967,11 +967,11 @@ html.ios-app .splash-view { /* 主屏幕 App 里 */
       <label for="type-ssq">双色球</label> <!-- “双色球”选项文字，点击选中对应单选框 -->
       <label for="type-dlt">大乐透</label> <!-- “大乐透”选项文字，点击选中对应单选框 -->
     </div> <!-- 分段控件结束 -->
-    <div class="segmented mode-switch" role="radiogroup" aria-label="选号方式"> <!-- 选号方式：随机抽取 / 深度思考 -->
-      <input type="radio" name="mode" id="mode-random" value="random" checked> <!-- “随机抽取”单选框，默认选中 -->
+    <div class="segmented mode-switch" role="radiogroup" aria-label="选号方式"> <!-- 选号方式：随机选号 / 深度思考 -->
+      <input type="radio" name="mode" id="mode-random" value="random" checked> <!-- “随机选号”单选框，默认选中 -->
       <input type="radio" name="mode" id="mode-deep" value="deep"> <!-- “深度思考”单选框 -->
       <span class="segmented-thumb" aria-hidden="true"></span> <!-- 滑块（纯装饰，读屏软件忽略） -->
-      <label for="mode-random">随机抽取</label> <!-- “随机抽取”：纯随机，与原来相同 -->
+      <label for="mode-random">随机选号</label> <!-- “随机选号”：纯随机，与原来相同 -->
       <label for="mode-deep">深度思考</label> <!-- “深度思考”：参考历史开奖统计选号 -->
     </div> <!-- 选号方式结束 -->
     <div class="button-group"> <!-- 按钮组 -->
@@ -1060,7 +1060,7 @@ function getType(){ // 取当前选中的彩种
 }
 const modeInputs=document.querySelectorAll('input[name="mode"]') // 两个选号方式单选框
 function getMode(){ // 取当前选中的选号方式
-  return document.querySelector('input[name="mode"]:checked').value // 返回 random（随机抽取）或 deep（深度思考）
+  return document.querySelector('input[name="mode"]:checked').value // 返回 random（随机选号）或 deep（深度思考）
 }
 let resultMode="random" // 当前结果是用哪种方式生成的（保存图片的标题用）
 // 两个分段控件（彩种、选号方式）共用：切换时滑块播放液态拉伸动画
@@ -1161,14 +1161,14 @@ function showTickets(tickets){ // 显示生成的号码（清空原来的内容�
   resultInner.scrollTop=0 // 滚回顶部
   appendTickets(tickets) // 加入号码
 }
-function generateRandom(){ // 随机抽取：立即给出 5 注
+function generateRandom(){ // 随机选号：立即给出 5 注
   if(isRolling) return // 深度思考进行中就忽略
   const ssq=getType()==="ssq" // 是不是双色球
   const tickets=Array.from({length:5},()=>ssq // 生成 5 注
     ?{red:randomNums(1,33,6),blue:randomNums(1,16,1)} // 双色球：6 个红球 1～33、1 个蓝球 1～16，各不重复
     :{red:randomNums(1,35,5),blue:randomNums(1,12,2)}) // 大乐透：5 个红球 1～35、2 个蓝球 1～12，各不重复
   showTickets(tickets) // 显示
-  resultMode="random" // 结果来自随机抽取
+  resultMode="random" // 结果来自随机选号
 }
 // ===== 深度思考：多专家 + 回测 + 贝叶斯加权 + 候选优化 + 自我检查，过程像推理模型一样实时显示 =====
 // 开奖是独立随机事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。这里按严谨的预测流程来做，并如实显示结论：
@@ -1640,7 +1640,7 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
     const p=document.createElement("div") // 提示
     p.className="deep-p" // 样式
     p.style.alignSelf="stretch" // 占满宽度
-    p.textContent="读取开奖历史失败，请联网后重试，或先用“随机抽取”" // 提示内容
+    p.textContent="读取开奖历史失败，请联网后重试，或先用“随机选号”" // 提示内容
     resultInner.appendChild(p) // 显示
   }finally{ // 无论成败
     clearInterval(clock) // 停止计时
@@ -1756,7 +1756,7 @@ function saveAsImage(){ // 保存图片
   }
   const type=getType() // 当前彩种
   const typeText=type==="ssq"?"双色球":"大乐透" // 彩种的中文名
-  const modeText=resultMode==="deep"?"深度思考":"随机抽取" // 这组号码是用哪种方式生成的
+  const modeText=resultMode==="deep"?"深度思考":"随机选号" // 这组号码是用哪种方式生成的
   const dateText=formatDateLocal(new Date()) // 当前时间，用在标题和文件名里
   let canvas // 导出用的画布
   try{ // 尝试
