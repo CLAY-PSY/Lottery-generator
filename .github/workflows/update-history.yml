@@ -13,6 +13,9 @@ concurrency:  # 同一时间只跑一个
   cancel-in-progress: false  # 不取消正在跑的
 jobs:  # 任务
   update:  # 更新任务
+    # 只在 Lottery-generator 里运行：Lottery-source-code 是它的完整镜像（同一份提交记录），
+    # 两边都跑会各自提交一次新数据，提交记录分叉后就没法直接同步；镜像仓库的数据靠同步过去（比较时不区分大小写）
+    if: github.repository == 'CLAY-PSY/Lottery-generator'
     runs-on: ubuntu-latest  # 运行环境
     timeout-minutes: 10  # 最多跑 10 分钟
     steps:  # 步骤
