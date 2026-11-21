@@ -544,9 +544,17 @@ button::after, /* 按钮、 */
 .deep-log::-webkit-scrollbar { /* Safari 的滚动条 */
   display:none; /* 隐藏 */
 }
-.deep-log.faded { /* 往下滚过之后：顶部淡出，不会被硬生生切掉半行 */
+.deep-log.fade-top { /* 上面还有内容（往下滚过）：顶部渐隐，不会被硬生生切掉半行 */
   -webkit-mask-image:linear-gradient(to bottom,transparent,#000 18px); /* 顶部 18px 渐隐（Safari） */
   mask-image:linear-gradient(to bottom,transparent,#000 18px); /* 顶部 18px 渐隐 */
+}
+.deep-log.fade-bottom { /* 下面还有内容没显示：底部渐隐，提示可以往下滑 */
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent); /* 底部 18px 渐隐（Safari） */
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent); /* 底部 18px 渐隐 */
+}
+.deep-log.fade-top.fade-bottom { /* 上下都还有内容：两头都渐隐 */
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 18px,#000 calc(100% - 18px),transparent); /* 上下各 18px 渐隐（Safari） */
+  mask-image:linear-gradient(to bottom,transparent,#000 18px,#000 calc(100% - 18px),transparent); /* 上下各 18px 渐隐 */
 }
 .deep-p { /* 思考过程的一段 */
   margin:0 0 6px; /* 段落间距 */
@@ -1557,7 +1565,11 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
   log.id="deep-log" // 供标题行的 aria-controls 引用
   resultInner.append(head,log) // 放进结果区
   const clock=setInterval(()=>{time.textContent=`${((performance.now()-t0)/1000).toFixed(1)} 秒`},100) // 每 0.1 秒更新用时
-  const follow=()=>{log.scrollTop=log.scrollHeight;log.classList.toggle("faded",log.scrollTop>0)} // 滚到最新一行，滚过就让顶部淡出
+  const fade=()=>{ // 上面还有内容就让顶部渐隐，下面还有内容就让底部渐隐
+    log.classList.toggle("fade-top",log.scrollTop>1) // 往下滚过
+    log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
+  }
+  const follow=()=>{log.scrollTop=log.scrollHeight;fade()} // 滚到最新一行，并更新上下渐隐
   const write=(label,text,cls="")=>new Promise(resolve=>{ // 写一段：开头是加粗的小标题，正文一个字一个字出现（每秒约 120 个字）
     const p=document.createElement("p") // 一段
     p.className=`deep-p ${cls}` // 样式
@@ -1624,11 +1636,11 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
       const open=resultInner.classList.toggle("show-log") // 切换
       head.setAttribute("aria-expanded",String(open)) // 告诉读屏软件
       time.textContent=open?"收起 ‹":"查看过程 ›" // 右侧提示
-      if(open){log.scrollTop=0;log.classList.remove("faded")} // 展开时从头看
+      if(open){log.scrollTop=0;fade()} // 展开时从头看（下面还有内容，底部渐隐）
     }
     head.onclick=toggle // 点击切换
     head.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle()}} // 键盘 Enter / 空格切换
-    log.onscroll=()=>log.classList.toggle("faded",log.scrollTop>0) // 手动滚动时更新顶部淡出
+    log.onscroll=fade // 手动滚动时更新上下渐隐
     resultInner.classList.add("deep-done") // 想完了：收起思考过程，显示号码
     appendTickets(pick.tickets) // 显示号码
     resultMode="deep" // 结果来自深度思考
