@@ -489,6 +489,7 @@ button::after, /* 按钮、 */
 }
 /* 深度思考：像推理模型一样，先实时显示思考过程，想完后折叠成一行“已深度思考（用时 X 秒）”，点它可以展开回看 */
 .result-inner.deep { /* 深度思考模式下的结果区 */
+  position:relative; /* 给左侧竖线定位 */
   gap:5px; /* 行距收紧一点：标题行 + 5 行号码正好放下（14 + 5×28 + 5×5 = 179px，内容区 180px） */
 }
 .deep-head { /* 标题行：思考中 / 已深度思考（用时 X 秒） */
@@ -526,6 +527,21 @@ button::after, /* 按钮、 */
   font-weight:500; /* 常规粗细 */
   font-variant-numeric:tabular-nums; /* 数字等宽，计时时不跳动 */
 }
+/* 左侧竖线：从标题行的圆点正下方“长”出来，颜色和圆点一样，往下渐渐变淡，像一条时间线。
+   画在结果区上（不在会滚动的正文里），所以不跟着文字滚动，也不受正文上下渐隐的影响 */
+.result-inner.deep:not(.deep-done)::before, /* 思考中、 */
+.result-inner.deep-done.show-log::before { /* 展开回看时 */
+  content:""; /* 伪元素必须有 content 才会显示 */
+  position:absolute; /* 叠在结果区上 */
+  left:2.5px; /* 宽 2px，正好在 7px 圆点的正下方（圆点中心 3.5px） */
+  top:12px; /* 从圆点下沿开始，和圆点连在一起 */
+  bottom:4px; /* 到底部附近 */
+  width:2px; /* 线宽 */
+  border-radius:1px; /* 两端圆头 */
+  background:linear-gradient(to bottom,var(--primary),var(--primary) 55%,transparent); /* 上半段实色，往下渐渐消失 */
+  opacity:.6; /* 比文字淡，又能看清 */
+  pointer-events:none; /* 不挡点击和滑动 */
+}
 .deep-log { /* 思考过程正文 */
   flex:1 1 auto; /* 占满标题行下面的空间 */
   min-height:0; /* 允许比内容矮（才能滚动） */
@@ -534,6 +550,7 @@ button::after, /* 按钮、 */
   overscroll-behavior:contain; /* 滚到头不带动页面 */
   touch-action:pan-y; /* 允许手指上下滑动（页面其他地方禁止滚动） */
   scrollbar-width:none; /* 不显示滚动条 */
+  padding-left:13px; /* 给左侧竖线留位置，正文和标题文字左对齐（圆点 7px + 间距 6px） */
   font-size:12.5px; /* 字号 */
   line-height:1.5; /* 行高 */
   color:var(--text-main); /* 文字颜色 */
