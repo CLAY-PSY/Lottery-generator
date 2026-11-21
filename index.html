@@ -489,6 +489,7 @@ button::after, /* 按钮、 */
 }
 /* 深度思考：像推理模型一样，先实时显示思考过程，想完后折叠成一行“已深度思考（用时 X 秒）”，点它可以展开回看 */
 .result-inner.deep { /* 深度思考模式下的结果区 */
+  position:relative; /* 给左侧竖线定位 */
   gap:5px; /* 行距收紧一点：标题行 + 5 行号码正好放下（14 + 5×28 + 5×5 = 179px，内容区 180px） */
 }
 .deep-head { /* 标题行：思考中 / 已深度思考（用时 X 秒） */
@@ -526,7 +527,22 @@ button::after, /* 按钮、 */
   font-weight:500; /* 常规粗细 */
   font-variant-numeric:tabular-nums; /* 数字等宽，计时时不跳动 */
 }
-.deep-log { /* 思考过程正文：左侧一条竖线，像推理模型的思考区 */
+/* 左侧竖线：从标题行的圆点正下方“长”出来，颜色和圆点一样，往下渐渐变淡，像一条时间线。
+   画在结果区上（不在会滚动的正文里），所以不跟着文字滚动，也不受正文上下渐隐的影响 */
+.result-inner.deep:not(.deep-done)::before, /* 思考中、 */
+.result-inner.deep-done.show-log::before { /* 展开回看时 */
+  content:""; /* 伪元素必须有 content 才会显示 */
+  position:absolute; /* 叠在结果区上 */
+  left:2.5px; /* 宽 2px，正好在 7px 圆点的正下方（圆点中心 3.5px） */
+  top:12px; /* 从圆点下沿开始，和圆点连在一起 */
+  bottom:4px; /* 到底部附近 */
+  width:2px; /* 线宽 */
+  border-radius:1px; /* 两端圆头 */
+  background:linear-gradient(to bottom,var(--primary),var(--primary) 55%,transparent); /* 上半段实色，往下渐渐消失 */
+  opacity:.6; /* 比文字淡，又能看清 */
+  pointer-events:none; /* 不挡点击和滑动 */
+}
+.deep-log { /* 思考过程正文 */
   flex:1 1 auto; /* 占满标题行下面的空间 */
   min-height:0; /* 允许比内容矮（才能滚动） */
   align-self:stretch; /* 占满宽度 */
@@ -534,8 +550,7 @@ button::after, /* 按钮、 */
   overscroll-behavior:contain; /* 滚到头不带动页面 */
   touch-action:pan-y; /* 允许手指上下滑动（页面其他地方禁止滚动） */
   scrollbar-width:none; /* 不显示滚动条 */
-  padding-left:9px; /* 和竖线的间距 */
-  border-left:2px solid var(--glass-border); /* 左侧竖线 */
+  padding-left:13px; /* 给左侧竖线留位置，正文和标题文字左对齐（圆点 7px + 间距 6px） */
   font-size:12.5px; /* 字号 */
   line-height:1.5; /* 行高 */
   color:var(--text-main); /* 文字颜色 */
@@ -544,9 +559,17 @@ button::after, /* 按钮、 */
 .deep-log::-webkit-scrollbar { /* Safari 的滚动条 */
   display:none; /* 隐藏 */
 }
-.deep-log.faded { /* 往下滚过之后：顶部淡出，不会被硬生生切掉半行 */
+.deep-log.fade-top { /* 上面还有内容（往下滚过）：顶部渐隐，不会被硬生生切掉半行 */
   -webkit-mask-image:linear-gradient(to bottom,transparent,#000 18px); /* 顶部 18px 渐隐（Safari） */
   mask-image:linear-gradient(to bottom,transparent,#000 18px); /* 顶部 18px 渐隐 */
+}
+.deep-log.fade-bottom { /* 下面还有内容没显示：底部渐隐，提示可以往下滑 */
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent); /* 底部 18px 渐隐（Safari） */
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent); /* 底部 18px 渐隐 */
+}
+.deep-log.fade-top.fade-bottom { /* 上下都还有内容：两头都渐隐 */
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 18px,#000 calc(100% - 18px),transparent); /* 上下各 18px 渐隐（Safari） */
+  mask-image:linear-gradient(to bottom,transparent,#000 18px,#000 calc(100% - 18px),transparent); /* 上下各 18px 渐隐 */
 }
 .deep-p { /* 思考过程的一段 */
   margin:0 0 6px; /* 段落间距 */
@@ -1557,7 +1580,11 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
   log.id="deep-log" // 供标题行的 aria-controls 引用
   resultInner.append(head,log) // 放进结果区
   const clock=setInterval(()=>{time.textContent=`${((performance.now()-t0)/1000).toFixed(1)} 秒`},100) // 每 0.1 秒更新用时
-  const follow=()=>{log.scrollTop=log.scrollHeight;log.classList.toggle("faded",log.scrollTop>0)} // 滚到最新一行，滚过就让顶部淡出
+  const fade=()=>{ // 上面还有内容就让顶部渐隐，下面还有内容就让底部渐隐
+    log.classList.toggle("fade-top",log.scrollTop>1) // 往下滚过
+    log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
+  }
+  const follow=()=>{log.scrollTop=log.scrollHeight;fade()} // 滚到最新一行，并更新上下渐隐
   const write=(label,text,cls="")=>new Promise(resolve=>{ // 写一段：开头是加粗的小标题，正文一个字一个字出现（每秒约 120 个字）
     const p=document.createElement("p") // 一段
     p.className=`deep-p ${cls}` // 样式
@@ -1586,7 +1613,7 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
     const showEpoch=()=>{if(liveLine) liveLine.textContent=`正在学习近 ${(nnTrainSpan(draws.length)+NN.valid).toLocaleString()} 期 ${"■".repeat(epoch)}${"□".repeat(NN.epochs-epoch)} 误差 ${epoch?epochLoss.toFixed(4):"…"}`} // 更新进度
     const redJob=runDeepPool(draws,2,kr,Mr,(e,loss)=>{epoch=e;epochLoss=loss;showEpoch()}) // 红球分析（后台线程，和下面写字同时进行）
     const blueJob=runDeepPool(draws,3,kb,Mb,()=>{}) // 蓝球分析
-    await write("思路",`为${rule.name}选 5 注。先请四位专家给号码打分，用最近 ${DEEP.window} 期检验谁比平均水平强、就多听谁的，再从上万种组合里挑出 5 注并自我检查。全程不用随机数，开出新一期才会更新结论。`)
+    await write("思路",`为${rule.name}选 5 注。先请四位专家给号码打分，用最近 ${DEEP.window} 期检验谁比平均水平强、就多听谁的，再从上万种组合里挑出 5 注并自我检查。结论只由开奖数据决定：数据不变，结论就不变，开出新一期才会更新。`)
     await write("数据",`共 ${draws.length.toLocaleString()} 期（${draws[draws.length-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。`)
     await write("第一步｜专家打分",`频率专家看谁出现得多（越近越重要）；遗漏专家看谁多久没出；转移专家看上期号码之后常跟着出谁；神经网络从 ${NN.features} 项特征里自己学。`)
     liveLine=await write("神经网络","","live") // 训练进度这一段
@@ -1624,11 +1651,11 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
       const open=resultInner.classList.toggle("show-log") // 切换
       head.setAttribute("aria-expanded",String(open)) // 告诉读屏软件
       time.textContent=open?"收起 ‹":"查看过程 ›" // 右侧提示
-      if(open){log.scrollTop=0;log.classList.remove("faded")} // 展开时从头看
+      if(open){log.scrollTop=0;fade()} // 展开时从头看（下面还有内容，底部渐隐）
     }
     head.onclick=toggle // 点击切换
     head.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle()}} // 键盘 Enter / 空格切换
-    log.onscroll=()=>log.classList.toggle("faded",log.scrollTop>0) // 手动滚动时更新顶部淡出
+    log.onscroll=fade // 手动滚动时更新上下渐隐
     resultInner.classList.add("deep-done") // 想完了：收起思考过程，显示号码
     appendTickets(pick.tickets) // 显示号码
     resultMode="deep" // 结果来自深度思考
@@ -1640,7 +1667,7 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
     const p=document.createElement("div") // 提示
     p.className="deep-p" // 样式
     p.style.alignSelf="stretch" // 占满宽度
-    p.textContent="读取开奖历史失败，请联网后重试，或先用“随机选号”" // 提示内容
+    p.textContent="读取开奖历史失败，请联网后重试" // 提示内容
     resultInner.appendChild(p) // 显示
   }finally{ // 无论成败
     clearInterval(clock) // 停止计时
