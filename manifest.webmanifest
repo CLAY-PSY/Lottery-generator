@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "双色球 / 大乐透 随机选号",
-  "short_name": "随机选号",
-  "description": "双色球、大乐透随机选号，液态玻璃风格",
+  "name": "幸运选号",
+  "short_name": "幸运选号",
+  "description": "双色球、大乐透幸运选号，液态玻璃风格",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",

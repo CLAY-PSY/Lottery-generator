@@ -32,7 +32,7 @@ SOFTWARE.
 <meta name="apple-mobile-web-app-capable" content="yes"> <!-- 从 iPhone 主屏幕打开时全屏显示，不显示 Safari 的地址栏和工具栏（iOS 16.3 及更早靠这一项） -->
 <meta name="mobile-web-app-capable" content="yes"> <!-- 同上，标准写法（安卓 Chrome 等） -->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <!-- 状态栏透明，液体背景一直延伸到状态栏下面 -->
-<meta name="apple-mobile-web-app-title" content="随机选号"> <!-- 主屏幕图标下面显示的名字 -->
+<meta name="apple-mobile-web-app-title" content="幸运选号"> <!-- 主屏幕图标下面显示的名字 -->
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2"> <!-- iPhone、iPad 主屏幕图标（180×180）；?v=2 让浏览器换掉缓存里的旧图标 -->
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2"> <!-- 浏览器标签页图标 -->
 <link rel="preload" as="image" href="images/splash.jpg" fetchpriority="high"> <!-- 开屏图片优先下载 -->
@@ -439,7 +439,7 @@ button::after, /* 按钮、 */
 }
 #type-ssq:checked ~ label[for="type-ssq"], /* 选中“双色球”时它的文字、 */
 #type-dlt:checked ~ label[for="type-dlt"], /* 选中“大乐透”时它的文字、 */
-#mode-random:checked ~ label[for="mode-random"], /* 选中“随机抽取”时它的文字、 */
+#mode-random:checked ~ label[for="mode-random"], /* 选中“随机选号”时它的文字、 */
 #mode-deep:checked ~ label[for="mode-deep"] { /* 选中“深度思考”时它的文字： */
   color:var(--text-main); /* 用主要文字颜色 */
   font-weight:600; /* 加粗 */
@@ -550,6 +550,10 @@ button::after, /* 按钮、 */
 }
 .deep-p { /* 思考过程的一段 */
   margin:0 0 6px; /* 段落间距 */
+}
+.deep-step { /* 每段开头加粗的小标题，例如“第二步｜回测” */
+  font-weight:700; /* 加粗 */
+  margin-right:6px; /* 和正文的间距 */
 }
 .deep-p.live { /* 实时更新的一段（神经网络训练进度） */
   color:var(--text-sub); /* 颜色淡一点 */
@@ -963,11 +967,11 @@ html.ios-app .splash-view { /* 主屏幕 App 里 */
       <label for="type-ssq">双色球</label> <!-- “双色球”选项文字，点击选中对应单选框 -->
       <label for="type-dlt">大乐透</label> <!-- “大乐透”选项文字，点击选中对应单选框 -->
     </div> <!-- 分段控件结束 -->
-    <div class="segmented mode-switch" role="radiogroup" aria-label="选号方式"> <!-- 选号方式：随机抽取 / 深度思考 -->
-      <input type="radio" name="mode" id="mode-random" value="random" checked> <!-- “随机抽取”单选框，默认选中 -->
+    <div class="segmented mode-switch" role="radiogroup" aria-label="选号方式"> <!-- 选号方式：随机选号 / 深度思考 -->
+      <input type="radio" name="mode" id="mode-random" value="random" checked> <!-- “随机选号”单选框，默认选中 -->
       <input type="radio" name="mode" id="mode-deep" value="deep"> <!-- “深度思考”单选框 -->
       <span class="segmented-thumb" aria-hidden="true"></span> <!-- 滑块（纯装饰，读屏软件忽略） -->
-      <label for="mode-random">随机抽取</label> <!-- “随机抽取”：纯随机，与原来相同 -->
+      <label for="mode-random">随机选号</label> <!-- “随机选号”：纯随机，与原来相同 -->
       <label for="mode-deep">深度思考</label> <!-- “深度思考”：参考历史开奖统计选号 -->
     </div> <!-- 选号方式结束 -->
     <div class="button-group"> <!-- 按钮组 -->
@@ -1056,7 +1060,7 @@ function getType(){ // 取当前选中的彩种
 }
 const modeInputs=document.querySelectorAll('input[name="mode"]') // 两个选号方式单选框
 function getMode(){ // 取当前选中的选号方式
-  return document.querySelector('input[name="mode"]:checked').value // 返回 random（随机抽取）或 deep（深度思考）
+  return document.querySelector('input[name="mode"]:checked').value // 返回 random（随机选号）或 deep（深度思考）
 }
 let resultMode="random" // 当前结果是用哪种方式生成的（保存图片的标题用）
 // 两个分段控件（彩种、选号方式）共用：切换时滑块播放液态拉伸动画
@@ -1157,21 +1161,21 @@ function showTickets(tickets){ // 显示生成的号码（清空原来的内容�
   resultInner.scrollTop=0 // 滚回顶部
   appendTickets(tickets) // 加入号码
 }
-function generateRandom(){ // 随机抽取：立即给出 5 注
+function generateRandom(){ // 随机选号：立即给出 5 注
   if(isRolling) return // 深度思考进行中就忽略
   const ssq=getType()==="ssq" // 是不是双色球
   const tickets=Array.from({length:5},()=>ssq // 生成 5 注
     ?{red:randomNums(1,33,6),blue:randomNums(1,16,1)} // 双色球：6 个红球 1～33、1 个蓝球 1～16，各不重复
     :{red:randomNums(1,35,5),blue:randomNums(1,12,2)}) // 大乐透：5 个红球 1～35、2 个蓝球 1～12，各不重复
   showTickets(tickets) // 显示
-  resultMode="random" // 结果来自随机抽取
+  resultMode="random" // 结果来自随机选号
 }
 // ===== 深度思考：多专家 + 回测 + 贝叶斯加权 + 候选优化 + 自我检查，过程像推理模型一样实时显示 =====
 // 开奖是独立随机事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。这里按严谨的预测流程来做，并如实显示结论：
 // 1. 四位“专家”各自给下一期每个号码估概率：频率（按时间衰减加权，半衰期用回测前的数据调参）、遗漏（历史上同样遗漏时的开出率）、
 //    转移（上一期开出某号后，下一期各号的开出率）、神经网络（现场训练）
 // 2. 回测：最近 200 期逐期检验（每期只用它之前的数据），算各专家的对数损失和命中
-// 3. 贝叶斯模型平均：把“随机基线”也当作一个模型，按回测损失算各模型的后验权重，混合成最终概率（没本事的专家自然拿不到权重）
+// 3. 贝叶斯模型平均（按缓和系数降温）：把“均衡基准”（每个号码机会均等）也当作一个模型，按回测损失算各模型的后验权重，混合成最终概率（没本事的专家自然拿不到权重）
 // 4. 选号：取最被看好的 20 个红球，枚举全部组合，去掉少见形态，按得分从高到低依次选 5 注（两两共用红球不超过上限、每个红球最多用 2 次）
 // 5. 自我检查：号码规则、形态、重合、历史头奖逐项核对
 // 全程不用随机数：神经网络的起点由彩种和最新期号决定，选号按得分排序。同样的开奖数据，每次点击结果完全一样，开出新一期才会变
@@ -1179,7 +1183,7 @@ const DEEP_RULES={ // 两种彩票的规则
   ssq:{name:"双色球",red:[6,33],blue:[1,16],zones:[[1,11],[12,22],[23,33]],maxShare:3}, // 双色球：6 红（1～33）+ 1 蓝（1～16），红球分三区；5 注之间最多共用 3 个红球
   dlt:{name:"大乐透",red:[5,35],blue:[2,12],zones:[[1,12],[13,24],[25,35]],maxShare:2}, // 大乐透：5 红（1～35）+ 2 蓝（1～12）；最多共用 2 个红球
 }
-const DEEP={window:200,tune:300,pool:20} // 深度思考设置：回测最近 200 期、调参用回测前的 300 期、从最被看好的 20 个红球里选号
+const DEEP={window:200,tune:300,pool:20,temper:5} // 深度思考设置：回测最近 200 期、调参用回测前的 300 期、从最被看好的 20 个红球里选号、权重的缓和系数
 const NN={features:10,hidden:16,epochs:6,train:1100,valid:200} // 神经网络设置：每个号码 10 项特征、隐藏层 16 个神经元、训练 6 轮、用 1100 期训练、最近 200 期留作回测（和其他专家同一段）
 const historyCache={} // 已读取的开奖历史：彩种 → 数据
 async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/dlt.json，每期：[期号, 日期, 红球, 蓝球]，新的在前）
@@ -1370,7 +1374,7 @@ async function deepPool(draws,col,k,M,onEpoch,sliceMs){ // 一种球（红球或
   const E=deepExperts(ch,col,k,M) // 三位统计专家
   const s=nnSamples(draws,col,k,M) // 神经网络的样本（最近 200 期留作回测）
   const net=await trainNet(s,onEpoch,sliceMs,seededRandom(`${draws[0][0]}|${draws.length}|${col}|${k}|${M}`)) // 训练：起点由最新期号等固定下来，同样的数据每次训练出同样的网络
-  const models=[{key:"uniform",name:"随机基线",P:null},{key:"freq",name:"频率专家",P:E.freq},{key:"gap",name:"遗漏专家",P:E.gap},{key:"markov",name:"转移专家",P:E.markov},{key:"nn",name:"神经网络",P:nnWindow(net,s)}] // 参与评比的模型
+  const models=[{key:"uniform",name:"均衡基准",P:null},{key:"freq",name:"频率专家",P:E.freq},{key:"gap",name:"遗漏专家",P:E.gap},{key:"markov",name:"转移专家",P:E.markov},{key:"nn",name:"神经网络",P:nnWindow(net,s)}] // 参与评比的模型
   const prob=(m,r,n)=>m.P?m.P[r*M+n-1]:u // 模型 m 给第 start+r 期号码 n 的概率
   for(const m of models){ // 回测每个模型
     let loss=0,hit=0 // 对数损失、命中
@@ -1379,14 +1383,15 @@ async function deepPool(draws,col,k,M,onEpoch,sliceMs){ // 一种球（红球或
       for(let n=1;n<=M;n++){const p=prob(m,r,n);loss-=Math.log(y.has(n)?p:1-p);order.push([n,p])} // 累计损失
       order.sort((a,b)=>b[1]-a[1]);for(let q=0;q<k;q++)if(y.has(order[q][0]))hit++ // 前 k 名里开出了几个
     }
-    m.loss=loss;m.hits=m.P?hit/DEEP.window:k*k/M // 随机基线的命中按期望值算
+    m.loss=loss;m.hits=m.P?hit/DEEP.window:k*k/M // 均衡基准（每个号码机会均等）的命中按期望值算
     m.next=Array.from({length:M+1},(_,n)=>n?prob(m,DEEP.window,n):0) // 对下一期的看法
     m.top=m.P?m.next.map((p,n)=>[n,p]).slice(1).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n])=>n):[] // 最看好的 3 个号码
     delete m.P // 不再需要
   }
-  const base=models[0].loss,minLoss=Math.min(...models.map(m=>m.loss)) // 随机基线的损失、最小损失
-  let z=0;for(const m of models){m.w=Math.exp(-(m.loss-minLoss));z+=m.w} // 贝叶斯模型平均：后验权重 ∝ 回测似然（各模型先验相同）
-  for(const m of models){m.weight=m.w/z;m.gain=base-m.loss;delete m.w} // 归一化；gain>0 表示比随机好
+  const base=models[0].loss,minLoss=Math.min(...models.map(m=>m.loss)) // 均衡基准的损失、最小损失
+  // 贝叶斯模型平均：权重 ∝ 回测似然（各模型先验相同）。200 期的成绩偶然性很大，按缓和系数 5 降温（power posterior），差距很小时权重不拉得太开
+  let z=0;for(const m of models){m.w=Math.exp(-(m.loss-minLoss)/DEEP.temper);z+=m.w} // 未归一化的权重
+  for(const m of models){m.weight=m.w/z;m.gain=base-m.loss;delete m.w} // 归一化；gain>0 表示比均衡基准好
   const mix=Array.from({length:M+1},(_,n)=>n?models.reduce((sum,m)=>sum+m.weight*m.next[n],0):0) // 混合后的下一期概率
   return {models,mix,halfLife:E.halfLife,nnLoss:net.loss,window:DEEP.window,span:s.train+s.valid} // 结果
 }
@@ -1553,54 +1558,60 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
   resultInner.append(head,log) // 放进结果区
   const clock=setInterval(()=>{time.textContent=`${((performance.now()-t0)/1000).toFixed(1)} 秒`},100) // 每 0.1 秒更新用时
   const follow=()=>{log.scrollTop=log.scrollHeight;log.classList.toggle("faded",log.scrollTop>0)} // 滚到最新一行，滚过就让顶部淡出
-  const write=(text,cls="")=>new Promise(resolve=>{ // 写一段：一个字一个字出现（每秒约 120 个字）
+  const write=(label,text,cls="")=>new Promise(resolve=>{ // 写一段：开头是加粗的小标题，正文一个字一个字出现（每秒约 120 个字）
     const p=document.createElement("p") // 一段
     p.className=`deep-p ${cls}` // 样式
-    log.appendChild(p) // 放进去
-    if(quick){p.textContent=text;follow();setTimeout(()=>resolve(p),120);return} // 减弱动态效果：整段出现
+    if(label){const b=document.createElement("b");b.className="deep-step";b.textContent=label;p.appendChild(b)} // 小标题
+    const body=document.createElement("span") // 正文
+    p.appendChild(body) // 放进段落
+    log.appendChild(p) // 放进思考过程
+    if(quick){body.textContent=text;follow();setTimeout(()=>resolve(body),120);return} // 减弱动态效果：整段出现
     let shown=0,last=performance.now() // 已显示的字数、上一帧时间
     const step=now=>{ // 每一帧
       shown=Math.min(text.length,shown+Math.max(1,Math.round((now-last)*.12))) // 按经过的时间多显示几个字
-      last=now;p.textContent=text.slice(0,shown);follow() // 显示
+      last=now;body.textContent=text.slice(0,shown);follow() // 显示
       if(shown<text.length) requestAnimationFrame(step) // 没写完继续
-      else setTimeout(()=>resolve(p),160) // 写完停一下
+      else setTimeout(()=>resolve(body),160) // 写完停一下
     }
     requestAnimationFrame(step) // 开始
   })
   const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
+  const list=v=>v.map(pad2).join("、") // 号码顿号分隔的写法
   const pct=x=>`${Math.round(x*100)}%` // 百分比
   try{ // 尝试
     const data=await loadHistory(type) // 读取开奖历史
     const a=analyze(type,data),draws=a.draws,latest=draws[0] // 形态统计、全部开奖（新的在前）、最新一期
     const [kr,Mr]=rule.red,[kb,Mb]=rule.blue // 红球、蓝球的个数和范围
     let epoch=0,epochLoss=0,liveLine=null // 神经网络的训练进度、显示进度的那一段
-    const showEpoch=()=>{if(liveLine) liveLine.textContent=`神经网络专家正在学习近 ${(nnTrainSpan(draws.length)+NN.valid).toLocaleString()} 期的样本 ${"■".repeat(epoch)}${"□".repeat(NN.epochs-epoch)} 误差 ${epoch?epochLoss.toFixed(4):"…"}`} // 更新进度
+    const showEpoch=()=>{if(liveLine) liveLine.textContent=`正在学习近 ${(nnTrainSpan(draws.length)+NN.valid).toLocaleString()} 期 ${"■".repeat(epoch)}${"□".repeat(NN.epochs-epoch)} 误差 ${epoch?epochLoss.toFixed(4):"…"}`} // 更新进度
     const redJob=runDeepPool(draws,2,kr,Mr,(e,loss)=>{epoch=e;epochLoss=loss;showEpoch()}) // 红球分析（后台线程，和下面写字同时进行）
     const blueJob=runDeepPool(draws,3,kb,Mb,()=>{}) // 蓝球分析
-    await write(`好，要为${rule.name}选 5 注。先理清问题：每期从 1～${Mr} 开 ${kr} 个红球，从 1～${Mb} 开 ${kb} 个蓝球。我的思路是请四位“专家”各自给每个号码估概率，再用最近 ${DEEP.window} 期回测谁真的比随机强，按实际表现决定听谁的；然后从上万种组合里选出 5 注，最后自我检查一遍。整个过程不用随机数：同样的开奖数据，每次得出的结论都一样，开出新一期才会变。`)
-    await write(`读取开奖历史：共 ${draws.length.toLocaleString()} 期，${draws[draws.length-1][1]} 至 ${latest[1]}。最新一期第 ${latest[0]} 期：红球 ${nums(latest[2])}，蓝球 ${nums(latest[3])}。`)
-    await write(`第一步，专家打分。频率专家按时间衰减统计出现次数，半衰期用回测前的 ${DEEP.tune} 期来调；遗漏专家看每个号码隔了几期没出，查历史上同样遗漏时下一期的开出率；转移专家看上一期开出的号码之后，下一期常跟着出现谁；神经网络专家从 ${NN.features} 项特征里自己学规律。`)
-    liveLine=await write("","live") // 训练进度这一段
+    await write("思路",`为${rule.name}选 5 注。先请四位专家给号码打分，用最近 ${DEEP.window} 期检验谁比平均水平强、就多听谁的，再从上万种组合里挑出 5 注并自我检查。全程不用随机数，开出新一期才会更新结论。`)
+    await write("数据",`共 ${draws.length.toLocaleString()} 期（${draws[draws.length-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。`)
+    await write("第一步｜专家打分",`频率专家看谁出现得多（越近越重要）；遗漏专家看谁多久没出；转移专家看上期号码之后常跟着出谁；神经网络从 ${NN.features} 项特征里自己学。`)
+    liveLine=await write("神经网络","","live") // 训练进度这一段
     showEpoch() // 先显示当前进度
     const red=await redJob // 等红球分析完成
-    liveLine.textContent=`神经网络专家学完了：${NN.features}→${NN.hidden}→1，${NN.epochs} 轮，误差 ${red.nnLoss.toFixed(4)}（训练起点由第 ${latest[0]} 期固定，可以复现）。` // 完成
-    liveLine.classList.remove("live") // 不再是进度
+    liveLine.textContent=`学完了（${NN.epochs} 轮，误差 ${red.nnLoss.toFixed(4)}；训练起点由第 ${latest[0]} 期固定，结果可以复现）。` // 完成
+    liveLine.parentNode.classList.remove("live") // 不再是进度
     const M=key=>red.models.find(m=>m.key===key) // 按名字找模型
-    await write(`各位专家对下一期红球的看法：频率专家（半衰期 ${red.halfLife} 期）最看好 ${nums(M("freq").top)}；遗漏专家看好 ${nums(M("gap").top)}；转移专家看好 ${nums(M("markov").top)}；神经网络看好 ${nums(M("nn").top)}。意见并不一致，得看谁靠谱。`)
-    await write(`第二步，回测。最近 ${DEEP.window} 期逐期检验，每次只用那一期之前的数据，不偷看答案。红球前 ${kr} 名的平均命中：频率 ${M("freq").hits.toFixed(2)}、遗漏 ${M("gap").hits.toFixed(2)}、转移 ${M("markov").hits.toFixed(2)}、神经网络 ${M("nn").hits.toFixed(2)}；随机挑的期望是 ${M("uniform").hits.toFixed(2)}。`)
+    const experts=["freq","gap","markov","nn"].map(M) // 四位专家
+    const votes={};experts.forEach(m=>m.top.forEach(n=>{votes[n]=(votes[n]||0)+1})) // 每个号码被几位专家看好（前 3 名）
+    const consensus=Object.keys(votes).map(Number).filter(n=>votes[n]>=2).sort((x,y)=>votes[y]-votes[x]||x-y) // 被两位以上专家同时看好的号码
+    await write("各自看好",`频率 ${nums(M("freq").top)}｜遗漏 ${nums(M("gap").top)}｜转移 ${nums(M("markov").top)}｜神经网络 ${nums(M("nn").top)}。${consensus.length?`其中 ${list(consensus)} 被两位以上专家同时看好。`:"四位专家的意见各不相同。"}`)
+    await write("第二步｜回测",`用最近 ${DEEP.window} 期逐期考试，每期只用它之前的数据，不偷看答案。前 ${kr} 名平均猜中：频率 ${M("freq").hits.toFixed(2)}、遗漏 ${M("gap").hits.toFixed(2)}、转移 ${M("markov").hits.toFixed(2)}、神经网络 ${M("nn").hits.toFixed(2)}；平均水平（每个号码机会均等）是 ${M("uniform").hits.toFixed(2)}。`)
     const blue=await blueJob // 等蓝球分析完成
-    const experts=red.models.filter(m=>m.key!=="uniform"),best=experts.reduce((x,y)=>y.gain>x.gain?y:x) // 四位专家、回测最好的一位
-    const ranked=[...red.models].sort((x,y)=>y.weight-x.weight).map(m=>`${m.name} ${pct(m.weight)}`).join("、") // 权重从高到低
-    const blueTop=[...blue.models].sort((x,y)=>y.weight-x.weight)[0] // 蓝球权重最高的模型
-    await write(best.gain>1 // 有专家的回测损失比随机低 1 以上
-      ?`${best.name}的回测误差比随机低一些，算是有点信号，但优势很小，不能全信。按贝叶斯模型平均，把随机基线也当作一个模型，按回测表现分配权重：${ranked}。蓝球同样处理，权重最高的是${blueTop.name}（${pct(blueTop.weight)}）。`
-      :`嗯……没有哪位专家明显胜过随机。这其实合理：开奖是独立随机的，历史“规律”多半是噪声，不能硬找。所以不盲目相信任何一位，用贝叶斯模型平均，把随机基线也当作一个模型，按回测表现分配权重：${ranked}。蓝球同样处理，权重最高的是${blueTop.name}（${pct(blueTop.weight)}）。`)
-    const pick=deepPick(a,red,blue,5) // 候选优化
-    await write(`第三步，选号。取最被看好的 ${pick.pool} 个红球，列出它们的全部 ${pick.total.toLocaleString()} 种组合，去掉和值、奇偶、大小、分区、连号少见的形态，剩 ${pick.valid.toLocaleString()} 种。按得分从高到低依次选出 5 注：两两最多共用 ${rule.maxShare} 个红球，每个红球最多用 2 次，用过的号码再用要扣分；蓝球按看好程度依次分配，尽量不重复。`)
+    const best=experts.reduce((x,y)=>y.gain>x.gain?y:x) // 回测最好的专家
+    const ranked=[...red.models].sort((x,y)=>y.weight-x.weight).map(m=>`${m.name} ${pct(m.weight)}`).join("、") // 发言权从高到低
+    const blueTop=[...blue.models].sort((x,y)=>y.weight-x.weight)[0] // 蓝球发言权最高的
+    await write("第三步｜分配权重",`${best.gain>1?`${best.name}略好于平均水平，但优势很小，不能全信。`:"四位专家都没有明显超过平均水平：开奖本身没有规律可循，历史上的“冷热”多半是巧合。"}所以按考试成绩分配发言权，成绩差距小就不拉开太多：${ranked}（“均衡基准”就是每个号码机会均等）。蓝球里${blueTop.name}的发言权最高（${pct(blueTop.weight)}）。`)
+    const pick=deepPick(a,red,blue,5) // 选号
+    const picked=new Set(pick.tickets.flatMap(t=>t.red)),missed=consensus.filter(n=>!picked.has(n)) // 选中的红球、共识号码里没选上的
+    await write("第四步｜选号",`按加权后的分数取前 ${pick.pool} 个红球，列出全部 ${pick.total.toLocaleString()} 种组合，去掉和值、奇偶、大小、分区、连号少见的，剩 ${pick.valid.toLocaleString()} 种。从高分往低依次挑 5 注：两注最多共用 ${rule.maxShare} 个红球，每个红球最多用 2 次；蓝球按分数依次分配。${!consensus.length?"":missed.length?`多位专家看好的号码里，${list(missed)} 因为分数或形态限制没有选入。`:`多位专家看好的 ${list(consensus)} 都已选入。`}`)
     const check=deepCheck(a,pick.tickets) // 自我检查
-    await write(check.ok // 检查通过
-      ?`最后自我检查：号码个数和范围都对；5 注覆盖 ${check.reds} 个不同红球、${check.blues} 个不同蓝球；和值 ${check.sumMin}～${check.sumMax}，在常见范围 ${a.sumRange[0]}～${a.sumRange[1]} 内；两注之间最多共用 ${check.maxShare} 个红球，单个红球最多出现 ${check.maxUse} 次；都不是历史头奖组合。检查通过，给出结果。`
-      :`最后自我检查：发现有一项没通过（${[!check.rules&&"号码规则",!check.shapes&&"形态",check.jackpots&&"历史头奖",(check.maxShare>rule.maxShare||check.maxUse>2)&&"重合过多"].filter(Boolean).join("、")}），按现有结果给出，仅供参考。`)
+    await write("第五步｜自我检查",check.ok // 检查通过
+      ?`覆盖 ${check.reds} 个红球、${check.blues} 个蓝球；和值 ${check.sumMin}～${check.sumMax}（常见范围 ${a.sumRange[0]}～${a.sumRange[1]}）；两注最多共用 ${check.maxShare} 个红球，单个红球最多出现 ${check.maxUse} 次；都不是历史头奖组合。全部通过，给出结果。`
+      :`有一项没通过（${[!check.rules&&"号码规则",!check.shapes&&"形态",check.jackpots&&"历史头奖",(check.maxShare>rule.maxShare||check.maxUse>2)&&"重合过多"].filter(Boolean).join("、")}），结果仅供参考。`)
     clearInterval(clock) // 停止计时
     const seconds=Math.max(1,Math.round((performance.now()-t0)/1000)) // 用时（秒）
     title.textContent=`已深度思考（用时 ${seconds} 秒）` // 标题改成已完成
@@ -1629,7 +1640,7 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
     const p=document.createElement("div") // 提示
     p.className="deep-p" // 样式
     p.style.alignSelf="stretch" // 占满宽度
-    p.textContent="读取开奖历史失败，请联网后重试，或先用“随机抽取”" // 提示内容
+    p.textContent="读取开奖历史失败，请联网后重试，或先用“随机选号”" // 提示内容
     resultInner.appendChild(p) // 显示
   }finally{ // 无论成败
     clearInterval(clock) // 停止计时
@@ -1745,7 +1756,7 @@ function saveAsImage(){ // 保存图片
   }
   const type=getType() // 当前彩种
   const typeText=type==="ssq"?"双色球":"大乐透" // 彩种的中文名
-  const modeText=resultMode==="deep"?"深度思考":"随机抽取" // 这组号码是用哪种方式生成的
+  const modeText=resultMode==="deep"?"深度思考":"随机选号" // 这组号码是用哪种方式生成的
   const dateText=formatDateLocal(new Date()) // 当前时间，用在标题和文件名里
   let canvas // 导出用的画布
   try{ // 尝试
