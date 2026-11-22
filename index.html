@@ -582,6 +582,49 @@ button::after, /* 按钮、 */
   color:var(--text-sub); /* 颜色淡一点 */
   font-variant-numeric:tabular-nums; /* 数字等宽 */
 }
+.deep-think { /* 大模型实时写出的思考：保留换行，颜色淡一点，和结论区分开 */
+  white-space:pre-wrap; /* 保留模型写的换行 */
+  color:var(--text-sub); /* 次要文字颜色 */
+}
+.deep-stop { /* 思考中标题行右侧的“停止”：点了就收尾，根据已有的想法给结论 */
+  flex:none; /* 不伸缩（按钮默认平分宽度） */
+  height:18px; /* 小胶囊 */
+  margin:-2px 0 -2px 2px; /* 比 14px 的标题行高一点，上下各伸出 2px，不撑高标题行 */
+  padding:0 9px; /* 左右内边距 */
+  font-size:11px; /* 字号 */
+  line-height:18px; /* 行高 */
+  border-radius:9px; /* 胶囊形 */
+  box-shadow:none; /* 不要按钮的大阴影 */
+}
+.deep-stop[hidden] { /* 不在思考时 */
+  display:none; /* 隐藏 */
+}
+.result-inner.deep-ask { /* 第一次用深度思考：说明要下载模型，问要不要下载 */
+  justify-content:center; /* 说明和按钮在结果区里垂直居中 */
+  gap:12px; /* 说明和按钮的间距 */
+}
+.deep-ask-text { /* 说明文字 */
+  align-self:stretch; /* 占满宽度 */
+  margin:0; /* 去掉段落默认外边距 */
+  font-size:12.5px; /* 字号 */
+  line-height:1.55; /* 行高 */
+  color:var(--text-main); /* 文字颜色 */
+  text-shadow:var(--label-glow); /* 文字光晕 */
+}
+.deep-ask-text b { /* 说明的标题 */
+  display:block; /* 单独一行 */
+  margin-bottom:4px; /* 和正文的间距 */
+  font-size:13.5px; /* 大一点 */
+}
+.deep-ask-btns { /* 两个按钮 */
+  display:flex; /* 横向排列 */
+  gap:10px; /* 间距 */
+  align-self:stretch; /* 占满宽度 */
+}
+.deep-ask-btns button { /* 按钮比主按钮矮一点，放得下 */
+  height:36px; /* 高度 */
+  font-size:.9rem; /* 字号 */
+}
 .deep-done:not(.show-log) .deep-log, /* 想完后默认只显示号码，思考过程收起 */
 .deep-done.show-log .result-line { /* 展开思考过程时号码先藏起来 */
   display:none; /* 不显示 */
@@ -1186,6 +1229,7 @@ function showTickets(tickets){ // 显示生成的号码（清空原来的内容�
 }
 function generateRandom(){ // 随机选号：立即给出 5 注
   if(isRolling) return // 深度思考进行中就忽略
+  if(llmAskCancel) llmAskCancel() // 取消没回答的模型下载询问
   const ssq=getType()==="ssq" // 是不是双色球
   const tickets=Array.from({length:5},()=>ssq // 生成 5 注
     ?{red:randomNums(1,33,6),blue:randomNums(1,16,1)} // 双色球：6 个红球 1～33、1 个蓝球 1～16，各不重复
@@ -1202,6 +1246,7 @@ function generateRandom(){ // 随机选号：立即给出 5 注
 // 4. 选号：取最被看好的 20 个红球，枚举全部组合，去掉少见形态，按得分从高到低依次选 5 注（两两共用红球不超过上限、每个红球最多用 2 次）
 // 5. 自我检查：号码规则、形态、重合、历史头奖逐项核对
 // 全程不用随机数：神经网络的起点由彩种和最新期号决定，选号按得分排序。同样的开奖数据，每次点击结果完全一样，开出新一期才会变
+// 设备支持 WebGPU 时，再把以上统计交给本机运行的大模型（Qwen3.5）通读、思考，由它挑出看好的号码，再按第 4、5 步组合成 5 注并检查（见下面“本地大模型”）
 const DEEP_RULES={ // 两种彩票的规则
   ssq:{name:"双色球",red:[6,33],blue:[1,16],zones:[[1,11],[12,22],[23,33]],maxShare:3}, // 双色球：6 红（1～33）+ 1 蓝（1～16），红球分三区；5 注之间最多共用 3 个红球
   dlt:{name:"大乐透",red:[5,35],blue:[2,12],zones:[[1,12],[13,24],[25,35]],maxShare:2}, // 大乐透：5 红（1～35）+ 2 蓝（1～12）；最多共用 2 个红球
@@ -1560,9 +1605,235 @@ function pad2(n){ // 号码补零成两位
 function topBy(arr,count,desc){ // 按数值取前几个号码（desc=true 取最大的）
   return arr.map((v,n)=>[n,v]).filter(([n])=>n>0).sort((x,y)=>desc?y[1]-x[1]:x[1]-y[1]).slice(0,count) // [号码, 数值]
 }
-async function generateDeep(){ // 深度思考：边算边把思考过程一段段“写”出来，想完折叠成一行，下面给出 5 注
-  if(isRolling) return // 正在生成就忽略
+// ===== 本地大模型：在这台设备的浏览器里用显卡（WebGPU）运行通义千问 Qwen3.5，读完统计结果后真正想一遍，由它决定看好的号码 =====
+// 模型只需下载一次，存在本机，之后离线也能用；开奖数据和思考过程都不离开这台设备。
+// 采样用固定的种子（由彩种和最新期号决定）：同样的开奖数据，同一台设备上每次想的过程和结论都一样，开出新一期才会变。
+const LLM={ // 本地大模型设置
+  lib:"https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.87/lib/index.js", // WebLLM：在浏览器里运行大模型的库（固定版本）
+  wasm:"https://cdn.jsdelivr.net/gh/mlc-ai/binary-mlc-llm-libs@main/web-llm-models/v0_2_87/base/", // 和库版本配套的模型显卡程序
+  hosts:["https://huggingface.co/mlc-ai/","https://hf-mirror.com/mlc-ai/"], // 模型权重：先连官方地址，连不上换国内镜像
+  models:[ // 候选模型，从强到弱：名称、参数量、下载大小（MB）、是否只在电脑上用
+    {name:"Qwen3.5-4B",size:"40 亿",mb:2390,desktop:true}, // 电脑显存多，用更强的
+    {name:"Qwen3.5-2B",size:"20 亿",mb:1083}, // 手机能跑的最强
+    {name:"Qwen3.5-0.8B",size:"8 亿",mb:447}, // 内存不够时退回
+  ],
+  think:800, // 思考最多写多少个词元（token），写满就收尾给结论
+  presence:1.5, // 思考时的“说过就少说”惩罚：小模型不加容易原地打转（千问推荐 1.5）；写结论时不加，免得想好的号码写不出来
+  answer:120, // 结论最多多少个词元
+  boost:2, // 组合 5 注时，模型选中的号码分数乘以几（优先选用）
+  pick:{ssq:[10,5],dlt:[9,4]}, // 让模型挑几个红球、几个蓝球
+  lead:"好的，我先看红球里评分最高的几个号码。", // 思考的开头由程序写好：小模型默认用英文思考，这样它会接着用中文想
+}
+function llmStore(key,value){ // 读写本机设置（隐私模式等存不了时忽略）
+  try{ // 尝试
+    if(value===undefined) return JSON.parse(localStorage.getItem(key)||"null") // 只给 key：读
+    if(value===null) localStorage.removeItem(key) // 给 null：删
+    else localStorage.setItem(key,JSON.stringify(value)) // 其他：写
+  }catch(error){} // 存不了就算了
+  return null // 写入时没有返回值
+}
+const llmFailed=()=>llmStore("deep-llm-failed")||[] // 这台设备跑不动的模型
+const llmReady=()=>llmStore("deep-llm-ready")||{} // 下载并成功载入过的模型 → 下载地址
+;(()=>{ // 页面打开时：上次把模型放进显卡时页面被系统关掉了（多半是内存不够），记为跑不动，以后用小一点的
+  const id=llmStore("deep-llm-loading") // 上次正在放进显卡的模型
+  if(!id) return // 没有
+  llmStore("deep-llm-failed",[...new Set([...llmFailed(),id])]) // 记下
+  llmStore("deep-llm-loading",null) // 清掉标记
+})()
+let llmGpuJob=null // 显卡情况（只查一次）
+function llmPlan(){ // 这台设备能跑哪些模型（从强到弱）；浏览器不支持 WebGPU 时为 null
+  if(!llmGpuJob) llmGpuJob=(async()=>{ // 第一次调用时查显卡
+    if(!window.isSecureContext||!navigator.gpu) return null // 不支持 WebGPU
+    const adapter=await navigator.gpu.requestAdapter().catch(()=>null) // 显卡
+    if(!adapter) return null // 没有可用的显卡
+    const mobile=/iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1) // 手机、平板（新 iPad 自称 Mac）
+    return {q:adapter.features.has("shader-f16")?"q4f16_1":"q4f32_1",mobile} // 显卡支持半精度就用半精度版（省显存、更快）
+  })().catch(()=>null) // 查不了就当不支持
+  return llmGpuJob.then(gpu=>{ // 按显卡情况列出候选
+    if(!gpu) return null // 不支持
+    const failed=llmFailed() // 跑不动的
+    const list=LLM.models.filter(m=>!(m.desktop&&gpu.mobile)).map(m=>({...m,id:`${m.name}-${gpu.q}-MLC`})).filter(m=>!failed.includes(m.id)) // 候选
+    return list.length?list:null // 都跑不动就不用
+  })
+}
+let llmLibJob=null // WebLLM 库（只加载一次）
+function llmLibrary(){ // 加载 WebLLM 库（第一次用深度思考时才下载）
+  if(!llmLibJob) llmLibJob=import(LLM.lib).catch(error=>{llmLibJob=null;throw error}) // 失败了下次再试
+  return llmLibJob // 返回
+}
+function llmConfig(webllm,m,host){ // 某个模型从某个地址下载时的配置
+  const base=webllm.prebuiltAppConfig.model_list.find(r=>r.model_id===m.id) // 库里自带的配置（显存、上下文长度、停止符等）
+  return {model_list:[{...base,model:host+m.id,model_lib:LLM.wasm+base.model_lib.split("/").pop()}]} // 换成这里的下载地址
+}
+let llmWorkerJob=null // 后台线程里能不能用显卡（只测一次）
+function llmWorkerOK(){ // 测试后台线程里有没有 WebGPU（有的浏览器只在页面里提供）
+  if(!llmWorkerJob) llmWorkerJob=new Promise(resolve=>{ // 第一次调用时测试
+    try{ // 尝试
+      const w=new Worker(URL.createObjectURL(new Blob(["postMessage(!!(self.navigator&&navigator.gpu))"],{type:"text/javascript"}))) // 只回报有没有 WebGPU 的小线程
+      const done=ok=>{w.terminate();resolve(ok)} // 结束测试
+      w.onmessage=event=>done(event.data===true) // 收到结果
+      w.onerror=event=>{event.preventDefault();done(false)} // 出错
+      setTimeout(()=>done(false),3000) // 3 秒没回应
+    }catch(error){resolve(false)} // 建不了线程
+  })
+  return llmWorkerJob // 返回
+}
+function llmWorker(){ // 建一个运行大模型的后台线程：模型在后台算，页面动画不卡
+  const code=`import {WebWorkerMLCEngineHandler} from "${LLM.lib}";const handler=new WebWorkerMLCEngineHandler();self.onmessage=event=>handler.onmessage(event)` // 线程脚本：交给 WebLLM 处理
+  return new Worker(URL.createObjectURL(new Blob([code],{type:"text/javascript"})),{type:"module"}) // 模块线程（才能 import）
+}
+let llmEngine=null // 已载入的模型：模型信息 + engine（对话引擎）+ worker（后台线程）
+const llmNetworkError=error=>/fetch|network|load failed|http|cors|err_|timed? ?out|404|403|50\d/i.test(String(error&&(error.message||error))) // 是不是网络问题（下载不了）
+async function llmLoad(plan,onProgress){ // 载入模型：从强到弱依次试，显存不够就换小一点的；官方地址连不上就换镜像
+  if(llmEngine&&plan.some(m=>m.id===llmEngine.id)) return llmEngine // 已经载入过
+  const webllm=await llmLibrary() // 库
+  const useWorker=await llmWorkerOK() // 能不能放到后台线程
+  let lastError=null // 最后一次的错误
+  for(const m of plan){ // 每个候选模型
+    const known=llmReady()[m.id] // 以前从哪个地址下载的
+    const hosts=known?[known,...LLM.hosts.filter(h=>h!==known)]:LLM.hosts // 下载过就先用原地址（直接读本机缓存）
+    let network=false // 是不是网络问题
+    for(const host of hosts){ // 每个下载地址
+      const worker=useWorker?llmWorker():null // 后台线程
+      try{ // 尝试
+        const options={appConfig:llmConfig(webllm,m,host),initProgressCallback:report=>{ // 载入进度
+          if(/loading model from cache/i.test(report.text||"")) llmStore("deep-llm-loading",m.id) // 开始往显卡里放：万一页面被系统关掉，下次就知道是它跑不动
+          onProgress(m,report) // 报告进度
+        }}
+        const engine=worker?await webllm.CreateWebWorkerMLCEngine(worker,m.id,options):await webllm.CreateMLCEngine(m.id,options) // 载入
+        llmStore("deep-llm-loading",null) // 顺利放进显卡了，清掉标记
+        llmStore("deep-llm-ready",{...llmReady(),[m.id]:host}) // 记下：下载过、能载入
+        llmEngine={...m,engine,worker} // 记下
+        return llmEngine // 完成
+      }catch(error){ // 失败
+        console.warn(`模型 ${m.id} 载入失败:`,error) // 控制台记录
+        if(worker) worker.terminate() // 关掉线程
+        llmStore("deep-llm-loading",null) // 没有被系统关掉，清掉标记
+        lastError=error // 记下
+        network=llmNetworkError(error) // 网络问题？
+        if(!network) break // 不是网络问题（多半是显存不够）：换地址也没用
+      }
+    }
+    if(network) throw lastError // 两个地址都下载不了：换小模型也一样，不再试
+    llmStore("deep-llm-failed",[...new Set([...llmFailed(),m.id])]) // 记下这台设备跑不动它
+  }
+  throw lastError||new Error("没有能用的模型") // 都不行
+}
+function llmDrop(){ // 模型出错（例如显卡被系统收回）：丢掉，下次重新载入
+  if(llmEngine&&llmEngine.worker) llmEngine.worker.terminate() // 关掉后台线程
+  llmEngine=null // 丢掉
+}
+let llmAskCancel=null // 正在显示的下载询问（再点一次生成时取消它）
+function llmAsk(m){ // 第一次用：说明要下载多大的模型，问要不要下载；返回 true 下载、false 这次用算法、null 被新的操作取代
+  if(llmAskCancel) llmAskCancel() // 取消上一次没回答的询问
+  return new Promise(resolve=>{ // 等用户选
+    const size=m.mb>=1000?`${(m.mb/1024).toFixed(1)}\u00a0GB`:`${m.mb}\u00a0MB` // 下载大小
+    resultInner.innerHTML="" // 清空结果
+    resultInner.className="result-inner deep-ask" // 询问的样式
+    const text=document.createElement("p") // 说明
+    text.className="deep-ask-text" // 样式
+    text.innerHTML=`<b>深度思考由本机大模型完成</b>第一次需要下载 ${m.name}（${m.size}参数，约 ${size}），建议连接 Wi-Fi。下载后存在这台设备上，以后离线也能用，开奖数据不会上传。` // 内容
+    const row=document.createElement("div") // 按钮行
+    row.className="deep-ask-btns" // 样式
+    const yes=document.createElement("button") // “下载并思考”
+    yes.type="button";yes.className="prominent";yes.textContent="下载并思考" // 主按钮
+    const no=document.createElement("button") // “这次用算法”
+    no.type="button";no.textContent="这次用算法" // 次按钮
+    row.append(yes,no) // 放进按钮行
+    resultInner.append(text,row) // 显示
+    const done=answer=>{llmAskCancel=null;yes.onclick=no.onclick=null;resolve(answer)} // 结束询问
+    llmAskCancel=()=>done(null) // 可以被取消
+    yes.onclick=()=>{ // 下载
+      if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{}) // 请浏览器不要在空间紧张时自动清掉模型
+      done(true) // 开始
+    }
+    no.onclick=()=>done(false) // 这次用算法
+    yes.focus({preventScroll:true}) // 键盘焦点放到主按钮
+  })
+}
+function llmPrompt(type,rule,a,red,blue){ // 写给模型的题目：规则、最近开奖、统计结果、每个号码的指标、任务和回答格式（千问的对话格式）
+  const draws=a.draws,[kr,Mr]=rule.red,[kb,Mb]=rule.blue,[wantRed,wantBlue]=LLM.pick[type] // 开奖、个数和范围、要挑的个数
+  const table=(col,M,k,pool)=>{ // 一种球的指标表（按综合评分从高到低）：号码、评分（相对平均值，+5 就是比平均高 5%）、遗漏期数、近 30 期开出次数
+    const rows=[] // 每个号码一行
+    for(let n=1;n<=M;n++){ // 每个号码
+      let gap=draws.findIndex(d=>d[col].includes(n)) // 连续多少期没开出
+      if(gap<0) gap=draws.length // 从没开出过
+      const hot=draws.slice(0,30).filter(d=>d[col].includes(n)).length // 近 30 期开出次数
+      const score=Math.round(pool.mix[n]/(k/M)*100)-100 // 评分
+      rows.push({n,score,text:`${pad2(n)} 评分${score>=0?"+":""}${score} 遗漏${gap}期 近30期${hot}次`}) // 一行
+    }
+    return rows.sort((x,y)=>y.score-x.score||x.n-y.n).map(r=>r.text).join("\n") // 评分高的在前
+  }
+  const M=key=>red.models.find(m=>m.key===key) // 按名字找红球模型
+  const experts=["freq","gap","markov","nn"].map(M) // 四位专家
+  const system=`你是“幸运选号”App 里的选号助手，运行在用户自己的设备上。你会拿到${rule.name}的开奖统计，要认真思考后选出看好的号码。请实事求是：每期开奖相互独立，统计只描述过去，各项指标差距不大时不要夸大规律。全程使用简体中文。` // 角色
+  const user=[ // 题目
+    `彩种：${rule.name}，每注 ${kr} 个红球（01～${Mr}）+ ${kb} 个蓝球（01～${pad2(Mb)}）。`, // 规则
+    `开奖历史：共 ${draws.length} 期（${draws[draws.length-1][1]} 至 ${draws[0][1]}）。`, // 数据范围
+    "最近 10 期（期号：红球 + 蓝球）：", // 最近开奖
+    ...draws.slice(0,10).map(d=>`${d[0]}：${d[2].map(pad2).join(" ")} + ${d[3].map(pad2).join(" ")}`), // 每期一行
+    "", // 空行
+    `程序已做好的统计（最近 ${DEEP.window} 期逐期回测，每期只用它之前的数据）：`, // 统计
+    `- 四位专家给红球打分，前 ${kr} 名平均猜中：${experts.map(m=>`${m.name} ${m.hits.toFixed(2)}`).join("、")}；每个号码机会均等时是 ${M("uniform").hits.toFixed(2)}。`, // 回测成绩
+    `- 按回测成绩分配的发言权：${[...red.models].sort((x,y)=>y.weight-x.weight).map(m=>`${m.name} ${Math.round(m.weight*100)}%`).join("、")}。`, // 权重
+    "", // 空行
+    "红球（按评分从高到低。评分是各专家按发言权加权后的综合评分，相对平均值，+5 就是比平均高 5%；遗漏是已经连续多少期没开出；近30期是最近 30 期开出的次数）：", // 红球表说明
+    table(2,Mr,kr,red), // 红球表
+    "", // 空行
+    "蓝球（同上）：", // 蓝球表说明
+    table(3,Mb,kb,blue), // 蓝球表
+    "", // 空行
+    `任务：选出你最看好的 ${wantRed} 个红球和 ${wantBlue} 个蓝球（号码不重复），程序会用它们组合成 5 注。`, // 任务
+    "用中文思考，直接分析数据，不用复述题目：先看评分靠前的号码，再结合遗漏和近 30 期的冷热做取舍，最后定下号码。思考控制在 300 字以内。", // 思路要求
+    "想好后只回答两行：", // 格式
+    `红球：（${wantRed} 个号码，两位数，空格隔开）`, // 格式
+    `蓝球：（${wantBlue} 个号码，两位数，空格隔开）`, // 格式
+  ].join("\n") // 拼成一段
+  return `<|im_start|>system\n${system}<|im_end|>\n<|im_start|>user\n${user}<|im_end|>\n<|im_start|>assistant\n<think>\n${LLM.lead}` // 以 <think> 进入思考模式，开头一句由程序写好
+}
+async function llmStream(engine,prompt,max,seed,onText,extra={}){ // 让模型接着 prompt 往下写（流式），返回写出的文字和结束原因；extra 是额外的生成参数
+  const stream=await engine.completions.create({prompt,stream:true,max_tokens:max,temperature:.6,top_p:.95,seed,...extra}) // 千问推荐的思考采样参数，种子固定
+  let text="",finish=null,count=0 // 全文、结束原因、写了几个词元
+  for await(const chunk of stream){ // 每写出一点
+    if(finish==="cut") continue // 已经要求停下：之后零星到达的不要（结果才固定）
+    const c=chunk.choices&&chunk.choices[0] // 这一点
+    if(!c) continue // 没有内容
+    text+=c.text||"" // 累加
+    count++ // 计数
+    if(c.finish_reason) finish=c.finish_reason // 结束原因：stop 写完、length 写满
+    if(!finish&&onText(text,count)===false){engine.interruptGenerate();finish="cut"} // 调用方要求停下（思考写满或用户点了停止）
+  }
+  onText(text,count) // 最后再报告一次
+  return {text,finish} // 返回
+}
+function llmParse(text,label,max,count){ // 从“红球：…”这样的一行取出号码（范围内、不重复，最多 count 个）
+  const line=((text.replace(/[*#`]/g,"").match(new RegExp(`${label}\\s*[:：]([^\\n]*)`))||[])[1]||"").split(/红球|蓝球/)[0] // 这一行（先去掉格式符号；红球、蓝球写在同一行时只取自己那段）
+  return [...new Set((line.match(/\d+/g)||[]).map(Number).filter(n=>n>=1&&n<=max))].slice(0,count) // 号码
+}
+function llmClean(text){ // 显示前整理模型的文字：去掉标签和格式符号；按约定深度思考里不出现“随机”
+  return text.replace(/<\/?think>/g,"").replace(/\*\*|__|`/g,"").replace(/^#{1,6}\s*/gm,"").replace(/随机/g,"偶然").replace(/\n\s*\n+/g,"\n").replace(/^\s+/,"") // 整理
+}
+function seedOf(text){ // 由一段文字得到固定的整数种子
+  let h=2166136261 // FNV-1a 哈希的初始值
+  for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)} // 哈希
+  return (h>>>0)%2147483647 // 正整数
+}
+let deepPreparing=false // 正在查看能不能用大模型（防止连点）
+async function generateDeep(){ // 深度思考：本机大模型读完统计结果后真正思考，边想边显示，想完折叠成一行，下面给出 5 注；设备不支持时由算法完成
+  if(isRolling||deepPreparing) return // 正在生成就忽略
   const type=getType(),rule=DEEP_RULES[type] // 开始时的彩种和规则
+  let plan=null,note="",ask=false // 能用的模型（从强到弱）、改用算法时的说明、要不要先问下载
+  deepPreparing=true // 开始准备
+  try{ // 查显卡
+    plan=await llmPlan() // 这台设备能跑哪些模型
+    if(!plan) note="这台设备的浏览器不支持在本机运行大模型（需要 WebGPU），这次由算法完成思考。" // 不支持
+    else ask=!(llmEngine&&plan.some(m=>m.id===llmEngine.id))&&!llmReady()[plan[0].id] // 没载入过、也没下载过最合适的模型：先问
+  }finally{deepPreparing=false} // 准备结束
+  if(ask){ // 第一次用
+    const answer=await llmAsk(plan[0]) // 问要不要下载
+    if(answer===null||isRolling||deepPreparing) return // 被新的操作取代了
+    if(!answer){plan=null;note="这次由算法完成思考。"} // 选了这次用算法
+  }
   isRolling=true // 标记为生成中
   toggleButtons(true) // 禁用按钮和切换
   resultInner.setAttribute("aria-busy","true") // 告诉读屏软件内容正在变化，先不播报
@@ -1573,8 +1844,8 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
   resultInner.scrollTop=0 // 滚回顶部
   const head=document.createElement("div") // 标题行
   head.className="deep-head" // 样式
-  head.innerHTML='<span class="deep-dot"></span><span class="deep-title">深度思考中</span><span class="deep-time"></span>' // 圆点、标题、用时
-  const title=head.querySelector(".deep-title"),time=head.querySelector(".deep-time") // 标题、用时
+  head.innerHTML='<span class="deep-dot"></span><span class="deep-title">深度思考中</span><span class="deep-time"></span><button type="button" class="deep-stop" hidden>停止</button>' // 圆点、标题、用时、停止思考
+  const title=head.querySelector(".deep-title"),time=head.querySelector(".deep-time"),stop=head.querySelector(".deep-stop") // 标题、用时、停止按钮
   const log=document.createElement("div") // 思考过程正文
   log.className="deep-log" // 样式
   log.id="deep-log" // 供标题行的 aria-controls 引用
@@ -1585,13 +1856,18 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
     log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
   }
   const follow=()=>{log.scrollTop=log.scrollHeight;fade()} // 滚到最新一行，并更新上下渐隐
-  const write=(label,text,cls="")=>new Promise(resolve=>{ // 写一段：开头是加粗的小标题，正文一个字一个字出现（每秒约 120 个字）
+  const para=(label,cls="")=>{ // 加一段（立即出现，内容由调用方实时更新），返回正文元素
     const p=document.createElement("p") // 一段
     p.className=`deep-p ${cls}` // 样式
     if(label){const b=document.createElement("b");b.className="deep-step";b.textContent=label;p.appendChild(b)} // 小标题
     const body=document.createElement("span") // 正文
     p.appendChild(body) // 放进段落
     log.appendChild(p) // 放进思考过程
+    follow() // 滚到最新
+    return body // 返回正文
+  }
+  const write=(label,text,cls="")=>new Promise(resolve=>{ // 写一段：开头是加粗的小标题，正文一个字一个字出现（每秒约 120 个字）
+    const body=para(label,cls) // 新的一段
     if(quick){body.textContent=text;follow();setTimeout(()=>resolve(body),120);return} // 减弱动态效果：整段出现
     let shown=0,last=performance.now() // 已显示的字数、上一帧时间
     const step=now=>{ // 每一帧
@@ -1605,41 +1881,133 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
   const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
   const list=v=>v.map(pad2).join("、") // 号码顿号分隔的写法
   const pct=x=>`${Math.round(x*100)}%` // 百分比
+  const checkText=(a,check)=>check.ok // 自我检查的结论
+    ?`覆盖 ${check.reds} 个红球、${check.blues} 个蓝球；和值 ${check.sumMin}～${check.sumMax}（常见范围 ${a.sumRange[0]}～${a.sumRange[1]}）；两注最多共用 ${check.maxShare} 个红球，单个红球最多出现 ${check.maxUse} 次；都不是历史头奖组合。全部通过，给出结果。`
+    :`有一项没通过（${[!check.rules&&"号码规则",!check.shapes&&"形态",check.jackpots&&"历史头奖",(check.maxShare>rule.maxShare||check.maxUse>2)&&"重合过多"].filter(Boolean).join("、")}），结果仅供参考。`
   try{ // 尝试
     const data=await loadHistory(type) // 读取开奖历史
     const a=analyze(type,data),draws=a.draws,latest=draws[0] // 形态统计、全部开奖（新的在前）、最新一期
     const [kr,Mr]=rule.red,[kb,Mb]=rule.blue // 红球、蓝球的个数和范围
+    let progress=null,progressLine=null // 模型载入进度、显示进度的那一段
+    const showProgress=()=>{ // 更新模型载入进度
+      if(!progressLine||!progress) return // 还没到显示的时候
+      const {m,report}=progress,p=Math.round((report.progress||0)*100) // 模型、百分比
+      const size=m.mb>=1000?`${(m.mb/1024).toFixed(1)}\u00a0GB`:`${m.mb}\u00a0MB` // 下载大小
+      progressLine.textContent=/fetching/i.test(report.text||"")?`正在下载 ${m.name}（约 ${size}，只需一次）${p}%`:`正在把 ${m.name} 载入显卡 ${p}%` // 下载中 / 载入中
+    }
+    const engineJob=plan?llmLoad(plan,(m,report)=>{progress={m,report};showProgress()}):null // 同时开始载入模型（和统计一起进行）
+    if(engineJob) engineJob.catch(()=>{}) // 出错在下面处理
     let epoch=0,epochLoss=0,liveLine=null // 神经网络的训练进度、显示进度的那一段
     const showEpoch=()=>{if(liveLine) liveLine.textContent=`正在学习近 ${(nnTrainSpan(draws.length)+NN.valid).toLocaleString()} 期 ${"■".repeat(epoch)}${"□".repeat(NN.epochs-epoch)} 误差 ${epoch?epochLoss.toFixed(4):"…"}`} // 更新进度
     const redJob=runDeepPool(draws,2,kr,Mr,(e,loss)=>{epoch=e;epochLoss=loss;showEpoch()}) // 红球分析（后台线程，和下面写字同时进行）
     const blueJob=runDeepPool(draws,3,kb,Mb,()=>{}) // 蓝球分析
-    await write("思路",`为${rule.name}选 5 注。先请四位专家给号码打分，用最近 ${DEEP.window} 期检验谁比平均水平强、就多听谁的，再从上万种组合里挑出 5 注并自我检查。结论只由开奖数据决定：数据不变，结论就不变，开出新一期才会更新。`)
-    await write("数据",`共 ${draws.length.toLocaleString()} 期（${draws[draws.length-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。`)
-    await write("第一步｜专家打分",`频率专家看谁出现得多（越近越重要）；遗漏专家看谁多久没出；转移专家看上期号码之后常跟着出谁；神经网络从 ${NN.features} 项特征里自己学。`)
-    liveLine=await write("神经网络","","live") // 训练进度这一段
-    showEpoch() // 先显示当前进度
-    const red=await redJob // 等红球分析完成
-    liveLine.textContent=`学完了（${NN.epochs} 轮，误差 ${red.nnLoss.toFixed(4)}；训练起点由第 ${latest[0]} 期固定，结果可以复现）。` // 完成
-    liveLine.parentNode.classList.remove("live") // 不再是进度
-    const M=key=>red.models.find(m=>m.key===key) // 按名字找模型
-    const experts=["freq","gap","markov","nn"].map(M) // 四位专家
-    const votes={};experts.forEach(m=>m.top.forEach(n=>{votes[n]=(votes[n]||0)+1})) // 每个号码被几位专家看好（前 3 名）
-    const consensus=Object.keys(votes).map(Number).filter(n=>votes[n]>=2).sort((x,y)=>votes[y]-votes[x]||x-y) // 被两位以上专家同时看好的号码
-    await write("各自看好",`频率 ${nums(M("freq").top)}｜遗漏 ${nums(M("gap").top)}｜转移 ${nums(M("markov").top)}｜神经网络 ${nums(M("nn").top)}。${consensus.length?`其中 ${list(consensus)} 被两位以上专家同时看好。`:"四位专家的意见各不相同。"}`)
-    await write("第二步｜回测",`用最近 ${DEEP.window} 期逐期考试，每期只用它之前的数据，不偷看答案。前 ${kr} 名平均猜中：频率 ${M("freq").hits.toFixed(2)}、遗漏 ${M("gap").hits.toFixed(2)}、转移 ${M("markov").hits.toFixed(2)}、神经网络 ${M("nn").hits.toFixed(2)}；平均水平（每个号码机会均等）是 ${M("uniform").hits.toFixed(2)}。`)
-    const blue=await blueJob // 等蓝球分析完成
-    const best=experts.reduce((x,y)=>y.gain>x.gain?y:x) // 回测最好的专家
-    const ranked=[...red.models].sort((x,y)=>y.weight-x.weight).map(m=>`${m.name} ${pct(m.weight)}`).join("、") // 发言权从高到低
-    const blueTop=[...blue.models].sort((x,y)=>y.weight-x.weight)[0] // 蓝球发言权最高的
-    await write("第三步｜分配权重",`${best.gain>1?`${best.name}略好于平均水平，但优势很小，不能全信。`:"四位专家都没有明显超过平均水平：开奖本身没有规律可循，历史上的“冷热”多半是巧合。"}所以按考试成绩分配发言权，成绩差距小就不拉开太多：${ranked}（“均衡基准”就是每个号码机会均等）。蓝球里${blueTop.name}的发言权最高（${pct(blueTop.weight)}）。`)
-    const pick=deepPick(a,red,blue,5) // 选号
-    const picked=new Set(pick.tickets.flatMap(t=>t.red)),missed=consensus.filter(n=>!picked.has(n)) // 选中的红球、共识号码里没选上的
-    await write("第四步｜选号",`按加权后的分数取前 ${pick.pool} 个红球，列出全部 ${pick.total.toLocaleString()} 种组合，去掉和值、奇偶、大小、分区、连号少见的，剩 ${pick.valid.toLocaleString()} 种。从高分往低依次挑 5 注：两注最多共用 ${rule.maxShare} 个红球，每个红球最多用 2 次；蓝球按分数依次分配。${!consensus.length?"":missed.length?`多位专家看好的号码里，${list(missed)} 因为分数或形态限制没有选入。`:`多位专家看好的 ${list(consensus)} 都已选入。`}`)
-    const check=deepCheck(a,pick.tickets) // 自我检查
-    await write("第五步｜自我检查",check.ok // 检查通过
-      ?`覆盖 ${check.reds} 个红球、${check.blues} 个蓝球；和值 ${check.sumMin}～${check.sumMax}（常见范围 ${a.sumRange[0]}～${a.sumRange[1]}）；两注最多共用 ${check.maxShare} 个红球，单个红球最多出现 ${check.maxUse} 次；都不是历史头奖组合。全部通过，给出结果。`
-      :`有一项没通过（${[!check.rules&&"号码规则",!check.shapes&&"形态",check.jackpots&&"历史头奖",(check.maxShare>rule.maxShare||check.maxUse>2)&&"重合过多"].filter(Boolean).join("、")}），结果仅供参考。`)
+    const M=(pool,key)=>pool.models.find(m=>m.key===key) // 按名字找模型
+    if(note) await write("说明",note) // 不用大模型的原因
+    let tickets=null // 最后的 5 注
+    if(plan){ // —— 本机大模型思考 ——
+      await write("思路",`为${rule.name}选 5 注。先由程序统计四位专家的打分和回测成绩，再交给本机运行的大模型通读数据、自己思考，决定最看好的号码，最后组合成 5 注并自我检查。`)
+      await write("数据",`共 ${draws.length.toLocaleString()} 期（${draws[draws.length-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。`)
+      liveLine=await write("统计","","live") // 统计进度这一段
+      showEpoch() // 先显示当前进度
+      const red=await redJob,blue=await blueJob // 等红球、蓝球分析完成
+      liveLine.textContent=`四位专家（频率、遗漏、转移、神经网络）给每个号码打分，并用最近 ${DEEP.window} 期逐期回测：前 ${kr} 名平均猜中 ${["freq","gap","markov","nn"].map(k=>M(red,k).hits.toFixed(2)).join("、")}，机会均等时是 ${M(red,"uniform").hits.toFixed(2)}。按成绩分配发言权：${[...red.models].sort((x,y)=>y.weight-x.weight).map(m=>`${m.name} ${pct(m.weight)}`).join("、")}。` // 统计结果
+      liveLine.parentNode.classList.remove("live") // 不再是进度
+      progressLine=para("模型","live") // 模型载入进度这一段
+      progressLine.textContent="正在载入…" // 先显示
+      showProgress() // 已有进度就显示
+      let model=null,thinking="",answer="",cut=false // 模型、思考、结论、思考是否被截断
+      try{model=await engineJob}catch(error){progressLine.textContent="没能载入（网络或内存不够），这次改由算法决定号码。"} // 等模型载入
+      progressLine.parentNode.classList.remove("live") // 不再是进度
+      if(model){ // 模型就绪
+        progressLine.textContent=`${model.name}（${model.size}参数）已就绪，在这台设备上运行，数据不上传。` // 就绪
+        const seed=seedOf(`${type}|${latest[0]}|${draws.length}`) // 固定种子：开奖数据不变，想法就不变
+        const prompt=llmPrompt(type,rule,a,red,blue) // 题目
+        const thinkBody=para("思考") // 思考这一段
+        thinkBody.className="deep-think" // 思考文字的样式（保留换行）
+        let answerBody=null,queued=false,stopped=false,raw="" // 结论这一段、是否已安排刷新、是否点了停止、模型接着开头写出的原文
+        const render=()=>{ // 刷新显示（每帧最多一次）
+          thinkBody.textContent=llmClean(thinking)+(cut?"……":"") // 思考
+          if(answer.trim()&&!answerBody) answerBody=para("结论") // 开始写结论
+          if(answerBody) answerBody.textContent=llmClean(answer).trim() // 结论
+          follow() // 滚到最新
+        }
+        const schedule=()=>{if(!queued){queued=true;requestAnimationFrame(()=>{queued=false;render()})}} // 安排下一帧刷新
+        stop.hidden=false // 显示“停止”
+        stop.onclick=()=>{stopped=true;stop.hidden=true} // 点了就收尾
+        try{ // 生成
+          let ended=false // 模型自己想完了
+          const result=await llmStream(model.engine,prompt,LLM.think,seed,(text,count)=>{ // 第一步：想
+            const end=text.indexOf("</think>") // 想完的位置
+            if(end>=0){raw=text.slice(0,end);ended=true} // 想完了（只留思考部分）
+            else{ // 还在想
+              raw=text // 原文
+              if(count%10===0&&text.length>200){ // 每 10 个词元查一次有没有原地打转
+                const tail=text.slice(-40),first=text.indexOf(tail) // 最后 40 个字第一次出现的位置
+                if(first<text.length-40){raw=text.slice(0,first+40);cut=true} // 前面写过一模一样的：打转了，只留一遍
+              }
+            }
+            thinking=LLM.lead+raw;schedule() // 显示（开头一句是程序写的）
+            return !(ended||cut||stopped||count>=LLM.think) // 想完、打转、点了停止、写满：停下
+          },{presence_penalty:LLM.presence,stop:["</think>"]})
+          if(!ended&&result.finish!=="stop") cut=true // 不是自己想完的（写满或点了停止）
+          stop.hidden=true;render() // 不能再停了，刷新
+          // 第二步：写结论。“红球：”由程序起头，格式不会乱；没想完的，先替它说一句“时间差不多了”
+          await llmStream(model.engine,`${prompt}${raw.trimEnd()}${cut?"\n\n好，时间差不多了，根据上面的分析定下号码。":""}\n</think>\n\n红球：`,LLM.answer,seed,text=>{answer=`红球：${text.trimStart()}`;schedule()})
+          render() // 最后刷新一次
+        }catch(error){ // 生成时出错（例如显卡被系统收回）
+          console.warn("大模型思考失败:",error) // 控制台记录
+          llmDrop() // 丢掉模型，下次重新载入
+          answer="" // 结论作废
+          para("说明").textContent="模型中途出错，这次改由算法决定号码。" // 说明
+        }
+        stop.hidden=true // 收起“停止”
+        if(answer.trim()){ // 有结论：用模型选的号码组合
+          const [wantRed,wantBlue]=LLM.pick[type] // 要挑几个
+          const pickedRed=llmParse(answer,"红球",Mr,wantRed),pickedBlue=llmParse(answer,"蓝球",Mb,wantBlue) // 模型选的号码
+          const rank=(pool,count)=>Array.from({length:count},(_,i)=>i+1).sort((x,y)=>pool.mix[y]-pool.mix[x]||x-y) // 按综合评分从高到低
+          const fill=(picked,pool,count,want)=>[...picked,...rank(pool,count).filter(n=>!picked.includes(n))].slice(0,want) // 不够的按综合评分补足
+          const favRed=fill(pickedRed,red,Mr,wantRed),favBlue=fill(pickedBlue,blue,Mb,wantBlue) // 看好的红球、蓝球
+          const favor=(pool,set)=>({...pool,mix:pool.mix.map((p,n)=>set.includes(n)?p*LLM.boost:p)}) // 看好的号码优先
+          const pick=deepPick(a,favor(red,favRed),favor(blue,favBlue),5) // 组合 5 注
+          const used=new Set(pick.tickets.flatMap(t=>t.red)) // 用上的红球
+          const short=pickedRed.length<wantRed||pickedBlue.length<wantBlue // 模型给的号码不够
+          await write("选号",`以模型看好的红球 ${list([...favRed].sort((x,y)=>x-y))}、蓝球 ${list([...favBlue].sort((x,y)=>x-y))} 为主${short?"（模型没给全的，按综合评分补足）":""}，从 ${pick.valid.toLocaleString()} 种形态常见的组合里挑 5 注：两注最多共用 ${rule.maxShare} 个红球，每个红球最多用 2 次。看好的红球用上了 ${favRed.filter(n=>used.has(n)).length} 个。`)
+          tickets=pick.tickets // 结果
+        }
+      }
+      if(!tickets){ // 模型没能给出结论：按算法的综合评分选
+        const pick=deepPick(a,red,blue,5) // 选号
+        await write("选号",`按综合评分取前 ${pick.pool} 个红球，从 ${pick.valid.toLocaleString()} 种形态常见的组合里挑 5 注：两注最多共用 ${rule.maxShare} 个红球，每个红球最多用 2 次。`)
+        tickets=pick.tickets // 结果
+      }
+      await write("自我检查",checkText(a,deepCheck(a,tickets))) // 自我检查
+    }else{ // —— 算法思考（不支持大模型时） ——
+      await write("思路",`为${rule.name}选 5 注。先请四位专家给号码打分，用最近 ${DEEP.window} 期检验谁比平均水平强、就多听谁的，再从上万种组合里挑出 5 注并自我检查。结论只由开奖数据决定：数据不变，结论就不变，开出新一期才会更新。`)
+      await write("数据",`共 ${draws.length.toLocaleString()} 期（${draws[draws.length-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。`)
+      await write("第一步｜专家打分",`频率专家看谁出现得多（越近越重要）；遗漏专家看谁多久没出；转移专家看上期号码之后常跟着出谁；神经网络从 ${NN.features} 项特征里自己学。`)
+      liveLine=await write("神经网络","","live") // 训练进度这一段
+      showEpoch() // 先显示当前进度
+      const red=await redJob // 等红球分析完成
+      liveLine.textContent=`学完了（${NN.epochs} 轮，误差 ${red.nnLoss.toFixed(4)}；训练起点由第 ${latest[0]} 期固定，结果可以复现）。` // 完成
+      liveLine.parentNode.classList.remove("live") // 不再是进度
+      const experts=["freq","gap","markov","nn"].map(key=>M(red,key)) // 四位专家
+      const votes={};experts.forEach(m=>m.top.forEach(n=>{votes[n]=(votes[n]||0)+1})) // 每个号码被几位专家看好（前 3 名）
+      const consensus=Object.keys(votes).map(Number).filter(n=>votes[n]>=2).sort((x,y)=>votes[y]-votes[x]||x-y) // 被两位以上专家同时看好的号码
+      await write("各自看好",`频率 ${nums(M(red,"freq").top)}｜遗漏 ${nums(M(red,"gap").top)}｜转移 ${nums(M(red,"markov").top)}｜神经网络 ${nums(M(red,"nn").top)}。${consensus.length?`其中 ${list(consensus)} 被两位以上专家同时看好。`:"四位专家的意见各不相同。"}`)
+      await write("第二步｜回测",`用最近 ${DEEP.window} 期逐期考试，每期只用它之前的数据，不偷看答案。前 ${kr} 名平均猜中：频率 ${M(red,"freq").hits.toFixed(2)}、遗漏 ${M(red,"gap").hits.toFixed(2)}、转移 ${M(red,"markov").hits.toFixed(2)}、神经网络 ${M(red,"nn").hits.toFixed(2)}；平均水平（每个号码机会均等）是 ${M(red,"uniform").hits.toFixed(2)}。`)
+      const blue=await blueJob // 等蓝球分析完成
+      const best=experts.reduce((x,y)=>y.gain>x.gain?y:x) // 回测最好的专家
+      const ranked=[...red.models].sort((x,y)=>y.weight-x.weight).map(m=>`${m.name} ${pct(m.weight)}`).join("、") // 发言权从高到低
+      const blueTop=[...blue.models].sort((x,y)=>y.weight-x.weight)[0] // 蓝球发言权最高的
+      await write("第三步｜分配权重",`${best.gain>1?`${best.name}略好于平均水平，但优势很小，不能全信。`:"四位专家都没有明显超过平均水平：开奖本身没有规律可循，历史上的“冷热”多半是巧合。"}所以按考试成绩分配发言权，成绩差距小就不拉开太多：${ranked}（“均衡基准”就是每个号码机会均等）。蓝球里${blueTop.name}的发言权最高（${pct(blueTop.weight)}）。`)
+      const pick=deepPick(a,red,blue,5) // 选号
+      const picked=new Set(pick.tickets.flatMap(t=>t.red)),missed=consensus.filter(n=>!picked.has(n)) // 选中的红球、共识号码里没选上的
+      await write("第四步｜选号",`按加权后的分数取前 ${pick.pool} 个红球，列出全部 ${pick.total.toLocaleString()} 种组合，去掉和值、奇偶、大小、分区、连号少见的，剩 ${pick.valid.toLocaleString()} 种。从高分往低依次挑 5 注：两注最多共用 ${rule.maxShare} 个红球，每个红球最多用 2 次；蓝球按分数依次分配。${!consensus.length?"":missed.length?`多位专家看好的号码里，${list(missed)} 因为分数或形态限制没有选入。`:`多位专家看好的 ${list(consensus)} 都已选入。`}`)
+      await write("第五步｜自我检查",checkText(a,deepCheck(a,pick.tickets))) // 自我检查
+      tickets=pick.tickets // 结果
+    }
     clearInterval(clock) // 停止计时
+    stop.remove() // 不再需要“停止”
     const seconds=Math.max(1,Math.round((performance.now()-t0)/1000)) // 用时（秒）
     title.textContent=`已深度思考（用时 ${seconds} 秒）` // 标题改成已完成
     time.textContent="查看过程 ›" // 右侧提示可以展开
@@ -1657,7 +2025,7 @@ async function generateDeep(){ // 深度思考：边算边把思考过程一段�
     head.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle()}} // 键盘 Enter / 空格切换
     log.onscroll=fade // 手动滚动时更新上下渐隐
     resultInner.classList.add("deep-done") // 想完了：收起思考过程，显示号码
-    appendTickets(pick.tickets) // 显示号码
+    appendTickets(tickets) // 显示号码
     resultMode="deep" // 结果来自深度思考
   }catch(error){ // 读取或分析出错
     console.warn("深度思考失败:",error) // 在控制台记录

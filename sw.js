@@ -1,6 +1,6 @@
 // 离线缓存：从主屏幕打开时，没有网络也能用
 // 页面优先联网取最新版（有更新时自动用上），断网时才用缓存；图标和清单优先用缓存
-const CACHE="lottery-v5" // 缓存名称：缓存的文件有变化时把版本号加 1，旧缓存会被清掉（v2 加入开奖历史，v3 加入开屏图片，v4 换新图标，v5 应用改名“幸运选号”）
+const CACHE="lottery-v6" // 缓存名称：缓存的文件有变化时把版本号加 1，旧缓存会被清掉（v2 加入开奖历史，v3 加入开屏图片，v4 换新图标，v5 应用改名“幸运选号”，v6 深度思考改用本机大模型）
 const FILES=[ // 安装时预先缓存的文件
   "./", // 首页
   "./index.html", // 页面本身
@@ -18,11 +18,18 @@ self.addEventListener("install",event=>{ // 安装时
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting())) // 缓存全部文件，然后立即启用新版本
 })
 self.addEventListener("activate",event=>{ // 启用时
-  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())) // 删掉旧版本的缓存，并立即接管已打开的页面
+  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith("lottery-")&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())) // 删掉本应用旧版本的缓存（大模型存在 webllm 开头的缓存里，不能删），并立即接管已打开的页面
 })
 self.addEventListener("fetch",event=>{ // 页面发出请求时
   const request=event.request // 这个请求
-  if(request.method!=="GET"||new URL(request.url).origin!==location.origin) return // 只处理本站的 GET 请求
+  if(request.method==="GET"&&request.url.startsWith("https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@")){ // 深度思考用的大模型库：版本固定、内容不会变，缓存优先，断网也能用
+    event.respondWith(caches.open("webllm-lib").then(cache=>cache.match(request).then(hit=>hit||fetch(request).then(response=>{ // 缓存里有就用，没有再联网
+      if(response.ok) cache.put(request,response.clone()) // 取到了就存起来
+      return response // 返回
+    })))) // 结束
+    return // 结束
+  }
+  if(request.method!=="GET"||new URL(request.url).origin!==location.origin) return // 其他只处理本站的 GET 请求
   if(request.mode==="navigate"){ // 打开页面
     // 带 no-cache 向服务器确认是否有新版：GitHub Pages 的页面在浏览器缓存里能存 10 分钟，不加的话刚发布的修改要过一会儿才生效
     event.respondWith(fetch(request.url,{cache:"no-cache",credentials:"same-origin"}).then(response=>{ // 先联网取最新版
