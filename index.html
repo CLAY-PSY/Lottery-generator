@@ -1636,9 +1636,13 @@ function topBy(arr,count,desc){ // 按数值取前几个号码（desc=true 取�
 // 模型只需下载一次，存在本机，之后离线也能用；开奖数据和思考过程都不离开这台设备。
 // 采样用固定的种子（由彩种和最新期号决定）：同样的开奖数据，同一台设备上每次想的过程和结论都一样，开出新一期才会变。
 const LLM={ // 本地大模型设置
-  lib:"https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.87/lib/index.js", // WebLLM：在浏览器里运行大模型的库（固定版本）
-  wasm:"https://cdn.jsdelivr.net/gh/mlc-ai/binary-mlc-llm-libs@main/web-llm-models/v0_2_87/base/", // 和库版本配套的模型显卡程序
-  hosts:["https://huggingface.co/mlc-ai/","https://hf-mirror.com/mlc-ai/"], // 模型权重：先连官方地址，连不上换国内镜像
+  lib:new URL("vendor/web-llm-0.2.87/index.js",location.href).href, // WebLLM：在浏览器里运行大模型的库（放在仓库里，和网页一起从 GitHub Pages 加载；后台线程要用完整地址）
+  wasm:new URL("vendor/web-llm-0.2.87/models/",location.href).href, // 和库版本配套的模型显卡程序（也在仓库里）
+  hosts:[ // 模型权重（太大放不进仓库）的下载地址，{id} 换成模型名；依次尝试，连不上换下一个
+    "https://www.modelscope.cn/models/mlc-ai/{id}/resolve/master/", // 魔搭社区：文件和 Hugging Face 上的一样，走国内服务器
+    "https://huggingface.co/mlc-ai/{id}", // Hugging Face 官方
+    "https://hf-mirror.com/mlc-ai/{id}", // Hugging Face 的民间镜像
+  ],
   models:[ // 候选模型，从强到弱：名称、参数量、下载大小（MB）、是否只在电脑上用
     {name:"Qwen3.5-4B",size:"40 亿",mb:2390,desktop:true}, // 电脑显存多，用更强的
     {name:"Qwen3.5-2B",size:"20 亿",mb:1083}, // 手机能跑的最强
@@ -1690,7 +1694,7 @@ function llmLibrary(){ // 加载 WebLLM 库（第一次用深度思考时才下�
 }
 function llmConfig(webllm,m,host){ // 某个模型从某个地址下载时的配置
   const base=webllm.prebuiltAppConfig.model_list.find(r=>r.model_id===m.id) // 库里自带的配置（显存、上下文长度、停止符等）
-  return {model_list:[{...base,model:host+m.id,model_lib:LLM.wasm+base.model_lib.split("/").pop()}]} // 换成这里的下载地址
+  return {model_list:[{...base,model:host.replace("{id}",m.id),model_lib:LLM.wasm+base.model_lib.split("/").pop()}]} // 换成这里的下载地址
 }
 let llmWorkerJob=null // 后台线程里能不能用显卡（只测一次）
 function llmWorkerOK(){ // 测试后台线程里有没有 WebGPU（有的浏览器只在页面里提供）

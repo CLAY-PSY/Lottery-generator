@@ -22,7 +22,7 @@ self.addEventListener("activate",event=>{ // 启用时
 })
 self.addEventListener("fetch",event=>{ // 页面发出请求时
   const request=event.request // 这个请求
-  if(request.method==="GET"&&request.url.startsWith("https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@")){ // 深度思考用的大模型库：版本固定、内容不会变，缓存优先，断网也能用
+  if(request.method==="GET"&&new URL(request.url).origin===location.origin&&/\/vendor\/web-llm-[^/]+\/index\.js$/.test(new URL(request.url).pathname)){ // 深度思考用的大模型库：目录带版本号、内容不会变，缓存优先，断网也能用（模型显卡程序由库自己缓存）
     event.respondWith(caches.open("webllm-lib").then(cache=>cache.match(request).then(hit=>hit||fetch(request).then(response=>{ // 缓存里有就用，没有再联网
       if(response.ok) cache.put(request,response.clone()) // 取到了就存起来
       return response // 返回
