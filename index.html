@@ -1671,13 +1671,18 @@ const llmReady=()=>llmStore("deep-llm-ready")||{} // 下载并成功载入过的
   llmStore("deep-llm-failed",[...new Set([...llmFailed(),id])]) // 记下
   llmStore("deep-llm-loading",null) // 清掉标记
 })()
-let llmGpuJob=null // 显卡情况（只查一次）
+let llmGpuJob=null,llmGpuLimit=0 // 显卡情况（只查一次）、单块显存上限（MB）
+const llmLog=[] // 模型库最近报的错（显卡内存不够等的原文，出错时显示）
+function llmLogAdd(text){llmLog.push(String(text).replace(/\s+/g," ").slice(0,160));if(llmLog.length>6) llmLog.shift()} // 记一条，只留最近 6 条
+try{new BroadcastChannel("lottery-llm-log").onmessage=event=>llmLogAdd(event.data)}catch(error){} // 后台线程里的报错从这个频道传过来
+;(()=>{const keep=console.error.bind(console);console.error=(...args)=>{llmLogAdd(args.map(a=>a&&a.message?a.message:String(a)).join(" "));keep(...args)}})() // 页面里的报错（模型在页面上运行时）也记下
 function llmPlan(){ // 这台设备能跑哪些模型（从强到弱）；浏览器不支持 WebGPU 时为 null
   if(!llmGpuJob) llmGpuJob=(async()=>{ // 第一次调用时查显卡
     if(!window.isSecureContext||!navigator.gpu) return null // 不支持 WebGPU
     const adapter=await navigator.gpu.requestAdapter().catch(()=>null) // 显卡
     if(!adapter) return null // 没有可用的显卡
     const mobile=/iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1) // 手机、平板（新 iPad 自称 Mac）
+    llmGpuLimit=Math.round(adapter.limits.maxBufferSize/1048576) // 显卡单块显存上限（MB），出错时一起显示，方便排查
     return {q:adapter.features.has("shader-f16")?"q4f16_1":"q4f32_1",mobile} // 显卡支持半精度就用半精度版（省显存、更快）
   })().catch(()=>null) // 查不了就当不支持
   return llmGpuJob.then(gpu=>{ // 按显卡情况列出候选
@@ -1710,7 +1715,9 @@ function llmWorkerOK(){ // 测试后台线程里有没有 WebGPU（有的浏览�
   return llmWorkerJob // 返回
 }
 function llmWorker(){ // 建一个运行大模型的后台线程：模型在后台算，页面动画不卡
-  const code=`import {WebWorkerMLCEngineHandler} from "${LLM.lib}";const handler=new WebWorkerMLCEngineHandler();self.onmessage=event=>handler.onmessage(event)` // 线程脚本：交给 WebLLM 处理
+  const code=`import {WebWorkerMLCEngineHandler} from "${LLM.lib}";` // 线程脚本：交给 WebLLM 处理
+    +`try{const log=new BroadcastChannel("lottery-llm-log"),keep=console.error.bind(console);console.error=(...args)=>{try{log.postMessage(args.map(a=>a&&a.message?a.message:String(a)).join(" "))}catch(e){}keep(...args)}}catch(e){}` // 报错（例如显卡内存不够的原文）转给页面
+    +`const handler=new WebWorkerMLCEngineHandler();self.onmessage=event=>handler.onmessage(event)`
   return new Worker(URL.createObjectURL(new Blob([code],{type:"text/javascript"})),{type:"module"}) // 模块线程（才能 import）
 }
 let llmEngine=null // 已载入的模型：模型信息 + engine（对话引擎）+ worker（后台线程）
@@ -1968,6 +1975,7 @@ async function generateDeep(){ // 深度思考：本机大模型读完统计结�
         let phase="读题",away=false // 进行到哪一步（出错时告诉用户）、期间是否离开过页面
         const onAway=()=>{if(document.hidden) away=true} // 切到别的应用、锁屏：系统可能收回显卡
         document.addEventListener("visibilitychange",onAway) // 开始留意
+        llmLog.length=0 // 只看这次生成时的报错
         try{ // 生成
           let ended=false // 模型自己想完了
           const result=await llmStream(model.engine,prompt,LLM.think,seed,(text,count)=>{ // 第一步：想
@@ -1995,13 +2003,15 @@ async function generateDeep(){ // 深度思考：本机大模型读完统计结�
           llmDrop() // 丢掉模型，下次重新载入
           answer="" // 结论作废
           const detail=String(error&&(error.message||error)||"未知错误").replace(/\s+/g," ").slice(0,120) // 错误原文（太长截断），方便排查
-          const lost=/lost|memory|instance|oom|out of/i.test(detail) // 显卡被收回、内存不够
+          const recent=[...llmLog].reverse() // 最近的报错在前
+          const gpu=recent.find(t=>/exceed|limit|out ?of ?memory|allocat|buffer/i.test(t)&&!/device was lost/i.test(t))||recent.find(t=>/lost|gpu|webgpu/i.test(t)) // 显卡自己报的错（真正的原因），具体的优先
+          const lost=/lost|memory|instance|oom|out of|disposed/i.test(detail+" "+(gpu||"")) // 显卡被收回、内存不够（显卡出错后模型会被拆掉，正在进行的计算就报“已被释放”）
           const smaller=plan[plan.findIndex(m=>m.id===model.id)+1] // 小一档的模型
           let tip="" // 给用户的建议
           if(away) tip="思考时离开过这个页面，系统可能收回了显卡；下次请停在这个页面等它想完。" // 切走了：不怪模型
           else if(lost&&smaller){llmStore("deep-llm-failed",[...new Set([...llmFailed(),model.id])]);tip=`多半是这台设备的显卡内存不够跑 ${model.name}，下次会改用 ${smaller.name}。`} // 内存不够：记下，下次换小的
           else if(lost) tip="多半是这台设备的显卡内存不够。" // 已经是最小的
-          para("说明").textContent=`模型在${phase}时出错（${detail}），这次改由算法决定号码。${tip}` // 说明
+          para("说明").textContent=`模型在${phase}时出错（${detail}${gpu?`；显卡报错：${gpu}`:""}${llmGpuLimit?`；显卡单块上限 ${llmGpuLimit} MB`:""}），这次改由算法决定号码。${tip}` // 说明
         }
         document.removeEventListener("visibilitychange",onAway) // 不再留意
         stop.hidden=true // 收起“停止”
