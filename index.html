@@ -1965,9 +1965,13 @@ async function generateDeep(){ // 深度思考：本机大模型读完统计结�
         const schedule=()=>{if(!queued){queued=true;requestAnimationFrame(()=>{queued=false;render()})}} // 安排下一帧刷新
         stop.hidden=false // 显示“停止”
         stop.onclick=()=>{stopped=true;stop.hidden=true} // 点了就收尾
+        let phase="读题",away=false // 进行到哪一步（出错时告诉用户）、期间是否离开过页面
+        const onAway=()=>{if(document.hidden) away=true} // 切到别的应用、锁屏：系统可能收回显卡
+        document.addEventListener("visibilitychange",onAway) // 开始留意
         try{ // 生成
           let ended=false // 模型自己想完了
           const result=await llmStream(model.engine,prompt,LLM.think,seed,(text,count)=>{ // 第一步：想
+            phase="思考" // 已经开始写了
             const end=text.indexOf("</think>") // 想完的位置
             if(end>=0){raw=text.slice(0,end);ended=true} // 想完了（只留思考部分）
             else{ // 还在想
@@ -1982,6 +1986,7 @@ async function generateDeep(){ // 深度思考：本机大模型读完统计结�
           },{presence_penalty:LLM.presence,stop:["</think>"]})
           if(!ended&&result.finish!=="stop") cut=true // 不是自己想完的（写满或点了停止）
           stop.hidden=true;render() // 不能再停了，刷新
+          phase="写结论" // 第二步
           // 第二步：写结论。“红球：”由程序起头，格式不会乱；没想完的，先替它说一句“时间差不多了”
           await llmStream(model.engine,`${prompt}${raw.trimEnd()}${cut?"\n\n好，时间差不多了，根据上面的分析定下号码。":""}\n</think>\n\n红球：`,LLM.answer,seed,text=>{answer=`红球：${text.trimStart()}`;schedule()})
           render() // 最后刷新一次
@@ -1989,8 +1994,16 @@ async function generateDeep(){ // 深度思考：本机大模型读完统计结�
           console.warn("大模型思考失败:",error) // 控制台记录
           llmDrop() // 丢掉模型，下次重新载入
           answer="" // 结论作废
-          para("说明").textContent="模型中途出错，这次改由算法决定号码。" // 说明
+          const detail=String(error&&(error.message||error)||"未知错误").replace(/\s+/g," ").slice(0,120) // 错误原文（太长截断），方便排查
+          const lost=/lost|memory|instance|oom|out of/i.test(detail) // 显卡被收回、内存不够
+          const smaller=plan[plan.findIndex(m=>m.id===model.id)+1] // 小一档的模型
+          let tip="" // 给用户的建议
+          if(away) tip="思考时离开过这个页面，系统可能收回了显卡；下次请停在这个页面等它想完。" // 切走了：不怪模型
+          else if(lost&&smaller){llmStore("deep-llm-failed",[...new Set([...llmFailed(),model.id])]);tip=`多半是这台设备的显卡内存不够跑 ${model.name}，下次会改用 ${smaller.name}。`} // 内存不够：记下，下次换小的
+          else if(lost) tip="多半是这台设备的显卡内存不够。" // 已经是最小的
+          para("说明").textContent=`模型在${phase}时出错（${detail}），这次改由算法决定号码。${tip}` // 说明
         }
+        document.removeEventListener("visibilitychange",onAway) // 不再留意
         stop.hidden=true // 收起“停止”
         if(answer.trim()){ // 有结论：用模型选的号码组合
           const [wantRed,wantBlue]=LLM.pick[type] // 要挑几个
