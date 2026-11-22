@@ -586,39 +586,41 @@ button::after, /* 按钮、 */
   white-space:pre-wrap; /* 保留模型写的换行 */
   color:var(--text-sub); /* 次要文字颜色 */
 }
-.deep-stop { /* 思考中标题行右侧的“停止”：点了就收尾，根据已有的想法给结论。
-  和想完后的“查看过程 ›”一样是纯文字按钮，不用玻璃胶囊（14px 的标题行里放胶囊太挤，描边也显得不匀） */
+.result-inner.deep:not(.deep-done) { /* 思考中：结果区不裁切，“停止”胶囊比标题行高，上下各伸出 3px，不能被切掉变平
+  （思考过程在 .deep-log 里自己滚动，不会溢出；想完后显示号码时恢复裁切） */
+  overflow:visible; /* 不裁切 */
+}
+.deep-stop { /* 思考中标题行右侧的“停止”：圆润的小胶囊，点了就收尾，根据已有的想法给结论 */
   flex:none; /* 不伸缩（按钮默认平分宽度） */
   display:inline-flex; /* 小方块和文字横排 */
   align-items:center; /* 垂直居中 */
   gap:4px; /* 小方块和文字的间距 */
-  height:14px; /* 和标题行一样高 */
-  margin-left:4px; /* 和用时再隔开一点 */
-  padding:0; /* 不要按钮的内边距 */
-  font-size:12px; /* 和标题行同字号 */
+  height:20px; /* 胶囊高度 */
+  margin:-3px 0 -3px 4px; /* 比 14px 的标题行高 6px：上下各伸出 3px，和标题文字居中对齐，又不撑高标题行 */
+  padding:0 9px 0 8px; /* 左右留白（右边多 1px，视觉上和左边的小方块平衡） */
+  font-size:11.5px; /* 字号 */
   font-weight:600; /* 半粗 */
-  line-height:14px; /* 行高 */
-  color:var(--primary); /* 主题色：看得出能点 */
-  background:none; /* 不要玻璃底色 */
-  border-radius:0; /* 不要圆角 */
-  box-shadow:none; /* 不要阴影 */
-  text-shadow:var(--label-glow); /* 文字光晕：和标题行一致 */
+  line-height:20px; /* 行高 */
+  color:var(--primary); /* 主题色 */
+  background:var(--glass-spec),var(--glass-bg-strong); /* 和其他按钮一样的玻璃底色 */
+  border-radius:10px; /* 高度的一半：两头是完整的半圆 */
+  box-shadow: /* 小尺寸不用按钮的渐变描边（太细会一边粗一边细），改用均匀的细边 + 轻微投影 */
+    inset 0 0 0 .5px var(--glass-border), /* 一圈均匀的 0.5px 细边 */
+    inset 0 1px 0 rgba(255,255,255,.55), /* 顶部一道亮线，像玻璃 */
+    0 1px 3px rgba(15,23,42,.14); /* 轻微投影 */
 }
-.deep-stop::before { /* 按钮的玻璃描边层：改成透明的点击区域，比文字大一圈，手指好点 */
-  inset:-12px -10px; /* 上下各放大 12px、左右各 10px */
+.deep-stop::before { /* 按钮的渐变描边层：改成透明的点击区域，比胶囊大一圈，手指好点 */
+  inset:-10px -8px; /* 上下各放大 10px、左右各 8px */
   padding:0; /* 不要描边宽度 */
   background:none; /* 透明 */
   -webkit-mask:none; /* 不要描边遮罩（Safari） */
   mask:none; /* 不要描边遮罩 */
   border-radius:0; /* 不要圆角 */
 }
-.deep-stop::after { /* 按钮的触摸发光层 */
-  display:none; /* 不要 */
-}
 .deep-stop-icon { /* “停止”前的小方块：和左边 7px 的圆点呼应 */
   width:7px; /* 宽 */
   height:7px; /* 高 */
-  border-radius:1.5px; /* 微圆角 */
+  border-radius:2px; /* 圆角方块 */
   background:currentColor; /* 和文字同色 */
 }
 .deep-stop[hidden] { /* 不在思考时 */
