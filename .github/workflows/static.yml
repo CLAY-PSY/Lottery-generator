@@ -24,6 +24,8 @@ concurrency:
 jobs:
   # Single deploy job since we're just deploying
   deploy:
+    # 只在 Lottery-generator 里发布：Lottery-source-code 是它的镜像，同步过去后不应尝试发布网页（比较时不区分大小写）
+    if: github.repository == 'CLAY-PSY/Lottery-generator'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
