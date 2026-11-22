@@ -1,4 +1,4 @@
-# 每晚 22:00 自动更新开奖历史（网页“深度思考”用）：抓取最新开奖并校验，有新数据就提交到 main，再请 GitHub Pages 重新发布
+# 每晚 22:00 自动更新开奖历史（网页“深度思考”用）：抓取最新开奖并校验，有新数据就提交到 main，再启动“发布网页”工作流（static.yml）
 name: 更新开奖历史  # 工作流名称
 on:  # 触发条件
   # 每天北京时间 22:00 运行一次（双色球 21:15、大乐透 21:25 开奖，500.com 一般十几分钟后更新）。
@@ -9,7 +9,7 @@ on:  # 触发条件
   workflow_dispatch:  # 也可以在 Actions 页面手动运行
 permissions:  # 权限
   contents: write  # 提交更新后的数据
-  pages: write  # 请 GitHub Pages 重新发布
+  actions: write  # 启动“发布网页”工作流（static.yml）
 concurrency:  # 同一时间只跑一个
   group: update-history  # 分组名
   cancel-in-progress: false  # 不取消正在跑的
@@ -34,8 +34,8 @@ jobs:  # 任务
           git commit -m "更新开奖历史 $(TZ=Asia/Shanghai date +%F)"  # 提交说明带上日期
           git push  # 推送到 main
           echo "pushed=true" >> "$GITHUB_OUTPUT"  # 记下已推送
-      - name: 请 GitHub Pages 重新发布  # 用 GITHUB_TOKEN 推送的提交不一定会触发 Pages 发布，这里主动请求一次
+      - name: 发布网页  # 网页由 static.yml 用 Actions 发布；机器人（GITHUB_TOKEN）推送的提交不会触发其他工作流，这里手动启动它（GitHub 允许这样启动）
         if: steps.commit.outputs.pushed == 'true'  # 只有推送了新数据才需要
         env:  # 环境变量
-          GH_TOKEN: ${{ github.token }}  # 调用 GitHub API 用的令牌
-        run: gh api --method POST "repos/${{ github.repository }}/pages/builds" || echo "没能请求重新发布（Pages 可能不是“从分支发布”），下次推送时会一起发布"  # 失败不影响数据更新
+          GH_TOKEN: ${{ github.token }}  # 调用 GitHub API 用的令牌（需要 actions: write）
+        run: gh workflow run static.yml --ref main --repo "${{ github.repository }}"  # 启动失败时这次运行会显示失败，方便发现（数据已经提交，不受影响）
