@@ -1653,7 +1653,22 @@ const LLM={ // 本地大模型设置
   answer:120, // 结论最多多少个词元
   boost:2, // 组合 5 注时，模型选中的号码分数乘以几（优先选用）
   pick:{ssq:[10,5],dlt:[9,4]}, // 让模型挑几个红球、几个蓝球
+  list:[16,8], // 题目里列出评分最高的几个红球、几个蓝球（题目短，手机读题快、占显卡时间短）
   lead:"好的，我先看红球里评分最高的几个号码。", // 思考的开头由程序写好：小模型默认用英文思考，这样它会接着用中文想
+  cpu:{ // 显卡跑不动时（例如 iPhone）改用 CPU：llama.cpp 编译成 WebAssembly（wllama 库），慢一些，但不碰显卡
+    lib:new URL("vendor/wllama-3.13.0/index.js",location.href).href, // wllama 库（放在仓库里）
+    wasm:new URL("vendor/wllama-3.13.0/wllama.wasm",location.href).href, // 新浏览器用的程序
+    compat:{worker:new URL("vendor/wllama-3.13.0/compat/wllama.js",location.href).href,wasm:new URL("vendor/wllama-3.13.0/compat/wllama.wasm",location.href).href}, // Safari 等老一点的浏览器用的兼容版
+    hosts:[ // 模型文件（GGUF 格式）的下载地址：先魔搭（国内服务器），连不上换 Hugging Face
+      "https://www.modelscope.cn/models/unsloth/{repo}/resolve/master/{file}", // 魔搭社区（文件和 Hugging Face 上的一样）
+      "https://huggingface.co/unsloth/{repo}/resolve/main/{file}", // Hugging Face 官方
+    ],
+    models:[ // 从强到弱
+      {name:"Qwen3.5-2B",size:"20 亿",mb:1281,repo:"Qwen3.5-2B-GGUF",file:"Qwen3.5-2B-Q4_K_M.gguf"}, // 默认：想得更好，手机上要几分钟
+      {name:"Qwen3.5-0.8B",size:"8 亿",mb:533,repo:"Qwen3.5-0.8B-GGUF",file:"Qwen3.5-0.8B-Q4_K_M.gguf"}, // 内存不够（页面被系统关掉）时退回
+    ],
+    ctx:2048, // 上下文长度：题目约 830 + 思考 800 + 结论 120，够用；小一点省内存
+  },
 }
 function llmStore(key,value){ // 读写本机设置（隐私模式等存不了时忽略）
   try{ // 尝试
@@ -1686,9 +1701,10 @@ function llmPlan(){ // 这台设备能跑哪些模型（从强到弱）；浏览
     return {q:adapter.features.has("shader-f16")?"q4f16_1":"q4f32_1",mobile} // 显卡支持半精度就用半精度版（省显存、更快）
   })().catch(()=>null) // 查不了就当不支持
   return llmGpuJob.then(gpu=>{ // 按显卡情况列出候选
-    if(!gpu) return null // 不支持
     const failed=llmFailed() // 跑不动的
-    const list=LLM.models.filter(m=>!(m.desktop&&gpu.mobile)).map(m=>({...m,id:`${m.name}-${gpu.q}-MLC`})).filter(m=>!failed.includes(m.id)) // 候选
+    const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1) // iPhone、iPad：显卡跑 Qwen3.5 读题时会被系统收回（实测），直接用 CPU
+    let list=gpu&&!ios?LLM.models.filter(m=>!(m.desktop&&gpu.mobile)).map(m=>({...m,id:`${m.name}-${gpu.q}-MLC`})).filter(m=>!failed.includes(m.id)):[] // 显卡候选
+    if(!list.length) list=LLM.cpu.models.map(m=>({...m,cpu:true,id:`cpu-${m.file}`})).filter(m=>!failed.includes(m.id)) // 没有显卡候选：用 CPU
     return list.length?list:null // 都跑不动就不用
   })
 }
@@ -1720,18 +1736,57 @@ function llmWorker(){ // 建一个运行大模型的后台线程：模型在后�
     +`const handler=new WebWorkerMLCEngineHandler();self.onmessage=event=>handler.onmessage(event)`
   return new Worker(URL.createObjectURL(new Blob([code],{type:"text/javascript"})),{type:"module"}) // 模块线程（才能 import）
 }
+async function llmCpuLoad(m,host,onProgress){ // 用 CPU 载入模型（wllama，自己在后台线程里算），返回和 WebLLM 一样用法的引擎
+  caches.keys().then(keys=>keys.filter(k=>k.startsWith("webllm/")).forEach(k=>caches.delete(k))).catch(()=>{}) // 用 CPU 了：显卡版的模型文件用不上，删掉省空间
+  const {Wllama}=await import(LLM.cpu.lib) // 库
+  const quiet=()=>{} // 不输出调试信息
+  const w=new Wllama({default:LLM.cpu.wasm},{suppressNativeLog:true,allowOffline:true,logger:{debug:quiet,log:quiet,warn:(...a)=>console.warn(...a),error:(...a)=>console.error(...a)}}) // 断网时直接用已下载的模型
+  w.setCompat(LLM.cpu.compat) // Safari 用仓库里的兼容版（不从外部网站下载）
+  if(llmReady()[m.id]) llmStore("deep-llm-loading",m.id) // 已下载过：马上就往内存里放，先打上标记（万一页面被系统关掉，下次就知道是它跑不动）
+  try{ // 下载并载入
+    await w.loadModelFromUrl(host.replace("{repo}",m.repo).replace("{file}",m.file),{n_ctx:LLM.cpu.ctx,n_gpu_layers:0,useCache:true,progressCallback:({loaded,total})=>{ // 进度
+      const p=Math.min(1,loaded/(total||m.mb*1e6)) // 百分比（下载服务器没给总大小时按已知的文件大小算）
+      if(p>=1) llmStore("deep-llm-loading",m.id) // 下载完了，开始往内存里放
+      onProgress(m,{progress:p,text:p<1?"Fetching":"Loading"}) // 报告
+    }})
+  }catch(error){await w.exit().catch(()=>{});throw error} // 失败：关掉
+  let abort=null // 停止当前生成用
+  return {wllama:w,interruptGenerate(){if(abort) abort.abort()},completions:{create:async req=>{ // 和 WebLLM 一样的接口
+    abort=new AbortController() // 这次生成的停止开关
+    const signal=abort.signal // 停止信号
+    const stream=await w.createCompletion({prompt:req.prompt,stream:true,max_tokens:req.max_tokens,temperature:req.temperature,top_p:req.top_p,top_k:20,seed:req.seed,presence_penalty:req.presence_penalty||0,stop:req.stop,abortSignal:signal}) // 生成
+    return (async function*(){try{for await(const chunk of stream) yield chunk}catch(error){if(!signal.aborted) throw error}})() // 停止时不报错
+  }}}
+}
 let llmEngine=null // 已载入的模型：模型信息 + engine（对话引擎）+ worker（后台线程）
 const llmNetworkError=error=>/fetch|network|load failed|http|cors|err_|timed? ?out|404|403|50\d/i.test(String(error&&(error.message||error))) // 是不是网络问题（下载不了）
 async function llmLoad(plan,onProgress){ // 载入模型：从强到弱依次试，显存不够就换小一点的；官方地址连不上就换镜像
   if(llmEngine&&plan.some(m=>m.id===llmEngine.id)) return llmEngine // 已经载入过
-  const webllm=await llmLibrary() // 库
-  const useWorker=await llmWorkerOK() // 能不能放到后台线程
+  const gpuPlan=plan.some(m=>!m.cpu) // 要不要用显卡版（WebLLM）
+  const webllm=gpuPlan?await llmLibrary():null // 库
+  const useWorker=gpuPlan?await llmWorkerOK():false // 能不能放到后台线程
   let lastError=null // 最后一次的错误
   for(const m of plan){ // 每个候选模型
     const known=llmReady()[m.id] // 以前从哪个地址下载的
-    const hosts=known?[known,...LLM.hosts.filter(h=>h!==known)]:LLM.hosts // 下载过就先用原地址（直接读本机缓存）
+    const all=m.cpu?LLM.cpu.hosts:LLM.hosts // 这个模型的下载地址
+    const hosts=known?[known,...all.filter(h=>h!==known)]:all // 下载过就先用原地址（直接读本机缓存）
     let network=false // 是不是网络问题
     for(const host of hosts){ // 每个下载地址
+      if(m.cpu){ // CPU 版
+        try{ // 尝试
+          const engine=await llmCpuLoad(m,host,onProgress) // 下载并载入
+          llmStore("deep-llm-loading",null) // 顺利载入了，清掉标记
+          llmStore("deep-llm-ready",{...llmReady(),[m.id]:host}) // 记下：下载过、能载入
+          llmEngine={...m,engine,worker:null} // 记下
+          return llmEngine // 完成
+        }catch(error){ // 失败
+          console.warn(`模型 ${m.id} 载入失败:`,error) // 控制台记录
+          llmStore("deep-llm-loading",null) // 没有被系统关掉，清掉标记
+          lastError=error;network=llmNetworkError(error) // 记下；网络问题？
+          if(!network) break // 不是网络问题（多半是内存不够）：换地址也没用
+          continue // 换下一个地址
+        }
+      }
       const worker=useWorker?llmWorker():null // 后台线程
       try{ // 尝试
         const options={appConfig:llmConfig(webllm,m,host),initProgressCallback:report=>{ // 载入进度
@@ -1759,6 +1814,7 @@ async function llmLoad(plan,onProgress){ // 载入模型：从强到弱依次试
 }
 function llmDrop(){ // 模型出错（例如显卡被系统收回）：丢掉，下次重新载入
   if(llmEngine&&llmEngine.worker) llmEngine.worker.terminate() // 关掉后台线程
+  if(llmEngine&&llmEngine.engine.wllama) llmEngine.engine.wllama.exit().catch(()=>{}) // CPU 版：关掉
   llmEngine=null // 丢掉
 }
 let llmAskCancel=null // 正在显示的下载询问（再点一次生成时取消它）
@@ -1770,7 +1826,7 @@ function llmAsk(m){ // 第一次用：说明要下载多大的模型，问要不
     resultInner.className="result-inner deep-ask" // 询问的样式
     const text=document.createElement("p") // 说明
     text.className="deep-ask-text" // 样式
-    text.innerHTML=`<b>深度思考由本机大模型完成</b>第一次需要下载 ${m.name}（${m.size}参数，约 ${size}），建议连接 Wi-Fi。下载后存在这台设备上，以后离线也能用，开奖数据不会上传。` // 内容
+    text.innerHTML=`<b>深度思考由本机大模型完成</b>第一次需要下载 ${m.name}（${m.size}参数，约 ${size}），建议连接 Wi-Fi。下载后存在这台设备上，以后离线也能用，开奖数据不会上传。${m.cpu?"这台设备用 CPU 运行，想一遍要几分钟。":""}` // 内容
     const row=document.createElement("div") // 按钮行
     row.className="deep-ask-btns" // 样式
     const yes=document.createElement("button") // “下载并思考”
@@ -1791,16 +1847,16 @@ function llmAsk(m){ // 第一次用：说明要下载多大的模型，问要不
 }
 function llmPrompt(type,rule,a,red,blue){ // 写给模型的题目：规则、最近开奖、统计结果、每个号码的指标、任务和回答格式（千问的对话格式）
   const draws=a.draws,[kr,Mr]=rule.red,[kb,Mb]=rule.blue,[wantRed,wantBlue]=LLM.pick[type] // 开奖、个数和范围、要挑的个数
-  const table=(col,M,k,pool)=>{ // 一种球的指标表（按综合评分从高到低）：号码、评分（相对平均值，+5 就是比平均高 5%）、遗漏期数、近 30 期开出次数
+  const table=(col,M,k,pool,limit)=>{ // 一种球评分最高的 limit 个号码（从高到低）：号码、评分（相对平均值，+5 就是比平均高 5%）、遗漏期数、近 30 期开出次数
     const rows=[] // 每个号码一行
     for(let n=1;n<=M;n++){ // 每个号码
       let gap=draws.findIndex(d=>d[col].includes(n)) // 连续多少期没开出
       if(gap<0) gap=draws.length // 从没开出过
       const hot=draws.slice(0,30).filter(d=>d[col].includes(n)).length // 近 30 期开出次数
       const score=Math.round(pool.mix[n]/(k/M)*100)-100 // 评分
-      rows.push({n,score,text:`${pad2(n)} 评分${score>=0?"+":""}${score} 遗漏${gap}期 近30期${hot}次`}) // 一行
+      rows.push({n,score,text:`${pad2(n)} ${score>=0?"+":""}${score} ${gap} ${hot}`}) // 一行：号码 评分 遗漏 近30期
     }
-    return rows.sort((x,y)=>y.score-x.score||x.n-y.n).map(r=>r.text).join("\n") // 评分高的在前
+    return ["号码 评分 遗漏 近30期",...rows.sort((x,y)=>y.score-x.score||x.n-y.n).slice(0,limit).map(r=>r.text)].join("\n") // 表头 + 评分高的在前；只列前面几个，题目短，手机读得快
   }
   const M=key=>red.models.find(m=>m.key===key) // 按名字找红球模型
   const experts=["freq","gap","markov","nn"].map(M) // 四位专家
@@ -1808,18 +1864,16 @@ function llmPrompt(type,rule,a,red,blue){ // 写给模型的题目：规则、�
   const user=[ // 题目
     `彩种：${rule.name}，每注 ${kr} 个红球（01～${Mr}）+ ${kb} 个蓝球（01～${pad2(Mb)}）。`, // 规则
     `开奖历史：共 ${draws.length} 期（${draws[draws.length-1][1]} 至 ${draws[0][1]}）。`, // 数据范围
-    "最近 10 期（期号：红球 + 蓝球）：", // 最近开奖
-    ...draws.slice(0,10).map(d=>`${d[0]}：${d[2].map(pad2).join(" ")} + ${d[3].map(pad2).join(" ")}`), // 每期一行
+    "最近 5 期（期号：红球 + 蓝球）：", // 最近开奖
+    ...draws.slice(0,5).map(d=>`${d[0]}：${d[2].map(pad2).join(" ")} + ${d[3].map(pad2).join(" ")}`), // 每期一行
     "", // 空行
-    `程序已做好的统计（最近 ${DEEP.window} 期逐期回测，每期只用它之前的数据）：`, // 统计
-    `- 四位专家给红球打分，前 ${kr} 名平均猜中：${experts.map(m=>`${m.name} ${m.hits.toFixed(2)}`).join("、")}；每个号码机会均等时是 ${M("uniform").hits.toFixed(2)}。`, // 回测成绩
-    `- 按回测成绩分配的发言权：${[...red.models].sort((x,y)=>y.weight-x.weight).map(m=>`${m.name} ${Math.round(m.weight*100)}%`).join("、")}。`, // 权重
+    `程序统计：四位专家用最近 ${DEEP.window} 期回测，前 ${kr} 名平均猜中 ${experts.map(m=>`${m.name.replace("专家","")} ${m.hits.toFixed(2)}`).join("、")}，机会均等时是 ${M("uniform").hits.toFixed(2)}；按成绩分配发言权后算出下面的综合评分。`, // 回测成绩（一句话）
     "", // 空行
-    "红球（按评分从高到低。评分是各专家按发言权加权后的综合评分，相对平均值，+5 就是比平均高 5%；遗漏是已经连续多少期没开出；近30期是最近 30 期开出的次数）：", // 红球表说明
-    table(2,Mr,kr,red), // 红球表
+    `红球评分最高的 ${LLM.list[0]} 个（评分相对平均值，+5 即高 5%；遗漏是已连续几期没开出；近30期是最近 30 期开出几次）：`, // 红球表说明
+    table(2,Mr,kr,red,LLM.list[0]), // 红球表
     "", // 空行
-    "蓝球（同上）：", // 蓝球表说明
-    table(3,Mb,kb,blue), // 蓝球表
+    `蓝球评分最高的 ${LLM.list[1]} 个（同上）：`, // 蓝球表说明
+    table(3,Mb,kb,blue,LLM.list[1]), // 蓝球表
     "", // 空行
     `任务：选出你最看好的 ${wantRed} 个红球和 ${wantBlue} 个蓝球（号码不重复），程序会用它们组合成 5 注。`, // 任务
     "用中文思考，直接分析数据，不用复述题目：先看评分靠前的号码，再结合遗漏和近 30 期的冷热做取舍，最后定下号码。思考控制在 300 字以内。", // 思路要求
@@ -1931,7 +1985,7 @@ async function generateDeep(){ // 深度思考：本机大模型读完统计结�
       if(!progressLine||!progress) return // 还没到显示的时候
       const {m,report}=progress,p=Math.round((report.progress||0)*100) // 模型、百分比
       const size=m.mb>=1000?`${(m.mb/1024).toFixed(1)}\u00a0GB`:`${m.mb}\u00a0MB` // 下载大小
-      progressLine.textContent=/fetching/i.test(report.text||"")?`正在下载 ${m.name}（约 ${size}，只需一次）${p}%`:`正在把 ${m.name} 载入显卡 ${p}%` // 下载中 / 载入中
+      progressLine.textContent=/fetching/i.test(report.text||"")?`正在下载 ${m.name}（约 ${size}，只需一次）${p}%`:m.cpu?`正在把 ${m.name} 载入内存…`:`正在把 ${m.name} 载入显卡 ${p}%` // 下载中 / 载入中
     }
     const engineJob=plan?llmLoad(plan,(m,report)=>{progress={m,report};showProgress()}):null // 同时开始载入模型（和统计一起进行）
     if(engineJob) engineJob.catch(()=>{}) // 出错在下面处理
@@ -1957,7 +2011,7 @@ async function generateDeep(){ // 深度思考：本机大模型读完统计结�
       try{model=await engineJob}catch(error){progressLine.textContent="没能载入（网络或内存不够），这次改由算法决定号码。"} // 等模型载入
       progressLine.parentNode.classList.remove("live") // 不再是进度
       if(model){ // 模型就绪
-        progressLine.textContent=`${model.name}（${model.size}参数）已就绪，在这台设备上运行，数据不上传。` // 就绪
+        progressLine.textContent=`${model.name}（${model.size}参数）已就绪，在这台设备的${model.cpu?" CPU ":"显卡"}上运行，数据不上传。${model.cpu?"CPU 算得慢，想一遍要几分钟，请停在这个页面。":""}` // 就绪
         const seed=seedOf(`${type}|${latest[0]}|${draws.length}`) // 固定种子：开奖数据不变，想法就不变
         const prompt=llmPrompt(type,rule,a,red,blue) // 题目
         const thinkBody=para("思考") // 思考这一段
@@ -2005,12 +2059,13 @@ async function generateDeep(){ // 深度思考：本机大模型读完统计结�
           const detail=String(error&&(error.message||error)||"未知错误").replace(/\s+/g," ").slice(0,120) // 错误原文（太长截断），方便排查
           const recent=[...llmLog].reverse() // 最近的报错在前
           const gpu=recent.find(t=>/exceed|limit|out ?of ?memory|allocat|buffer/i.test(t)&&!/device was lost/i.test(t))||recent.find(t=>/lost|gpu|webgpu/i.test(t)) // 显卡自己报的错（真正的原因），具体的优先
-          const lost=/lost|memory|instance|oom|out of|disposed/i.test(detail+" "+(gpu||"")) // 显卡被收回、内存不够（显卡出错后模型会被拆掉，正在进行的计算就报“已被释放”）
+          const lost=/lost|memory|instance|oom|out of|disposed|bounds|allocat/i.test(detail+" "+(gpu||"")) // 显卡被收回、内存不够（显卡出错后模型会被拆掉，正在进行的计算就报“已被释放”；CPU 版内存不够报越界、分配失败）
           const smaller=plan[plan.findIndex(m=>m.id===model.id)+1] // 小一档的模型
           let tip="" // 给用户的建议
           if(away) tip="思考时离开过这个页面，系统可能收回了显卡；下次请停在这个页面等它想完。" // 切走了：不怪模型
-          else if(lost&&smaller){llmStore("deep-llm-failed",[...new Set([...llmFailed(),model.id])]);tip=`多半是这台设备的显卡内存不够跑 ${model.name}，下次会改用 ${smaller.name}。`} // 内存不够：记下，下次换小的
-          else if(lost) tip="多半是这台设备的显卡内存不够。" // 已经是最小的
+          else if(lost&&smaller){llmStore("deep-llm-failed",[...new Set([...llmFailed(),model.id])]);tip=`多半是这台设备的${model.cpu?"":"显卡"}内存不够跑 ${model.name}，下次会改用 ${smaller.name}。`} // 内存不够：记下，下次换小的
+          else if(lost&&!model.cpu){llmStore("deep-llm-failed",[...new Set([...llmFailed(),model.id])]);tip="多半是这台设备的显卡内存不够，下次改用 CPU 运行。"} // 显卡版最小的也不行：下次用 CPU
+          else if(lost) tip="多半是这台设备的内存不够。" // CPU 版最小的也不行
           para("说明").textContent=`模型在${phase}时出错（${detail}${gpu?`；显卡报错：${gpu}`:""}${llmGpuLimit?`；显卡单块上限 ${llmGpuLimit} MB`:""}），这次改由算法决定号码。${tip}` // 说明
         }
         document.removeEventListener("visibilitychange",onAway) // 不再留意
