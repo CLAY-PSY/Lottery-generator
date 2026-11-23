@@ -18,10 +18,7 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   const log=document.createElement("div") // 过程正文
   log.className="deep-log" // 样式
   resultInner.append(head,log) // 放进窗口
-  const fade=()=>{ // 上面还有内容就让顶部渐隐，下面还有内容就让底部渐隐
-    log.classList.toggle("fade-top",log.scrollTop>1) // 往下滚过
-    log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
-  }
+  const {follow}=logScroller(log) // 有新内容时滚到最新一行（往上翻看时不拽回），并更新上下渐隐
   const line=(label,parts,ms)=>new Promise(resolve=>{ // 写一段：加粗的小标题 + 正文；parts 是 [文字, 样式] 的列表，在 ms 毫秒内一个字一个字写出来
     const p=document.createElement("p") // 一段
     p.className="deep-p" // 样式
@@ -35,8 +32,7 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
     const show=count=>{ // 显示前 count 个字
       let left=count // 还能显示几个字
       parts.forEach(([text],i)=>{els[i].textContent=text.slice(0,Math.max(0,left));left-=text.length}) // 逐段填
-      log.scrollTop=log.scrollHeight // 滚到最新
-      fade() // 更新渐隐
+      follow() // 滚到最新（往上翻看时不拽回），更新渐隐
     }
     if(quick||ms<=0){show(total);resolve();return} // 不逐字写：整段出现
     const tick=now=>{ // 每一帧
@@ -75,7 +71,6 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   await until(steps) // 正好 5 秒
   title.textContent="已随机选号" // 标题改成已完成（不显示用时）
   resultInner.classList.add("deep-done") // 抽完了（过程留在窗口里，可以上下滑动回看）
-  log.onscroll=fade // 手动滚动时更新上下渐隐
   isRolling=false // 标记为生成结束
   resultInner.removeAttribute("aria-busy") // 读屏软件播报
   toggleButtons(false) // 恢复按钮和切换
