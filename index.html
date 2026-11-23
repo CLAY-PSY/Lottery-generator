@@ -578,6 +578,15 @@ button::after, /* 按钮、 */
   color:var(--text-sub); /* 颜色淡一点 */
   font-variant-numeric:tabular-nums; /* 数字等宽 */
 }
+/* 随机选号过程：剩下的号码淡一点，抽中的号码醒目 */
+.draw-pool { /* 剩下的号码 */
+  color:var(--text-sub); /* 次要文字颜色 */
+  font-variant-numeric:tabular-nums; /* 数字等宽，排得整齐 */
+}
+.draw-hit { /* 抽中的号码 */
+  font-weight:700; /* 加粗 */
+  color:var(--primary); /* 主题色 */
+}
 /* 一注卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的一注（随机选号、深度思考都是） */
 .pick-box { /* 一注卡片 */
   flex-shrink:0; /* 不被压缩 */
@@ -1171,6 +1180,18 @@ function randomIntUnbiased(max){ // 取 [0,max) 内的无偏随机整数
   }while(x>=limit) // 落在尾部不能整除的区间就重取
   return x%max // 取余，得到 [0,max) 的无偏结果
 }
+function randomIndexWork(max){ // 和 randomIntUnbiased 一样取 [0,max) 的无偏随机整数，同时交出计算过程：用到的加密随机数 x、丢掉重取的数
+  const limit=0x100000000-0x100000000%max // 不超过 2^32 的最大的 max 整数倍：x 落在它以上会让小号码多一点机会，要重取
+  const rejected=[] // 丢掉的数
+  let x // 加密随机数
+  for(;;){ // 直到取到可用的数
+    crypto.getRandomValues(randomWord) // 浏览器的加密随机数生成器
+    x=randomWord[0] // 0～4294967295 之间的整数
+    if(x<limit) break // 可用
+    rejected.push(x) // 落在尾部，丢掉重取
+  }
+  return {index:x%max,x,quotient:Math.floor(x/max),rejected} // 余数（第几个，从 0 数）、x、商、丢掉的数
+}
 function createBall(n,color){ // 创建一个号码球
   const span=document.createElement("span") // 外层：球
   span.className=`ball ${color}` // 球的样式：ball 加颜色（red 或 blue）
@@ -1206,30 +1227,36 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
     log.classList.toggle("fade-top",log.scrollTop>1) // 往下滚过
     log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
   }
-  const line=(label,text)=>{ // 写一段：加粗的小标题 + 正文
+  const line=(label,...parts)=>{ // 写一段：加粗的小标题 + 正文（文字，或已做好的元素）
     const p=document.createElement("p") // 一段
     p.className="deep-p" // 样式
     const b=document.createElement("b") // 小标题
     b.className="deep-step" // 样式
     b.textContent=label // 文字
-    p.append(b,text) // 小标题和正文
+    p.append(b,...parts) // 小标题和正文
     log.appendChild(p) // 放进窗口
     log.scrollTop=log.scrollHeight // 滚到最新
     fade() // 更新渐隐
   }
+  const span=(cls,text)=>{const e=document.createElement("span");e.className=cls;e.textContent=text;return e} // 带样式的一小段文字
+  const fmt=x=>x.toLocaleString("en-US") // 大数加千位逗号
   const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
   const range=M=>`01～${pad2(M)}` // 号码范围
-  line("方法",`用浏览器的加密随机数抽号：红球从 ${range(Mr)} 里不放回地抽 ${kr} 个，蓝球从 ${range(Mb)} 里抽 ${kb} 个。每次抽之前，剩下的每个号码被抽中的机会都一样。`)
+  line("方法",`红球从 ${range(Mr)} 里不放回地抽 ${kr} 个，蓝球从 ${range(Mb)} 里抽 ${kb} 个。每抽一个球：剩下 m 个号码，用浏览器的加密随机数生成器取一个 0～4,294,967,295 之间的整数 x，算 x 除以 m 的余数 r，抽出剩下号码里的第 r+1 个。x 落在除不尽的最后一小段时丢掉重取，保证剩下的每个号码机会完全相等。`)
   showPickPartial([],[]) // 一注卡片先全是空球
   const reds=[],blues=[] // 抽出的红球、蓝球
   const draw=async(M,k,picked,color,name)=>{ // 抽一种颜色的球
     const pool=Array.from({length:M},(_,i)=>i+1) // 号码池：1～M
     for(let i=0;i<k;i++){ // 抽 k 个
-      await wait(160) // 停一下，一个个出来
-      const taken=[...picked].sort((x,y)=>x-y) // 已经抽出的（从小到大）
-      const n=pool.splice(randomIntUnbiased(pool.length),1)[0] // 从剩下的号码里等概率抽一个，拿出号码池
+      await wait(220) // 停一下，一个个出来
+      const m=pool.length,left=nums(pool) // 剩下几个、是哪些
+      const w=randomIndexWork(m) // 加密随机数和计算过程
+      const n=pool.splice(w.index,1)[0] // 抽出剩下号码里的第 index+1 个，拿出号码池
       picked.push(n) // 记下
-      line(k>1?`第 ${i+1} 个${name}`:name,taken.length?`${range(M)} 去掉已抽出的 ${taken.map(pad2).join("、")}，剩 ${pool.length+1} 个号码，抽出 ${pad2(n)}`:`${range(M)} 共 ${M} 个号码，抽出 ${pad2(n)}`) // 写出这一步
+      line(k>1?`第 ${i+1} 个${name}`:name, // 写出这一步
+        `剩下 ${m} 个号码：`,span("draw-pool",left),"。", // 从哪些号码里抽
+        w.rejected.length?`（先取到的 ${w.rejected.map(fmt).join("、")} 落在除不尽的尾部，丢掉重取）`:"", // 重取过（极少见）
+        `x＝${fmt(w.x)}，${fmt(w.x)}＝${m}×${fmt(w.quotient)}＋${w.index}，余数 ${w.index}，取第 ${w.index+1} 个 → `,span("draw-hit",pad2(n))) // 计算和结果
       showPickPartial(reds,blues,[n,color]) // 填进一注卡片
     }
   }
