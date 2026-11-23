@@ -1256,7 +1256,7 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   })
   const fmt=x=>x.toLocaleString("en-US") // 大数加千位逗号
   const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
-  showPickPartial([],[]) // 一注卡片先全是空球（依次呼吸）
+  showPickGhosts(true) // 一注卡片先全是空球，抽号时依次呼吸
   const reds=[],blues=[] // 抽出的红球、蓝球
   let step=0 // 第几步
   const draw=async(M,k,picked,color,name)=>{ // 抽一种颜色的球
@@ -1273,13 +1273,13 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
         [w.rejected.length?`先取到的 ${w.rejected.map(fmt).join("、")} 落在除不尽的尾部，丢掉重取。`:""], // 重取过（极少见）
         [`x＝${fmt(w.x)}，${fmt(w.x)}＝${m}×${fmt(w.quotient)}＋${w.index}，余数 ${w.index}，取第 ${w.index+1} 个 → `],[pad2(n),"draw-hit"], // 计算和结果
       ],end-performance.now()-150)
-      showPickPartial(reds,blues,[n,color]) // 写到结果时填进一注卡片
       await until(step) // 等到这一步结束
     }
   }
   await draw(Mr,kr,reds,"red","红球") // 先抽红球
   await draw(Mb,kb,blues,"blue","蓝球") // 再抽蓝球
   await line("结果",[[`红球从小到大排好：${nums([...reds].sort((x,y)=>x-y))}；蓝球：${nums([...blues].sort((x,y)=>x-y))}。`]],t0+RANDOM_MS-performance.now()-150) // 最后一步：结果
+  showPick({red:[...reds].sort((x,y)=>x-y),blue:[...blues].sort((x,y)=>x-y)}) // 全部抽完：一注一起填上（和深度思考一样一个个弹出来）
   await until(steps) // 正好 5 秒
   title.textContent="已随机选号" // 标题改成已完成（不显示用时）
   resultInner.classList.add("deep-done") // 抽完了（过程留在窗口里，可以上下滑动回看）
@@ -1323,21 +1323,6 @@ function showPick(ticket){ // 填上算出来的一注，一个个弹出来
     ball.style.animationDelay=`${i*.07}s` // 一个接一个
     pickLine.appendChild(ball) // 放进去
   })
-}
-function showPickPartial(reds,blues,fresh){ // 随机抽号时一个个填进一注卡片：已抽出的按从小到大排好，没抽的还是空球（和深度思考一样依次呼吸）；fresh 是刚抽出的号码（弹出来）
-  const rule=DEEP_RULES[getType()],[kr]=rule.red,[kb]=rule.blue // 红球、蓝球个数
-  pickLine.classList.toggle("thinking",reds.length+blues.length<kr+kb) // 还没抽完：空球呼吸
-  pickLine.innerHTML="" // 重画
-  const put=(nums,k,color)=>{ // 放一种颜色的球
-    ;[...nums].sort((x,y)=>x-y).forEach(n=>{ // 已抽出的，从小到大
-      const ball=createBall(n,color) // 号码球
-      if(fresh&&fresh[0]===n&&fresh[1]===color) ball.classList.add("reveal") // 刚抽出的弹出来
-      pickLine.appendChild(ball) // 放进去
-    })
-    for(let i=nums.length;i<k;i++){const ghost=document.createElement("span");ghost.className=`ball ghost ${color}`;ghost.style.animationDelay=`${pickLine.children.length*.12}s`;pickLine.appendChild(ghost)} // 没抽的：空球（按位置错开，像波浪一样呼吸）
-  }
-  put(reds,kr,"red") // 红球
-  put(blues,kb,"blue") // 蓝球
 }
 const DEEP={window:200,tune:300,pool:20,temper:5} // 深度思考设置：回测最近 200 期、调参用回测前的 300 期、从最被看好的 20 个红球里选号、权重的缓和系数
 const NN={features:10,hidden:16,epochs:6,train:1100,valid:200} // 神经网络设置：每个号码 10 项特征、隐藏层 16 个神经元、训练 6 轮、用 1100 期训练、最近 200 期留作回测（和其他专家同一段）
