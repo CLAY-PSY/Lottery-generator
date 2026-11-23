@@ -48,6 +48,8 @@
   :root {--ctl-h:42px;--pad:8px;} /* 控件和内边距缩小 */
   .ball {width:24px;height:24px;font-size:.75rem;} /* 号码球缩小到 24px */
   .pick-line {height:30px;} /* 一注的行高跟着缩小 */
+  .rp {gap:5px;} /* 随机选号的过程：间距收紧 */
+  .rp-cell {height:16px;font-size:9.5px;} /* 号码格子矮一点，窄屏上蓝球排成两行也放得下 */
   .pick-line .ball {width:30px;height:30px;margin:0 3px;font-size:.85rem;} /* 一注的球缩小到 30px */
   button, /* 按钮、 */
   .segmented label {font-size:.9rem;} /* 选项文字的字号缩小 */
