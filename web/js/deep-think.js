@@ -381,11 +381,7 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
   log.className="deep-log" // 样式
   log.id="deep-log" // 供标题行的 aria-controls 引用
   resultInner.append(head,log) // 放进结果区
-  const fade=()=>{ // 上面还有内容就让顶部渐隐，下面还有内容就让底部渐隐
-    log.classList.toggle("fade-top",log.scrollTop>1) // 往下滚过
-    log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
-  }
-  const follow=()=>{log.scrollTop=log.scrollHeight;fade()} // 滚到最新一行，并更新上下渐隐
+  const {follow}=logScroller(log) // 有新内容时滚到最新一行（往上翻看时不拽回），并更新上下渐隐
   const write=(label,text,cls="")=>new Promise(resolve=>{ // 写一段：开头是加粗的小标题，正文一个字一个字出现（每秒约 120 个字）
     const p=document.createElement("p") // 一段
     p.className=`deep-p ${cls}` // 样式
@@ -441,7 +437,6 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
       ?`号码个数和范围正确；和值 ${check.sumMin}（常见范围 ${a.sumRange[0]}～${a.sumRange[1]}）；奇偶、大小、分区、连号都在常见范围；不是历史头奖组合。全部通过，给出结果。`
       :`有一项没通过（${[!check.rules&&"号码规则",!check.shapes&&"形态",check.jackpots&&"历史头奖"].filter(Boolean).join("、")}），结果仅供参考。`)
     title.textContent="已深度思考" // 标题改成已完成（不显示用时）
-    log.onscroll=fade // 手动滚动时更新上下渐隐
     resultInner.classList.add("deep-done") // 想完了（思考过程留在窗口里，可以上下滑动回看）
     showPick(ticket) // 中间的卡片填上这一注
   }catch(error){ // 读取或分析出错

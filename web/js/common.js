@@ -90,6 +90,18 @@ function createBall(n,color){ // 创建一个号码球
   span.appendChild(num) // 数字放进球里
   return span // 返回这个球
 }
+function logScroller(log){ // 过程窗口的滚动：新内容出来时自动滚到最新一行；手指往上翻看时不再自动滚动（不会被拽回），滑回底部后继续跟随；上下还有内容时边缘渐隐
+  let stick=true,auto=-1 // 是否跟随最新内容、程序自己滚到的位置
+  const fade=()=>{ // 上面还有内容就让顶部渐隐，下面还有内容就让底部渐隐
+    log.classList.toggle("fade-top",log.scrollTop>1) // 往下滚过
+    log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
+  }
+  log.addEventListener("scroll",()=>{ // 滚动时
+    if(Math.abs(log.scrollTop-auto)>1) stick=log.scrollHeight-log.scrollTop-log.clientHeight<24 // 是手指滑的（不是程序滚到底）：离底部不到 24px 就继续跟随，否则停住
+    fade() // 更新渐隐
+  },{passive:true})
+  return {fade,follow(){if(stick){log.scrollTop=log.scrollHeight;auto=log.scrollTop}fade()}} // follow：有新内容时调用；记下程序滚到的位置，滚动事件里据此区分是不是手指滑的
+}
 function toggleButtons(disabled){ // 统一禁用或启用按钮、彩种切换和选号方式切换
   document.getElementById("generate-btn").disabled=disabled // “生成号码”按钮
   document.getElementById("save-btn").disabled=disabled // “保存图片”按钮
