@@ -257,7 +257,7 @@ SOFTWARE.
   .form-box, /* 表单卡片、 */
   .result-box, /* 结果卡片、 */
   .result-inner, /* 结果内容、 */
-  .result-line, /* 每行号码、 */
+  .pick-box, /* 一注卡片、 */
   h1, /* 标题、 */
   button, /* 按钮、 */
   .segmented, /* 分段控件、 */
@@ -578,15 +578,20 @@ button::after, /* 按钮、 */
   color:var(--text-sub); /* 颜色淡一点 */
   font-variant-numeric:tabular-nums; /* 数字等宽 */
 }
-/* 深度思考的一注：表单和思考过程之间单独一块玻璃卡片，只放精确计算出的一注 */
+/* 随机选号过程：剩下的号码淡一点，抽中的号码醒目 */
+.draw-pool { /* 剩下的号码 */
+  color:var(--text-sub); /* 次要文字颜色 */
+  font-variant-numeric:tabular-nums; /* 数字等宽，排得整齐 */
+}
+.draw-hit { /* 抽中的号码 */
+  font-weight:700; /* 加粗 */
+  color:var(--primary); /* 主题色 */
+}
+/* 一注卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的一注（随机选号、深度思考都是） */
 .pick-box { /* 一注卡片 */
-  display:none; /* 随机选号时不显示 */
   flex-shrink:0; /* 不被压缩 */
   border-radius:var(--radius-outer); /* 外圆角，和其他卡片一致 */
   padding:14px; /* 内边距，和结果卡片一致 */
-}
-.deep-mode .pick-box { /* 深度思考时 */
-  display:block; /* 显示 */
 }
 .pick-line { /* 一注号码 */
   display:flex; /* 横排 */
@@ -621,18 +626,10 @@ button::after, /* 按钮、 */
 @keyframes think-pulse { /* 闪动 */
   50% {opacity:.25;} /* 中间变淡 */
 }
-.result-line.reveal { /* 生成的号码行 */
-  animation:think-in .4s ease both; /* 依次淡入 */
-}
-@keyframes think-in { /* 淡入并上移 */
-  from {opacity:0;transform:translateY(6px);} /* 开始：透明、偏下 */
-  to {opacity:1;transform:none;} /* 结束：不透明、原位 */
-}
 @media (prefers-reduced-motion: reduce) { /* 减弱动态效果时 */
   .deep-dot, /* 思考中的闪动圆点、 */
   .pick-line .ghost, /* 一注的空球、 */
-  .pick-line .ball.reveal, /* 一注的号码和 */
-  .result-line.reveal {animation:none;} /* 号码行不做动画 */
+  .pick-line .ball.reveal {animation:none;} /* 一注的号码不做动画 */
 }
 .segmented:active input:enabled ~ .segmented-thumb { /* 按住分段控件（且未禁用）时的滑块 */
   --thumb-s:1.1; /* 放大 1.1 倍，像透镜 */
@@ -711,11 +708,6 @@ button:disabled { /* 禁用的按钮 */
   width:100%; /* 宽度铺满 */
   gap:10px; /* 行间距 */
 }
-.result-line { /* 每行号码 */
-  display:flex; /* 用 flex 布局 */
-  justify-content:center; /* 号码球水平居中 */
-  height:28px; /* 行高等于球的直径 */
-}
 /* 号码球：带高光的着色玻璃珠 */
 .ball { /* 号码球 */
   width:28px; /* 宽度 */
@@ -763,9 +755,8 @@ button:disabled { /* 禁用的按钮 */
     padding-bottom:max(12px, env(safe-area-inset-bottom)); /* 下方留白减小，并避开安全区 */
   }
   .form-box {grid-column:1;grid-row:2 / span 2;} /* 表单：左栏 */
-  .result-box {grid-column:2;grid-row:2 / span 2;} /* 结果：右栏 */
-  .deep-mode .pick-box {grid-column:2;grid-row:2;} /* 深度思考：一注在右栏上面， */
-  .deep-mode .result-box {grid-row:3;} /* 思考过程在下面 */
+  .pick-box {grid-column:2;grid-row:2;} /* 一注：右栏上面 */
+  .result-box {grid-column:2;grid-row:3;} /* 过程窗口：右栏下面 */
   h1 { /* 标题 */
     grid-column:1 / -1; /* 横跨两栏 */
     font-size:1.25rem; /* 字号缩小 */
@@ -1042,11 +1033,11 @@ html.ios-app .splash-view { /* 主屏幕 App 里 */
       <button type="button" id="save-btn" class="prominent">保存图片</button> <!-- “保存图片”按钮 -->
     </div> <!-- 按钮组结束 -->
   </div> <!-- 表单卡片结束 -->
-  <div class="pick-box glass" id="pick-box"> <!-- 深度思考的一注（玻璃卡片，只在深度思考时显示；下面的结果卡片用来显示思考过程） -->
-    <div class="pick-line" id="pick-line" aria-live="polite" aria-label="深度思考精确计算的一注"></div> <!-- 一注号码：思考时是空球，想完填上 -->
+  <div class="pick-box glass" id="pick-box"> <!-- 一注卡片（玻璃）：只放选出的一注；下面的卡片显示选号过程 -->
+    <div class="pick-line" id="pick-line" aria-live="polite" aria-label="选出的一注"></div> <!-- 一注号码：还没选时是空球 -->
   </div> <!-- 一注卡片结束 -->
   <div class="result-box glass"> <!-- 结果卡片（玻璃） -->
-    <div class="result-inner" id="result-inner" aria-live="polite" aria-label="生成的号码"></div> <!-- 结果内容，生成结束后读屏软件会播报 -->
+    <div class="result-inner" id="result-inner" aria-live="polite" aria-label="选号过程"></div> <!-- 选号过程：随机选号写出每个球怎么抽出来，深度思考写出思考过程 -->
   </div> <!-- 结果卡片结束 -->
 </div> <!-- 页面内容容器结束 -->
 <script> // 脚本开始
@@ -1139,7 +1130,7 @@ document.querySelectorAll(".segmented").forEach(ctl=>{ // 每个分段控件
     if(!isRolling){ // 不在生成中时（换了彩种或选号方式，旧号码不再对应）
       resultInner.innerHTML='' // 清空结果
       resultInner.className="result-inner" // 去掉深度思考的样式
-      syncDeepMode() // 深度思考时显示一注卡片（空球），随机选号时隐藏
+      showPickGhosts(false) // 一注卡片放回空球（个数按当前彩种）
     }
   }))
   thumb.addEventListener("animationend",()=>thumb.classList.remove("morph")) // 拉伸动画播完后去掉类
@@ -1189,13 +1180,17 @@ function randomIntUnbiased(max){ // 取 [0,max) 内的无偏随机整数
   }while(x>=limit) // 落在尾部不能整除的区间就重取
   return x%max // 取余，得到 [0,max) 的无偏结果
 }
-function randomNums(min,max,count){ // 从 min 到 max 中随机取 count 个不重复的数，从小到大排序
-  const pool=Array.from({length:max-min+1},(_,i)=>i+min) // 号码池：min, min+1, ..., max
-  for(let i=pool.length-1;i>0;i--){ // 从后往前洗牌（Fisher–Yates）
-    const j=randomIntUnbiased(i+1) // 在 [0,i] 中随机选一个位置
-    ;[pool[i],pool[j]]=[pool[j],pool[i]] // 与当前位置交换
+function randomIndexWork(max){ // 和 randomIntUnbiased 一样取 [0,max) 的无偏随机整数，同时交出计算过程：用到的加密随机数 x、丢掉重取的数
+  const limit=0x100000000-0x100000000%max // 不超过 2^32 的最大的 max 整数倍：x 落在它以上会让小号码多一点机会，要重取
+  const rejected=[] // 丢掉的数
+  let x // 加密随机数
+  for(;;){ // 直到取到可用的数
+    crypto.getRandomValues(randomWord) // 浏览器的加密随机数生成器
+    x=randomWord[0] // 0～4294967295 之间的整数
+    if(x<limit) break // 可用
+    rejected.push(x) // 落在尾部，丢掉重取
   }
-  return pool.slice(0,count).sort((a,b)=>a-b) // 取前 count 个并从小到大排序
+  return {index:x%max,x,quotient:Math.floor(x/max),rejected} // 余数（第几个，从 0 数）、x、商、丢掉的数
 }
 function createBall(n,color){ // 创建一个号码球
   const span=document.createElement("span") // 外层：球
@@ -1212,30 +1207,86 @@ function toggleButtons(disabled){ // 统一禁用或启用按钮、彩种切换�
   typeInputs.forEach(input=>input.disabled=disabled) // 两个彩种单选框
   modeInputs.forEach(input=>input.disabled=disabled) // 两个选号方式单选框
 }
-function appendTickets(tickets){ // 把号码一行行加到结果里，依次淡入
-  tickets.forEach((t,i)=>{ // 每一注
-    const line=document.createElement("div") // 一行
-    line.className="result-line reveal" // 样式：依次淡入
-    line.style.animationDelay=`${i*.08}s` // 一行接一行
-    t.red.forEach(n=>line.appendChild(createBall(n,"red"))) // 红球
-    t.blue.forEach(n=>line.appendChild(createBall(n,"blue"))) // 蓝球
-    resultInner.appendChild(line) // 加到结果里
+const RANDOM_MS=5000 // 随机选号的过程一共 5 秒：每个球的计算一个字一个字写出来，写完时中间的卡片填上这个球
+async function generateRandom(){ // 随机选号：一个个球抽出来，中间的卡片出一注，下面的窗口写出每个球是从哪些号码里抽出来的、怎么算的
+  if(isRolling) return // 正在生成就忽略
+  const type=getType(),rule=DEEP_RULES[type],[kr,Mr]=rule.red,[kb,Mb]=rule.blue // 彩种、红球蓝球的个数和范围
+  isRolling=true // 标记为生成中
+  toggleButtons(true) // 禁用按钮和切换
+  resultInner.setAttribute("aria-busy","true") // 告诉读屏软件内容正在变化，先不播报
+  const quick=matchMedia("(prefers-reduced-motion: reduce)").matches // 减弱动态效果时不停顿、不逐字写
+  const t0=performance.now(),steps=kr+kb+1 // 开始时间、一共几步（每个球一步，最后的结果一步）
+  const until=k=>quick?Promise.resolve():new Promise(resolve=>setTimeout(resolve,Math.max(0,t0+RANDOM_MS*k/steps-performance.now()))) // 等到第 k 步该结束的时刻（总时长平均分给每一步）
+  resultInner.innerHTML="" // 清空过程窗口
+  resultInner.className="result-inner deep" // 和深度思考一样的过程窗口样式
+  const head=document.createElement("div") // 标题行
+  head.className="deep-head" // 样式
+  head.innerHTML='<span class="deep-dot"></span><span class="deep-title">随机选号中</span><span class="deep-time"></span>' // 圆点、标题
+  const log=document.createElement("div") // 过程正文
+  log.className="deep-log" // 样式
+  resultInner.append(head,log) // 放进窗口
+  const fade=()=>{ // 上面还有内容就让顶部渐隐，下面还有内容就让底部渐隐
+    log.classList.toggle("fade-top",log.scrollTop>1) // 往下滚过
+    log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
+  }
+  const line=(label,parts,ms)=>new Promise(resolve=>{ // 写一段：加粗的小标题 + 正文；parts 是 [文字, 样式] 的列表，在 ms 毫秒内一个字一个字写出来
+    const p=document.createElement("p") // 一段
+    p.className="deep-p" // 样式
+    const b=document.createElement("b") // 小标题
+    b.className="deep-step" // 样式
+    b.textContent=label // 文字
+    p.appendChild(b) // 小标题
+    const els=parts.map(([text,cls])=>{const e=document.createElement("span");if(cls) e.className=cls;p.appendChild(e);return e}) // 每一小段文字的位置
+    log.appendChild(p) // 放进窗口
+    const total=parts.reduce((sum,[text])=>sum+text.length,0),start=performance.now() // 一共多少字、开始时间
+    const show=count=>{ // 显示前 count 个字
+      let left=count // 还能显示几个字
+      parts.forEach(([text],i)=>{els[i].textContent=text.slice(0,Math.max(0,left));left-=text.length}) // 逐段填
+      log.scrollTop=log.scrollHeight // 滚到最新
+      fade() // 更新渐隐
+    }
+    if(quick||ms<=0){show(total);resolve();return} // 不逐字写：整段出现
+    const tick=now=>{ // 每一帧
+      const count=Math.min(total,Math.ceil(total*(now-start)/ms)) // 按时间该显示到第几个字
+      show(count) // 显示
+      if(count<total) requestAnimationFrame(tick);else resolve() // 没写完继续
+    }
+    requestAnimationFrame(tick) // 开始
   })
-}
-function showTickets(tickets){ // 显示生成的号码（清空原来的内容）
-  resultInner.innerHTML="" // 清空结果
-  resultInner.className="result-inner" // 普通样式
-  resultInner.scrollTop=0 // 滚回顶部
-  appendTickets(tickets) // 加入号码
-}
-function generateRandom(){ // 随机选号：立即给出 5 注
-  if(isRolling) return // 深度思考进行中就忽略
-  const ssq=getType()==="ssq" // 是不是双色球
-  const tickets=Array.from({length:5},()=>ssq // 生成 5 注
-    ?{red:randomNums(1,33,6),blue:randomNums(1,16,1)} // 双色球：6 个红球 1～33、1 个蓝球 1～16，各不重复
-    :{red:randomNums(1,35,5),blue:randomNums(1,12,2)}) // 大乐透：5 个红球 1～35、2 个蓝球 1～12，各不重复
-  showTickets(tickets) // 显示
+  const fmt=x=>x.toLocaleString("en-US") // 大数加千位逗号
+  const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
+  showPickPartial([],[]) // 一注卡片先全是空球
+  const reds=[],blues=[] // 抽出的红球、蓝球
+  let step=0 // 第几步
+  const draw=async(M,k,picked,color,name)=>{ // 抽一种颜色的球
+    const pool=Array.from({length:M},(_,i)=>i+1) // 号码池：1～M
+    for(let i=0;i<k;i++){ // 抽 k 个
+      const m=pool.length,left=nums(pool) // 剩下几个、是哪些
+      const w=randomIndexWork(m) // 加密随机数和计算过程
+      const n=pool.splice(w.index,1)[0] // 抽出剩下号码里的第 index+1 个，拿出号码池
+      picked.push(n) // 记下
+      step++ // 这是第几步
+      const end=t0+RANDOM_MS*step/steps // 这一步该结束的时刻
+      await line(k>1?`第 ${i+1} 个${name}`:name,[ // 写出这一步：在这一步的时间里一个字一个字写完（留 0.15 秒停顿）
+        [`剩下 ${m} 个号码：`],[left,"draw-pool"],["。"], // 从哪些号码里抽
+        [w.rejected.length?`先取到的 ${w.rejected.map(fmt).join("、")} 落在除不尽的尾部，丢掉重取。`:""], // 重取过（极少见）
+        [`x＝${fmt(w.x)}，${fmt(w.x)}＝${m}×${fmt(w.quotient)}＋${w.index}，余数 ${w.index}，取第 ${w.index+1} 个 → `],[pad2(n),"draw-hit"], // 计算和结果
+      ],end-performance.now()-150)
+      showPickPartial(reds,blues,[n,color]) // 写到结果时填进一注卡片
+      await until(step) // 等到这一步结束
+    }
+  }
+  await draw(Mr,kr,reds,"red","红球") // 先抽红球
+  await draw(Mb,kb,blues,"blue","蓝球") // 再抽蓝球
+  await line("结果",[[`红球从小到大排好：${nums([...reds].sort((x,y)=>x-y))}；蓝球：${nums([...blues].sort((x,y)=>x-y))}。`]],t0+RANDOM_MS-performance.now()-150) // 最后一步：结果
+  await until(steps) // 正好 5 秒
+  head.querySelector(".deep-title").textContent="已随机选号" // 标题改成已完成
+  resultInner.classList.add("deep-done") // 抽完了（过程留在窗口里，可以上下滑动回看）
+  log.onscroll=fade // 手动滚动时更新上下渐隐
   resultMode="random" // 结果来自随机选号
+  isRolling=false // 标记为生成结束
+  resultInner.removeAttribute("aria-busy") // 读屏软件播报
+  toggleButtons(false) // 恢复按钮和切换
 }
 // ===== 深度思考：多专家 + 回测 + 贝叶斯加权 + 候选优化 + 自我检查，过程像推理模型一样实时显示 =====
 // 开奖是独立随机事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。这里按严谨的预测流程来做，并如实显示结论：
@@ -1272,11 +1323,20 @@ function showPick(ticket){ // 填上算出来的一注，一个个弹出来
     pickLine.appendChild(ball) // 放进去
   })
 }
-function syncDeepMode(){ // 按选号方式显示或隐藏一注卡片：深度思考时显示（先放空球），随机选号时隐藏
-  const deep=getMode()==="deep" // 是不是深度思考
-  document.querySelector(".container").classList.toggle("deep-mode",deep) // 容器加上标记，CSS 据此显示一注卡片、调整横屏排版
-  if(deep) showPickGhosts(false) // 还没算：空球
-  else pickLine.innerHTML="" // 随机选号：清掉（卡片也隐藏了）
+function showPickPartial(reds,blues,fresh){ // 随机抽号时一个个填进一注卡片：已抽出的按从小到大排好，没抽的还是空球；fresh 是刚抽出的号码（弹出来）
+  const rule=DEEP_RULES[getType()],[kr]=rule.red,[kb]=rule.blue // 红球、蓝球个数
+  pickLine.classList.remove("thinking") // 不呼吸
+  pickLine.innerHTML="" // 重画
+  const put=(nums,k,color)=>{ // 放一种颜色的球
+    ;[...nums].sort((x,y)=>x-y).forEach(n=>{ // 已抽出的，从小到大
+      const ball=createBall(n,color) // 号码球
+      if(fresh&&fresh[0]===n&&fresh[1]===color) ball.classList.add("reveal") // 刚抽出的弹出来
+      pickLine.appendChild(ball) // 放进去
+    })
+    for(let i=nums.length;i<k;i++){const ghost=document.createElement("span");ghost.className=`ball ghost ${color}`;pickLine.appendChild(ghost)} // 没抽的：空球
+  }
+  put(reds,kr,"red") // 红球
+  put(blues,kb,"blue") // 蓝球
 }
 const DEEP={window:200,tune:300,pool:20,temper:5} // 深度思考设置：回测最近 200 期、调参用回测前的 300 期、从最被看好的 20 个红球里选号、权重的缓和系数
 const NN={features:10,hidden:16,epochs:6,train:1100,valid:200} // 神经网络设置：每个号码 10 项特征、隐藏层 16 个神经元、训练 6 轮、用 1100 期训练、最近 200 期留作回测（和其他专家同一段）
@@ -1739,7 +1799,7 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
   }
 }
 document.getElementById("generate-btn").onclick=()=>getMode()==="deep"?generateDeep():generateRandom() // 点击“生成号码”：按选号方式生成
-syncDeepMode() // 打开页面时按当前选号方式显示或隐藏一注卡片（浏览器可能记住了上次选的“深度思考”）
+showPickGhosts(false) // 打开页面时一注卡片先放空球
 function formatDateLocal(date){ // 时间格式化为 2026-10-30_123456
   const y=date.getFullYear() // 年
   const m=String(date.getMonth()+1).padStart(2,"0") // 月，补零
@@ -1797,8 +1857,8 @@ function drawExportBall(ctx,theme,scale,color,number,x,y,r){ // 画一个导出�
   fillTextCentered(ctx,number,x,y) // 在球心画数字，按字形居中
   ctx.restore() // 恢复画布状态，去掉阴影
 }
-function exportRows(){ // 要保存的号码行：深度思考是中间卡片里的一注，随机选号是结果里的 5 注
-  return getMode()==="deep"?(pickLine.querySelector(".ball:not(.ghost)")?[pickLine]:[]):[...resultInner.querySelectorAll(".result-line")] // 每行一个元素，里面是号码球
+function exportRows(){ // 要保存的号码行：中间卡片里的一注（随机选号、深度思考都是）
+  return pickLine.querySelector(".ball:not(.ghost)")&&!pickLine.querySelector(".ghost")?[pickLine]:[] // 一注卡片里的号码（抽完、算完才算数）
 }
 function drawExportImage(title){ // 画出导出图片，返回画布
   const L=EXPORT_LAYOUT // 版式参数的简写
