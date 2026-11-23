@@ -9,7 +9,6 @@ const modeInputs=document.querySelectorAll('input[name="mode"]') // 两个选号
 function getMode(){ // 取当前选中的选号方式
   return document.querySelector('input[name="mode"]:checked').value // 返回 random（随机选号）或 deep（深度思考）
 }
-let resultMode="random" // 当前结果是用哪种方式生成的（保存图片的标题用）
 // 两个分段控件（彩种、选号方式）共用：切换时滑块播放液态拉伸动画
 document.querySelectorAll(".segmented").forEach(ctl=>{ // 每个分段控件
   const thumb=ctl.querySelector(".segmented-thumb") // 它的滑块

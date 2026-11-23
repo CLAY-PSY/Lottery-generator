@@ -444,7 +444,6 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     log.onscroll=fade // 手动滚动时更新上下渐隐
     resultInner.classList.add("deep-done") // 想完了（思考过程留在窗口里，可以上下滑动回看）
     showPick(ticket) // 中间的卡片填上这一注
-    resultMode="deep" // 结果来自深度思考
   }catch(error){ // 读取或分析出错
     console.warn("深度思考失败:",error) // 在控制台记录
     showPickGhosts(false) // 一注的位置恢复成空球
