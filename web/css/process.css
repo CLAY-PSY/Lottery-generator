@@ -93,10 +93,63 @@
   color:var(--text-sub); /* 颜色淡一点 */
   font-variant-numeric:tabular-nums; /* 数字等宽 */
 }
-/* 随机选号过程：剩下的号码淡一点，抽中的号码醒目 */
-.draw-hit { /* 抽中的号码 */
-  font-weight:700; /* 加粗 */
-  color:var(--primary); /* 主题色 */
+/* 随机选号的过程：像控制台跑代码——等宽字体、语法高亮、逐字敲出命令、闪烁光标 */
+:root { /* 代码配色（浅色） */
+  --code-bg:rgba(255,255,255,.55); /* 代码面板底色：半透明白，彩色液体上也看得清 */
+  --code-text:#1e293b; /* 普通代码 */
+  --code-key:#7c3aed; /* 关键字（const） */
+  --code-fn:#0e7490; /* 函数名 */
+  --code-num:#b45309; /* 数字 */
+  --code-dim:#64748b; /* 注释、提示符 */
+  --code-out:#334155; /* 返回结果 */
+  --code-red:#dc2626; /* 抽中的红球 */
+  --code-blue:#2563eb; /* 抽中的蓝球 */
+}
+@media (prefers-color-scheme: dark) { /* 深色模式 */
+  :root { /* 代码配色（深色） */
+    --code-bg:rgba(8,10,28,.5); /* 半透明深色 */
+    --code-text:#e2e8f0; /* 普通代码 */
+    --code-key:#c4b5fd; /* 关键字 */
+    --code-fn:#67e8f9; /* 函数名 */
+    --code-num:#fcd34d; /* 数字 */
+    --code-dim:#94a3b8; /* 注释、提示符 */
+    --code-out:#cbd5e1; /* 返回结果 */
+    --code-red:#fca5a5; /* 抽中的红球 */
+    --code-blue:#93c5fd; /* 抽中的蓝球 */
+  }
+}
+.deep-log.code { /* 控制台 */
+  margin-left:13px; /* 给左侧竖线留位置 */
+  padding:6px 9px; /* 内边距 */
+  border-radius:10px; /* 圆角 */
+  background:var(--code-bg); /* 代码面板 */
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.45); /* 细边 */
+  font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono","Roboto Mono",monospace; /* 等宽字体（中文用系统字体） */
+  font-size:11.5px; /* 字号 */
+  line-height:1.6; /* 行高 */
+  color:var(--code-text); /* 普通代码颜色 */
+  text-shadow:none; /* 面板上不需要光晕 */
+}
+.c-line {white-space:pre-wrap;overflow-wrap:anywhere;} /* 一行：保留空格，太长时折行 */
+.c-p {color:var(--code-dim);} /* 提示符 > 和 < */
+.c-k {color:var(--code-key);font-weight:600;} /* 关键字 */
+.c-f {color:var(--code-fn);} /* 函数名 */
+.c-n {color:var(--code-num);} /* 数字 */
+.c-c {color:var(--code-dim);} /* 注释 */
+.c-o {color:var(--code-out);} /* 返回结果 */
+.c-r {color:var(--code-red);font-weight:700;} /* 抽中的红球 */
+.c-b {color:var(--code-blue);font-weight:700;} /* 抽中的蓝球 */
+.c-cur { /* 光标 */
+  display:inline-block; /* 行内块 */
+  width:.55em; /* 宽 */
+  height:1.1em; /* 高 */
+  margin-left:1px; /* 和文字的间距 */
+  vertical-align:-.2em; /* 和文字底部对齐 */
+  background:var(--primary); /* 主题色 */
+  animation:caret 1s steps(1) infinite; /* 一秒闪一次 */
+}
+@keyframes caret { /* 光标闪烁 */
+  50% {opacity:0;} /* 一半时间隐藏 */
 }
 /* 一注卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的一注（随机选号、深度思考都是） */
 .pick-box { /* 一注卡片 */
@@ -140,5 +193,6 @@
 @media (prefers-reduced-motion: reduce) { /* 减弱动态效果时 */
   .deep-dot, /* 思考中的闪动圆点、 */
   .pick-line .ghost, /* 一注的空球、 */
-  .pick-line .ball.reveal {animation:none;} /* 一注的号码不做动画 */
+  .pick-line .ball.reveal, /* 一注的号码、 */
+  .c-cur {animation:none;} /* 控制台光标不闪 */
 }
