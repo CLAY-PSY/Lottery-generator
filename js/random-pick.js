@@ -76,7 +76,6 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   title.textContent="已随机选号" // 标题改成已完成（不显示用时）
   resultInner.classList.add("deep-done") // 抽完了（过程留在窗口里，可以上下滑动回看）
   log.onscroll=fade // 手动滚动时更新上下渐隐
-  resultMode="random" // 结果来自随机选号
   isRolling=false // 标记为生成结束
   resultInner.removeAttribute("aria-busy") // 读屏软件播报
   toggleButtons(false) // 恢复按钮和切换
