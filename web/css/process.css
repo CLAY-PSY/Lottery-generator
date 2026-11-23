@@ -93,11 +93,6 @@
   color:var(--text-sub); /* 颜色淡一点 */
   font-variant-numeric:tabular-nums; /* 数字等宽 */
 }
-/* 随机选号过程：剩下的号码淡一点，抽中的号码醒目 */
-.draw-hit { /* 抽中的号码 */
-  font-weight:700; /* 加粗 */
-  color:var(--primary); /* 主题色 */
-}
 /* 一注卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的一注（随机选号、深度思考都是） */
 .pick-box { /* 一注卡片 */
   flex-shrink:0; /* 不被压缩 */

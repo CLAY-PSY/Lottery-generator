@@ -45,17 +45,17 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   const fmt=x=>x.toLocaleString("en-US") // 大数加千位逗号
   const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
   const comb=(n,k)=>{let c=1;for(let i=1;i<=k;i++)c=c*(n-k+i)/i;return Math.round(c)} // 组合数 C(n,k)
-  // 每一步讲一个抽样环节，只写必要的数字（几选一、抽中哪个）；第 i 个红球用第 i 句，最后一个红球单独一句
+  // 每一步讲一个抽样环节，只写必要的数字（几选一），过程中不显示抽中的号码；第 i 个红球用第 i 句，最后一个红球单独一句
   const redWhy=[
     (M,m)=>`从 ${M} 个号码中等概率抽取：浏览器的加密随机数生成器（CSPRNG）给出一个 32 位整数，整个取值范围均分成 ${m} 个区间，落在哪个区间就取哪个号码`, // 熵源、等分区间
-    (M,m,prev)=>`无放回抽样：${prev} 移出号码池，样本空间缩小到 ${m} 个，重新均分区间`, // 无放回
+    (M,m)=>`无放回抽样：上一个号码移出号码池，样本空间缩小到 ${m} 个，重新均分区间`, // 无放回
     (M,m)=>`每次抽取相互独立，前面的结果不影响这一次，${m} 个号码的概率都是 1/${m}`, // 独立性
     ()=>`随机数落在分不匀的尾部会作废重抽（拒绝采样），没有取模偏差，保证严格等概率`, // 拒绝采样
     (M,m)=>`不参考冷热、遗漏等历史统计，${m} 个号码一视同仁`, // 不看历史
   ]
   const blueWhy=[
     (M,m)=>`蓝球是独立的号码池（01–${pad2(M)}），和红球互不影响，${m} 选 1`, // 独立号码池
-    (M,m,prev)=>`无放回：${prev} 移出蓝球池，${m} 选 1`, // 无放回
+    (M,m)=>`无放回：上一个蓝球移出蓝球池，${m} 选 1`, // 无放回
   ]
   showPickGhosts(true) // 一注卡片先全是空球，抽号时依次呼吸
   const reds=[],blues=[] // 抽出的红球、蓝球
@@ -63,16 +63,15 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   const draw=async(M,k,picked,why,name)=>{ // 抽一种颜色的球
     const pool=Array.from({length:M},(_,i)=>i+1) // 号码池：1～M
     for(let i=0;i<k;i++){ // 抽 k 个
-      const m=pool.length,prev=pad2(picked[picked.length-1]||0) // 池子里还剩几个、上一个抽中的号码
+      const m=pool.length // 池子里还剩几个
       const w=randomIndexWork(m) // 加密随机数落在第几个区间（分不匀的尾部作废重取）
       const n=pool.splice(w.index,1)[0] // 取出对应的号码，移出号码池
       picked.push(n) // 记下
       step++ // 这是第几步
       const end=t0+RANDOM_MS*step/steps // 这一步该结束的时刻
-      const say=i===k-1&&k>2?`最后一个${name}，${m} 选 1`:(why[i]||why[why.length-1])(M,m,prev) // 这一步讲什么
+      const say=i===k-1&&k>2?`最后一个${name}，${m} 选 1`:(why[i]||why[why.length-1])(M,m) // 这一步讲什么
       await line(k>1?`第 ${i+1} 个${name}`:name,[ // 写出这一步：在这一步的时间里一个字一个字写完（留 0.15 秒停顿）
-        [say+(w.rejected.length?`（这次确实作废重抽了 ${w.rejected.length} 次）`:"")+"，抽中\u00a0→\u00a0"], // 抽样逻辑（“抽中 → 号码”不换行）
-        [pad2(n),"draw-hit"], // 抽中的号码
+        [say+(w.rejected.length?`（这次确实作废重抽了 ${w.rejected.length} 次）`:"")+"。"], // 抽样逻辑（不显示抽中的号码）
       ],end-performance.now()-150)
       await until(step) // 等到这一步结束
     }
