@@ -487,12 +487,12 @@ button::after, /* 按钮、 */
 .mode-switch { /* 选号方式分段控件 */
   margin-top:var(--pad); /* 与上方彩种切换的间距 */
 }
-/* 深度思考：像推理模型一样，先实时显示思考过程，想完后折叠成一行“已深度思考（用时 X 秒）”，点它可以展开回看 */
+/* 过程窗口（深度思考、随机选号共用）：标题行 + 逐字写出的过程，结束后标题改成“已深度思考”“已随机选号”，过程留在窗口里可以上下滑动回看 */
 .result-inner.deep { /* 深度思考模式下的结果区 */
   position:relative; /* 给左侧竖线定位 */
   gap:5px; /* 行距收紧一点：标题行 + 5 行号码正好放下（14 + 5×28 + 5×5 = 179px，内容区 180px） */
 }
-.deep-head { /* 标题行：思考中 / 已深度思考（用时 X 秒） */
+.deep-head { /* 标题行：深度思考中 / 已深度思考，随机选号中 / 已随机选号 */
   flex:none; /* 不伸缩 */
   align-self:stretch; /* 占满宽度 */
   display:flex; /* 用 flex 布局 */
@@ -519,7 +519,7 @@ button::after, /* 按钮、 */
   animation:none; /* 不再闪 */
   opacity:.55; /* 变淡 */
 }
-.deep-time { /* 右侧的用时 / 展开提示 */
+.deep-time { /* 标题行右侧（现在不显示内容） */
   margin-left:auto; /* 靠右 */
   font-weight:500; /* 常规粗细 */
   font-variant-numeric:tabular-nums; /* 数字等宽，计时时不跳动 */
@@ -1221,7 +1221,8 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   resultInner.className="result-inner deep" // 和深度思考一样的过程窗口样式
   const head=document.createElement("div") // 标题行
   head.className="deep-head" // 样式
-  head.innerHTML='<span class="deep-dot"></span><span class="deep-title">随机选号中</span><span class="deep-time"></span>' // 圆点、标题
+  head.innerHTML='<span class="deep-dot"></span><span class="deep-title">随机选号中</span><span class="deep-time"></span>' // 圆点、标题（不显示实时计时）
+  const title=head.querySelector(".deep-title") // 标题
   const log=document.createElement("div") // 过程正文
   log.className="deep-log" // 样式
   resultInner.append(head,log) // 放进窗口
@@ -1255,7 +1256,7 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   })
   const fmt=x=>x.toLocaleString("en-US") // 大数加千位逗号
   const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
-  showPickPartial([],[]) // 一注卡片先全是空球
+  showPickPartial([],[]) // 一注卡片先全是空球（依次呼吸）
   const reds=[],blues=[] // 抽出的红球、蓝球
   let step=0 // 第几步
   const draw=async(M,k,picked,color,name)=>{ // 抽一种颜色的球
@@ -1280,7 +1281,7 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   await draw(Mb,kb,blues,"blue","蓝球") // 再抽蓝球
   await line("结果",[[`红球从小到大排好：${nums([...reds].sort((x,y)=>x-y))}；蓝球：${nums([...blues].sort((x,y)=>x-y))}。`]],t0+RANDOM_MS-performance.now()-150) // 最后一步：结果
   await until(steps) // 正好 5 秒
-  head.querySelector(".deep-title").textContent="已随机选号" // 标题改成已完成
+  title.textContent="已随机选号" // 标题改成已完成（不显示用时）
   resultInner.classList.add("deep-done") // 抽完了（过程留在窗口里，可以上下滑动回看）
   log.onscroll=fade // 手动滚动时更新上下渐隐
   resultMode="random" // 结果来自随机选号
@@ -1323,9 +1324,9 @@ function showPick(ticket){ // 填上算出来的一注，一个个弹出来
     pickLine.appendChild(ball) // 放进去
   })
 }
-function showPickPartial(reds,blues,fresh){ // 随机抽号时一个个填进一注卡片：已抽出的按从小到大排好，没抽的还是空球；fresh 是刚抽出的号码（弹出来）
+function showPickPartial(reds,blues,fresh){ // 随机抽号时一个个填进一注卡片：已抽出的按从小到大排好，没抽的还是空球（和深度思考一样依次呼吸）；fresh 是刚抽出的号码（弹出来）
   const rule=DEEP_RULES[getType()],[kr]=rule.red,[kb]=rule.blue // 红球、蓝球个数
-  pickLine.classList.remove("thinking") // 不呼吸
+  pickLine.classList.toggle("thinking",reds.length+blues.length<kr+kb) // 还没抽完：空球呼吸
   pickLine.innerHTML="" // 重画
   const put=(nums,k,color)=>{ // 放一种颜色的球
     ;[...nums].sort((x,y)=>x-y).forEach(n=>{ // 已抽出的，从小到大
@@ -1333,7 +1334,7 @@ function showPickPartial(reds,blues,fresh){ // 随机抽号时一个个填进一
       if(fresh&&fresh[0]===n&&fresh[1]===color) ball.classList.add("reveal") // 刚抽出的弹出来
       pickLine.appendChild(ball) // 放进去
     })
-    for(let i=nums.length;i<k;i++){const ghost=document.createElement("span");ghost.className=`ball ghost ${color}`;pickLine.appendChild(ghost)} // 没抽的：空球
+    for(let i=nums.length;i<k;i++){const ghost=document.createElement("span");ghost.className=`ball ghost ${color}`;ghost.style.animationDelay=`${pickLine.children.length*.12}s`;pickLine.appendChild(ghost)} // 没抽的：空球（按位置错开，像波浪一样呼吸）
   }
   put(reds,kr,"red") // 红球
   put(blues,kb,"blue") // 蓝球
@@ -1700,19 +1701,17 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
   toggleButtons(true) // 禁用按钮和切换
   resultInner.setAttribute("aria-busy","true") // 告诉读屏软件内容正在变化，先不播报
   const quick=matchMedia("(prefers-reduced-motion: reduce)").matches // 减弱动态效果时文字整段出现
-  const t0=performance.now() // 开始时间
   resultInner.innerHTML="" // 清空结果
   resultInner.className="result-inner deep" // 深度思考样式
   resultInner.scrollTop=0 // 滚回顶部
   const head=document.createElement("div") // 标题行
   head.className="deep-head" // 样式
-  head.innerHTML='<span class="deep-dot"></span><span class="deep-title">深度思考中</span><span class="deep-time"></span>' // 圆点、标题、用时
-  const title=head.querySelector(".deep-title"),time=head.querySelector(".deep-time") // 标题、用时
+  head.innerHTML='<span class="deep-dot"></span><span class="deep-title">深度思考中</span><span class="deep-time"></span>' // 圆点、标题（不显示实时计时）
+  const title=head.querySelector(".deep-title") // 标题
   const log=document.createElement("div") // 思考过程正文
   log.className="deep-log" // 样式
   log.id="deep-log" // 供标题行的 aria-controls 引用
   resultInner.append(head,log) // 放进结果区
-  const clock=setInterval(()=>{time.textContent=`${((performance.now()-t0)/1000).toFixed(1)} 秒`},100) // 每 0.1 秒更新用时
   const fade=()=>{ // 上面还有内容就让顶部渐隐，下面还有内容就让底部渐隐
     log.classList.toggle("fade-top",log.scrollTop>1) // 往下滚过
     log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
@@ -1772,17 +1771,13 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     await write("第五步｜自我检查",check.ok // 检查通过
       ?`号码个数和范围正确；和值 ${check.sumMin}（常见范围 ${a.sumRange[0]}～${a.sumRange[1]}）；奇偶、大小、分区、连号都在常见范围；不是历史头奖组合。全部通过，给出结果。`
       :`有一项没通过（${[!check.rules&&"号码规则",!check.shapes&&"形态",check.jackpots&&"历史头奖"].filter(Boolean).join("、")}），结果仅供参考。`)
-    clearInterval(clock) // 停止计时
-    const seconds=Math.max(1,Math.round((performance.now()-t0)/1000)) // 用时（秒）
-    title.textContent=`已深度思考（用时 ${seconds} 秒）` // 标题改成已完成
-    time.textContent="" // 用时已经写在标题里
+    title.textContent="已深度思考" // 标题改成已完成（不显示用时）
     log.onscroll=fade // 手动滚动时更新上下渐隐
     resultInner.classList.add("deep-done") // 想完了（思考过程留在窗口里，可以上下滑动回看）
     showPick(ticket) // 中间的卡片填上这一注
     resultMode="deep" // 结果来自深度思考
   }catch(error){ // 读取或分析出错
     console.warn("深度思考失败:",error) // 在控制台记录
-    clearInterval(clock) // 停止计时
     showPickGhosts(false) // 一注的位置恢复成空球
     resultInner.innerHTML="" // 清空
     resultInner.className="result-inner" // 普通样式
@@ -1792,7 +1787,6 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     p.textContent="读取开奖历史失败，请联网后重试" // 提示内容
     resultInner.appendChild(p) // 显示
   }finally{ // 无论成败
-    clearInterval(clock) // 停止计时
     isRolling=false // 标记为生成结束
     resultInner.removeAttribute("aria-busy") // 读屏软件播报结果
     toggleButtons(false) // 恢复按钮和切换
