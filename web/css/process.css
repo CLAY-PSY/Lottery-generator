@@ -55,8 +55,11 @@
   min-height:0; /* 允许比内容矮（才能滚动） */
   align-self:stretch; /* 占满宽度 */
   overflow-y:auto; /* 内容多了可以上下滚动 */
-  overscroll-behavior:contain; /* 滚到头不带动页面 */
-  touch-action:pan-y; /* 允许手指上下滑动（页面其他地方禁止滚动） */
+  -webkit-overflow-scrolling:touch; /* 旧版 iOS（12 及以前）：手指松开后惯性滚动 */
+  overscroll-behavior:contain; /* 滚到头不带动页面（旧浏览器不认时由 gestures.js 补上） */
+  touch-action:manipulation; /* 旧版 iOS 只认这个：能滑、不双击放大 */
+  touch-action:pan-y; /* 只允许手指上下滑动，不双击放大、不两指缩放（页面其他地方禁止滚动） */
+  -ms-touch-action:pan-y; /* 旧版 IE/Edge 的同一属性 */
   scrollbar-width:none; /* 不显示滚动条 */
   padding-left:13px; /* 给左侧竖线留位置，正文和标题文字左对齐（圆点 7px + 间距 6px） */
   font-size:12.5px; /* 字号 */

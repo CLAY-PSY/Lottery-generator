@@ -13,6 +13,7 @@
   isolation: isolate; /* 新建层叠上下文 */
   -webkit-transform: translateZ(0); /* 开启 GPU 合成（Safari） */
   transform: translateZ(0); /* 开启 GPU 合成 */
+  touch-action: manipulation; /* 旧版 iOS 只认这个：至少禁止双击放大 */
   touch-action: none; /* 禁止触摸手势 */
 }
 .ios-save-overlay.show { /* 显示时的遮罩 */
