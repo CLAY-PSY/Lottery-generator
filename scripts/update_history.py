@@ -3,7 +3,8 @@
 # 数据来源：500.com 提供的开奖 XML（每期一行：期号、开奖号码、开奖时间），比解析网页表格更直接可靠。
 # 新开奖按开奖日、期号连续、日期先后检查，已有的历史不允许变化，
 # 任何一项不通过就报错退出，不写入。
-# 只用 Python 标准库，GitHub Actions 每天运行
+# 只用 Python 标准库，GitHub Actions 全天每 15 分钟运行一次。
+# 退出码：0 成功（有没有新数据都算）；75 暂时连不上数据源，下一轮再试；1 校验不通过或数据太久没更新
 import json  # 读写 JSON
 import re  # 解析 XML 的每一行
 import sys  # 退出码
@@ -22,15 +23,22 @@ GAMES = {  # 彩种配置
 OUT = Path(__file__).resolve().parent.parent / "web" / "data"  # 输出目录：网站文件夹 web 里的 data
 
 
+class TempFail(Exception):  # 暂时连不上数据源（网络问题），这一轮跳过，下一轮再试
+    pass
+
+
+STALE_DAYS = 4  # 两种彩票最长隔 3 天开一次奖；本地数据最新一期超过 4 天，说明漏了开奖、连不上的时间太长，要报错
+
+
 def fetch(url, tries=3):  # 下载并按 UTF-8 解码；网络偶尔断开时等一会儿再试，最多 3 次
     # 用 Python 默认的标识如实访问，不伪装成浏览器
     for attempt in range(1, tries + 1):  # 第几次
         try:  # 尝试下载
             with urllib.request.urlopen(url, timeout=60) as resp:  # 最多等 60 秒
                 return resp.read().decode("utf-8")  # XML 是 UTF-8
-        except OSError:  # 连接被重置、超时等网络问题
+        except OSError as error:  # 连接被重置、超时、服务器出错等网络问题
             if attempt == tries:  # 最后一次也失败
-                raise  # 交给调用方处理
+                raise TempFail(f"连不上 {url}（{error}）") from error  # 当作暂时的问题，交给调用方处理
             time.sleep(10 * attempt)  # 等 10 秒、20 秒再试
 
 
@@ -107,9 +115,33 @@ def main():  # 抓取、校验、写入
         print(f"{game['name']}：{len(rows)} 期，最新 {rows[0][0]} 期（{rows[0][1]}）")  # 提示
 
 
-if __name__ == "__main__":  # 直接运行时
+def stale_days():  # 本地数据最新一期离今天（北京时间）几天：取两种彩票里最旧的；没有数据时当作很久
+    today = datetime.now(timezone(timedelta(hours=8))).date()  # 今天
+    worst = 0  # 最多几天
+    for key in GAMES:  # 每种彩票
+        path = OUT / f"{key}.json"  # 数据文件
+        if not path.exists():  # 还没有数据
+            return 999  # 很久
+        latest = json.loads(path.read_text("utf-8"))["draws"][0][1]  # 最新一期的日期
+        worst = max(worst, (today - datetime.strptime(latest, "%Y-%m-%d").date()).days)  # 离今天几天
+    return worst  # 最旧的那个
+
+
+def run():  # 执行并返回退出码
     try:  # 尝试
-        main()  # 执行
-    except Exception as error:  # 出错
+        main()  # 抓取、校验、写入
+        return 0  # 成功
+    except TempFail as error:  # 暂时连不上
+        days = stale_days()  # 数据多久没更新了
+        if days > STALE_DAYS:  # 太久了：不再当作暂时的问题
+            print(f"更新失败：{error}；本地数据最新一期已经是 {days} 天前，连不上的时间太长了", file=sys.stderr)  # 打印原因
+            return 1  # 标记失败
+        print(f"暂时连不上数据源，这一轮跳过，下一轮再试：{error}", file=sys.stderr)  # 打印原因
+        return 75  # 暂时失败（工作流里当作提醒，不算失败）
+    except Exception as error:  # 校验不通过等其他错误
         print(f"更新失败：{error}", file=sys.stderr)  # 打印原因
-        sys.exit(1)  # 非零退出，GitHub Actions 会标记失败
+        return 1  # 非零退出，GitHub Actions 会标记失败
+
+
+if __name__ == "__main__":  # 直接运行时
+    sys.exit(run())  # 用退出码告诉工作流结果
