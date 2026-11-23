@@ -166,7 +166,10 @@
   align-items: center; /* 内容垂直居中 */
   justify-content: center; /* 内容水平居中 */
   overflow: hidden; /* 页面不滚动 */
-  touch-action: none; /* 禁止浏览器默认的触摸手势（缩放、滚动） */
+  overscroll-behavior: none; /* 页面不回弹、安卓不触发下拉刷新 */
+  touch-action: manipulation; /* 旧版 iOS（12 及以前）只认这个：至少禁止双击放大 */
+  touch-action: none; /* 禁止浏览器默认的触摸手势（缩放、滚动）；认这个的浏览器用这一行 */
+  -ms-touch-action: none; /* 旧版 IE/Edge 的同一属性 */
   -webkit-user-select: none; /* 禁止选中文字（Safari） */
   user-select: none; /* 禁止选中文字 */
   -webkit-touch-callout: none; /* 禁止长按弹出菜单（Safari） */
@@ -191,6 +194,7 @@
   button, /* 按钮、 */
   .segmented, /* 分段控件、 */
   .segmented label { /* 分段控件的选项文字： */
+  touch-action: manipulation; /* 旧版 iOS 只认这个：至少禁止双击放大 */
   touch-action: none; /* 禁止浏览器默认的触摸手势 */
   -ms-touch-action: none; /* 旧版 IE/Edge 的同一属性 */
 }
