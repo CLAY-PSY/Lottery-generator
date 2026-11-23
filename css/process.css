@@ -1,0 +1,145 @@
+/* 过程窗口（深度思考、随机选号共用）和中间的一注卡片：标题行、逐字写出的过程、空球、弹出动画 */
+/* 过程窗口（深度思考、随机选号共用）：标题行 + 逐字写出的过程，结束后标题改成“已深度思考”“已随机选号”，过程留在窗口里可以上下滑动回看 */
+.result-inner.deep { /* 深度思考模式下的结果区 */
+  position:relative; /* 给左侧竖线定位 */
+  gap:5px; /* 行距收紧一点：标题行 + 5 行号码正好放下（14 + 5×28 + 5×5 = 179px，内容区 180px） */
+}
+.deep-head { /* 标题行：深度思考中 / 已深度思考，随机选号中 / 已随机选号 */
+  flex:none; /* 不伸缩 */
+  align-self:stretch; /* 占满宽度 */
+  display:flex; /* 用 flex 布局 */
+  align-items:center; /* 垂直居中 */
+  gap:6px; /* 圆点、文字、时间之间的间距 */
+  height:14px; /* 固定高度 */
+  line-height:14px; /* 行高 */
+  font-size:12px; /* 字号 */
+  font-weight:600; /* 半粗 */
+  color:var(--text-sub); /* 次要文字颜色 */
+  text-shadow:var(--label-glow); /* 文字光晕：液体流过时看得清 */
+  cursor:default; /* 思考中不能点 */
+  outline-offset:2px; /* 键盘焦点框离文字远一点 */
+}
+.deep-dot { /* 标题前的圆点：思考中闪动 */
+  flex:none; /* 不伸缩 */
+  width:7px; /* 宽 */
+  height:7px; /* 高 */
+  border-radius:50%; /* 圆形 */
+  background:var(--primary); /* 主题色 */
+  animation:think-pulse 1s ease-in-out infinite; /* 一秒闪一次 */
+}
+.deep-done .deep-dot { /* 想完后 */
+  animation:none; /* 不再闪 */
+  opacity:.55; /* 变淡 */
+}
+.deep-time { /* 标题行右侧（现在不显示内容） */
+  margin-left:auto; /* 靠右 */
+  font-weight:500; /* 常规粗细 */
+  font-variant-numeric:tabular-nums; /* 数字等宽，计时时不跳动 */
+}
+/* 左侧竖线：从标题行的圆点正下方“长”出来，颜色和圆点一样，往下渐渐变淡，像一条时间线。
+   画在结果区上（不在会滚动的正文里），所以不跟着文字滚动，也不受正文上下渐隐的影响 */
+.result-inner.deep::before { /* 深度思考的思考过程窗口（一直显示） */
+  content:""; /* 伪元素必须有 content 才会显示 */
+  position:absolute; /* 叠在结果区上 */
+  left:2.5px; /* 宽 2px，正好在 7px 圆点的正下方（圆点中心 3.5px） */
+  top:12px; /* 从圆点下沿开始，和圆点连在一起 */
+  bottom:4px; /* 到底部附近 */
+  width:2px; /* 线宽 */
+  border-radius:1px; /* 两端圆头 */
+  background:linear-gradient(to bottom,var(--primary),var(--primary) 55%,transparent); /* 上半段实色，往下渐渐消失 */
+  opacity:.6; /* 比文字淡，又能看清 */
+  pointer-events:none; /* 不挡点击和滑动 */
+}
+.deep-log { /* 思考过程正文 */
+  flex:1 1 auto; /* 占满标题行下面的空间 */
+  min-height:0; /* 允许比内容矮（才能滚动） */
+  align-self:stretch; /* 占满宽度 */
+  overflow-y:auto; /* 内容多了可以上下滚动 */
+  overscroll-behavior:contain; /* 滚到头不带动页面 */
+  touch-action:pan-y; /* 允许手指上下滑动（页面其他地方禁止滚动） */
+  scrollbar-width:none; /* 不显示滚动条 */
+  padding-left:13px; /* 给左侧竖线留位置，正文和标题文字左对齐（圆点 7px + 间距 6px） */
+  font-size:12.5px; /* 字号 */
+  line-height:1.5; /* 行高 */
+  color:var(--text-main); /* 文字颜色 */
+  text-shadow:var(--label-glow); /* 文字光晕 */
+}
+.deep-log::-webkit-scrollbar { /* Safari 的滚动条 */
+  display:none; /* 隐藏 */
+}
+.deep-log.fade-top { /* 上面还有内容（往下滚过）：顶部渐隐，不会被硬生生切掉半行 */
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 18px); /* 顶部 18px 渐隐（Safari） */
+  mask-image:linear-gradient(to bottom,transparent,#000 18px); /* 顶部 18px 渐隐 */
+}
+.deep-log.fade-bottom { /* 下面还有内容没显示：底部渐隐，提示可以往下滑 */
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent); /* 底部 18px 渐隐（Safari） */
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent); /* 底部 18px 渐隐 */
+}
+.deep-log.fade-top.fade-bottom { /* 上下都还有内容：两头都渐隐 */
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 18px,#000 calc(100% - 18px),transparent); /* 上下各 18px 渐隐（Safari） */
+  mask-image:linear-gradient(to bottom,transparent,#000 18px,#000 calc(100% - 18px),transparent); /* 上下各 18px 渐隐 */
+}
+.deep-p { /* 思考过程的一段 */
+  margin:0 0 6px; /* 段落间距 */
+}
+.deep-step { /* 每段开头加粗的小标题，例如“第二步｜回测” */
+  font-weight:700; /* 加粗 */
+  margin-right:6px; /* 和正文的间距 */
+}
+.deep-p.live { /* 实时更新的一段（神经网络训练进度） */
+  color:var(--text-sub); /* 颜色淡一点 */
+  font-variant-numeric:tabular-nums; /* 数字等宽 */
+}
+/* 随机选号过程：剩下的号码淡一点，抽中的号码醒目 */
+.draw-pool { /* 剩下的号码 */
+  color:var(--text-sub); /* 次要文字颜色 */
+  font-variant-numeric:tabular-nums; /* 数字等宽，排得整齐 */
+}
+.draw-hit { /* 抽中的号码 */
+  font-weight:700; /* 加粗 */
+  color:var(--primary); /* 主题色 */
+}
+/* 一注卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的一注（随机选号、深度思考都是） */
+.pick-box { /* 一注卡片 */
+  flex-shrink:0; /* 不被压缩 */
+  border-radius:var(--radius-outer); /* 外圆角，和其他卡片一致 */
+  padding:14px; /* 内边距，和结果卡片一致 */
+}
+.pick-line { /* 一注号码 */
+  display:flex; /* 横排 */
+  justify-content:center; /* 居中 */
+  height:34px; /* 球的直径 */
+}
+.pick-line .ball { /* 一注里的号码球：比结果区的大一点，更醒目 */
+  width:34px; /* 宽 */
+  height:34px; /* 高 */
+  margin:0 4px; /* 左右各留 4px */
+  font-size:1rem; /* 字号 */
+}
+.ball.ghost { /* 还没算出来的球：只有淡淡的颜色和一圈细边 */
+  background:none; /* 不要球的渐变 */
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.45); /* 细边 */
+}
+.ball.ghost.red {background-color:rgba(239,68,68,.22);} /* 红球位置：淡红 */
+.ball.ghost.blue {background-color:rgba(59,130,246,.24);} /* 蓝球位置：淡蓝 */
+.pick-line.thinking .ghost { /* 思考中：空球依次呼吸 */
+  animation:ghost-breathe 1.4s ease-in-out infinite; /* 1.4 秒一次 */
+}
+@keyframes ghost-breathe { /* 呼吸 */
+  50% {opacity:.45;transform:scale(.88);} /* 中间变淡、缩小 */
+}
+.pick-line .ball.reveal { /* 算出来的号码：一个个弹出来 */
+  animation:pick-in .45s cubic-bezier(.34,1.56,.64,1) both; /* 带回弹 */
+}
+@keyframes pick-in { /* 弹出 */
+  from {opacity:0;transform:scale(.4);} /* 开始：透明、很小 */
+  to {opacity:1;transform:none;} /* 结束：原样 */
+}
+@keyframes think-pulse { /* 闪动 */
+  50% {opacity:.25;} /* 中间变淡 */
+}
+@media (prefers-reduced-motion: reduce) { /* 减弱动态效果时 */
+  .deep-dot, /* 思考中的闪动圆点、 */
+  .pick-line .ghost, /* 一注的空球、 */
+  .pick-line .ball.reveal {animation:none;} /* 一注的号码不做动画 */
+}

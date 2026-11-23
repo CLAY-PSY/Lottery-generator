@@ -1,0 +1,100 @@
+/* 表单卡片和分段控件（彩种、选号方式）：滑块、液态拉伸动画、按住和禁用状态 */
+.form-box { /* 表单卡片 */
+  border-radius:var(--radius-outer); /* 外圆角（与控件圆角同心） */
+  padding:var(--pad); /* 内边距 */
+}
+.segmented { /* 分段控件（彩种切换） */
+  position:relative; /* 建立定位上下文，供滑块定位 */
+  display:grid; /* 用网格布局 */
+  grid-template-columns:1fr 1fr; /* 两个选项各占一半 */
+  height:var(--ctl-h); /* 高度 */
+  padding:4px; /* 内边距 4px，滑块与边缘留缝 */
+  border-radius:calc(var(--ctl-h) / 2); /* 胶囊形圆角 */
+  background:rgba(118,118,128,.14); /* 灰色半透明底槽 */
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.06); /* 底槽内侧淡淡的凹陷阴影 */
+}
+.segmented input { /* 隐藏的单选框 */
+  position:absolute; /* 绝对定位，不占布局 */
+  opacity:0; /* 完全透明 */
+  pointer-events:none; /* 不接收点击（点击由 label 处理） */
+}
+.segmented label { /* 选项文字 */
+  position:relative; /* 建立定位上下文 */
+  z-index:1; /* 放在滑块上面 */
+  display:flex; /* 用 flex 布局 */
+  align-items:center; /* 文字垂直居中 */
+  justify-content:center; /* 文字水平居中 */
+  font-size:1rem; /* 字号 */
+  font-weight:500; /* 中等字重 */
+  color:var(--text-sub); /* 未选中时用次要文字颜色 */
+  text-shadow:var(--label-glow); /* 文字光晕：液体随机流过时保证看得清 */
+  cursor:pointer; /* 鼠标显示为手形 */
+  transition:color .25s; /* 颜色变化 0.25 秒过渡 */
+}
+#type-ssq:checked ~ label[for="type-ssq"], /* 选中“双色球”时它的文字、 */
+#type-dlt:checked ~ label[for="type-dlt"], /* 选中“大乐透”时它的文字、 */
+#mode-random:checked ~ label[for="mode-random"], /* 选中“随机选号”时它的文字、 */
+#mode-deep:checked ~ label[for="mode-deep"] { /* 选中“深度思考”时它的文字： */
+  color:var(--text-main); /* 用主要文字颜色 */
+  font-weight:600; /* 加粗 */
+}
+.segmented-thumb { /* 分段控件的滑块 */
+  position:absolute; /* 绝对定位 */
+  top:4px; /* 距顶部 4px */
+  bottom:4px; /* 距底部 4px */
+  left:4px; /* 距左边 4px */
+  width:calc(50% - 4px); /* 宽度为一半 */
+  border-radius:calc(var(--ctl-h) / 2 - 4px); /* 圆角与底槽同心 */
+  isolation:isolate; /* 新建层叠上下文，让发光层留在滑块里 */
+  background-image:var(--glass-spec); /* 镜面反光 */
+  background-color:var(--thumb-bg); /* 滑块底色 */
+  box-shadow: /* 滑块阴影（多行取值） */
+    var(--glass-edge), /* 深色细边 */
+    inset 0 1px 0 rgba(255,255,255,.8), /* 顶部 1px 亮线 */
+    0 3px 10px rgba(0,0,0,.12), /* 远处投影 */
+    0 1px 2px rgba(0,0,0,.08); /* 近处投影 */
+  translate:var(--thumb-x,0) 0; /* 水平位移（--thumb-x 控制左右） */
+  scale:var(--thumb-s,1); /* 缩放（--thumb-s 控制按住时放大） */
+  transition:translate .5s cubic-bezier(.34,1.56,.64,1),scale .4s cubic-bezier(.34,1.56,.64,1),background-color .25s,box-shadow .25s,opacity .25s; /* 位移、缩放用带回弹的曲线，颜色和阴影平滑过渡 */
+}
+@supports not (translate:0) { /* 不支持独立的 translate 属性的旧浏览器 */
+  .segmented-thumb { /* 滑块 */
+    transform:translateX(var(--thumb-x,0)) scale(var(--thumb-s,1)); /* 改用 transform 实现位移和缩放 */
+    transition:transform .5s cubic-bezier(.34,1.56,.64,1),background-color .25s,opacity .25s; /* 改用 transform 做过渡 */
+  }
+}
+@supports (translate:0) { /* 支持独立的 translate 属性时 */
+  .segmented-thumb.morph { /* 切换彩种时的滑块 */
+    animation:lg-morph .55s ease; /* 播放液态拉伸动画 */
+  }
+}
+@keyframes lg-morph { /* 液态拉伸动画 */
+  0% {transform:none;} /* 开始：原样 */
+  35% {transform:scale(1.1,.9);} /* 35%：横向拉长、纵向压扁 */
+  70% {transform:scale(.98,1.03);} /* 70%：轻微回弹 */
+  100% {transform:none;} /* 结束：原样 */
+}
+#type-dlt:checked ~ .segmented-thumb, /* 选中“大乐透”时的滑块、 */
+#mode-deep:checked ~ .segmented-thumb { /* 选中“深度思考”时的滑块 */
+  --thumb-x:100%; /* 移到右半边 */
+}
+.mode-switch { /* 选号方式分段控件 */
+  margin-top:var(--pad); /* 与上方彩种切换的间距 */
+}
+.segmented:active input:enabled ~ .segmented-thumb { /* 按住分段控件（且未禁用）时的滑块 */
+  --thumb-s:1.1; /* 放大 1.1 倍，像透镜 */
+  background-color:var(--thumb-lens); /* 底色更透 */
+  box-shadow: /* 透镜阴影（多行取值） */
+    var(--glass-edge), /* 深色细边 */
+    inset 0 1px 0 rgba(255,255,255,.9), /* 顶部亮线 */
+    inset 2px 2px 4px rgba(255,255,255,.55), /* 左上透镜光带 */
+    inset -2px -2px 4px rgba(255,255,255,.4), /* 右下透镜光带 */
+    0 8px 20px rgba(0,0,0,.16); /* 更远更明显的投影 */
+}
+.segmented input:focus-visible ~ .segmented-thumb { /* 单选框获得键盘焦点时的滑块 */
+  outline:2px solid var(--primary); /* 显示焦点框 */
+  outline-offset:2px; /* 焦点框离滑块 2px */
+}
+.segmented input:disabled ~ label { /* 单选框禁用（生成中）时的选项文字 */
+  cursor:not-allowed; /* 鼠标显示为禁止 */
+}

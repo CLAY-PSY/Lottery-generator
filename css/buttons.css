@@ -1,0 +1,43 @@
+/* 按钮：生成号码、保存图片 */
+.button-group { /* 按钮组 */
+  display:flex; /* 横向排列 */
+  gap:var(--pad); /* 按钮之间的间距 */
+  margin-top:var(--pad); /* 与上方分段控件的间距 */
+}
+button { /* 按钮 */
+  position:relative; /* 建立定位上下文，供伪元素定位 */
+  isolation:isolate; /* 新建层叠上下文，让发光层留在文字下面 */
+  flex:1; /* 平分剩余宽度 */
+  height:var(--ctl-h); /* 高度 */
+  padding:0 12px; /* 左右内边距 */
+  font-size:1rem; /* 字号 */
+  font-weight:600; /* 粗体 */
+  font-family:inherit; /* 字体跟随页面（按钮默认不继承） */
+  border-radius:calc(var(--ctl-h) / 2); /* 胶囊形圆角 */
+  border:none; /* 去掉默认边框 */
+  background:var(--glass-spec),var(--glass-bg-strong); /* 镜面反光叠在较实的玻璃底色上 */
+  color:var(--primary); /* 文字用主题色 */
+  cursor:pointer; /* 鼠标显示为手形 */
+  box-shadow:var(--glass-shadow); /* 完整玻璃阴影 */
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1),filter .25s,opacity .25s,background-color .25s; /* 按下放大用带回弹的曲线，滤镜、透明度、底色平滑过渡 */
+}
+button.prominent { /* 主按钮（生成号码、保存图片） */
+  --glow:rgba(255,255,255,.35); /* 触摸发光调弱，避免盖住白字 */
+  background:var(--glass-spec),var(--tint-primary); /* 镜面反光叠在靛蓝底色上 */
+  color:#fff; /* 白色文字 */
+}
+button:active { /* 按下按钮时 */
+  transform:scale(1.07); /* 像凝胶一样放大 */
+  filter:brightness(1.1) saturate(1.1); /* 提亮、提饱和 */
+}
+button:focus-visible { /* 按钮获得键盘焦点时 */
+  outline:2px solid var(--primary); /* 显示焦点框 */
+  outline-offset:2px; /* 焦点框离按钮 2px */
+}
+/* 生成过程中只禁止点击，外观保持不变 */
+button:disabled { /* 禁用的按钮 */
+  opacity:1; /* 不变淡 */
+  filter:none; /* 不变灰 */
+  transform:none; /* 不放大 */
+  cursor:not-allowed; /* 鼠标显示为禁止 */
+}
