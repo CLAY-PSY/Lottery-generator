@@ -48,7 +48,6 @@
   :root {--ctl-h:42px;--pad:8px;} /* 控件和内边距缩小 */
   .ball {width:24px;height:24px;font-size:.75rem;} /* 号码球缩小到 24px */
   .pick-line {height:30px;} /* 一注的行高跟着缩小 */
-  .deep-log.code {font-size:10.5px;padding:5px 7px;} /* 随机选号的控制台：字小一点，命令不折行 */
   .pick-line .ball {width:30px;height:30px;margin:0 3px;font-size:.85rem;} /* 一注的球缩小到 30px */
   button, /* 按钮、 */
   .segmented label {font-size:.9rem;} /* 选项文字的字号缩小 */
