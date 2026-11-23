@@ -1,0 +1,196 @@
+/* 基础：颜色和尺寸变量（浅色、深色、降低透明度）、页面整体排版、禁止缩放和选中 */
+:root { /* 全局变量（浅色模式的默认值） */
+  /* 浅色、深色跟随系统切换 */
+  color-scheme: light dark; /* 让浏览器自带控件也跟随系统深浅模式 */
+  --bg-page:#eef2ff; /* 页面加载前和背景画布出现前的底色 */
+  --bg-canvas:linear-gradient(180deg,#f7f3ff 0%,#eef2ff 100%); /* 页面底层的渐变底色 */
+  --text-main:#111827; /* 主要文字颜色 */
+  --text-sub:rgba(17,24,39,.78); /* 次要文字颜色（半透明）：分段控件未选中的选项，在彩色液体上也要看得清 */
+  --primary:#4f46e5; /* 主题色：焦点框等 */
+  /* 号码球：高光、主色、暗部（页面和导出图片共用） */
+  --red-hi:#ff8a8a; /* 红球高光色 */
+  --red:#ef4444; /* 红球主色 */
+  --red-lo:#d22f2f; /* 红球暗部色 */
+  --blue-hi:#8ab8ff; /* 蓝球高光色 */
+  --blue:#3b82f6; /* 蓝球主色 */
+  --blue-lo:#2563d9; /* 蓝球暗部色 */
+  /* 液态背景：十种液体颜色 */
+  --liquid-1:#5b8cff; /* 液体颜色 1：蓝 */
+  --liquid-2:#a35bff; /* 液体颜色 2：紫 */
+  --liquid-3:#ff6fb1; /* 液体颜色 3：粉 */
+  --liquid-4:#ff9f45; /* 液体颜色 4：橙 */
+  --liquid-5:#3fd0c9; /* 液体颜色 5：青 */
+  --liquid-6:#7b6cff; /* 液体颜色 6：靛 */
+  --liquid-7:#ffd166; /* 液体颜色 7：金黄 */
+  --liquid-8:#5ee6a0; /* 液体颜色 8：薄荷绿 */
+  --liquid-9:#ff7a7a; /* 液体颜色 9：珊瑚红 */
+  --liquid-10:#4cc9ff; /* 液体颜色 10：天蓝 */
+  /* 整屏液体的调色：颜色倍率 混白比例 */
+  --liquid-tone:1 .12; /* 浅色：颜色倍率 1，混入 12% 白色：柔和但仍饱满，玻璃的折射和彩边才看得出来（混白太多整屏发粉、玻璃显得发白） */
+  --title-glow:0 0 14px rgba(255,255,255,.9),0 0 2px rgba(255,255,255,.8); /* 标题外发光：白色光晕让标题在彩色液体上更清楚 */
+  --label-glow:0 0 8px rgba(255,255,255,.8),0 0 2px rgba(255,255,255,.6); /* 分段控件文字的光晕：液体颜色较深时也看得清 */
+  /* 液体玻璃材质（iOS 27 通透）：几乎全透，靠边缘高光、暗边和折射勾出轮廓 */
+  --glass-bg:rgba(255,255,255,.03); /* 玻璃底色：3% 白，几乎全透明 */
+  --glass-bg-strong:rgba(255,255,255,.55); /* 较实的玻璃底色（普通按钮用） */
+  --glass-blur:blur(4px) saturate(140%) brightness(1.02); /* CSS 玻璃的背景模糊、提饱和、提亮（不用 WebGL 时） */
+  --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 55%); /* 玻璃左上角的镜面反光 */
+  --glass-rim:linear-gradient(140deg,rgba(255,255,255,.9),rgba(255,255,255,.42) 20%,rgba(255,255,255,.22) 42%,rgba(255,255,255,.22) 62%,rgba(255,255,255,.42) 82%,rgba(255,255,255,.9)); /* 玻璃边缘高光描边的渐变：左上和右下最亮，中段保留 22% 白，右上角和左下角的描边不会断开；整体不用纯白，浅背景上不显得发白 */
+  /* 不用扩散值（spread）：Safari 26 遇到大圆角 + 扩散值的阴影会在元素后面画出方形色块 */
+  --glass-edge:0 0 .5px rgba(15,23,42,.3),0 0 .5px rgba(15,23,42,.3),0 0 2px rgba(15,23,42,.1); /* 玻璃外圈深色细边：两层 0.5px 模糊阴影叠加 */
+  --glass-border:rgba(15,23,42,.16); /* 大面板的深色细边颜色（用 border 画） */
+  --glass-inset: /* 玻璃内侧高光（多行取值，下面每行一层） */
+    inset 0 1px 0 rgba(255,255,255,.95), /* 顶部一条 1px 白色亮线 */
+    inset 2px 2px 4px rgba(255,255,255,.6), /* 左上内侧透镜光带 */
+    inset -2px -2px 4px rgba(255,255,255,.4), /* 右下内侧透镜光带 */
+    inset 0 0 16px rgba(255,255,255,.2); /* 内侧整圈柔光 */
+  --glass-shadow: /* 小控件的完整玻璃阴影（多行取值） */
+    var(--glass-edge), /* 深色细边 */
+    var(--glass-inset), /* 内侧高光 */
+    0 12px 32px rgba(31,41,95,.14), /* 远处柔和投影 */
+    0 2px 6px rgba(31,41,95,.08); /* 近处清晰投影 */
+  /* WebGL 玻璃：磨砂半径 高光 顶部反光 提亮；玻璃底色；边缘反光的取色；面板投影颜色 */
+  --gl-look:2 .3 .035 1; /* 浅色：磨砂半径 2、高光 0.3、顶部反光 0.035、不提亮（提亮会让玻璃像一层乳白膜） */
+  --gl-tint:rgba(20,22,40,.03); /* 浅色 WebGL 玻璃底色：3% 深蓝灰，与深色模式同一思路，玻璃略深于背景，显得通透 */
+  --gl-sheen:.6; /* 浅色：边缘反光 60% 取玻璃里背景的颜色（在浅背景上纯白反光会把边缘洗成白雾） */
+  --gl-shadow:rgba(40,30,90,.08); /* WebGL 画的面板投影颜色 */
+  --rim-w:1.5px; /* 高光描边宽度 */
+  --glow:rgba(255,255,255,.8); /* 触摸发光的颜色 */
+  --tint-primary:rgba(79,70,229,.9); /* 主按钮的靛蓝底色 */
+  --thumb-bg:rgba(255,255,255,.88); /* 分段控件滑块的底色 */
+  --thumb-lens:rgba(255,255,255,.4); /* 按住滑块时的透镜底色（更透） */
+  /* 保存弹窗：遮罩、玻璃底色、背景模糊、提示文字 */
+  --overlay-bg:rgba(15,23,42,.25); /* 保存弹窗遮罩的颜色 */
+  --scrim-filter:blur(18px) saturate(120%); /* 保存弹窗后面的页面：模糊并略提饱和 */
+  --glass-modal:rgba(255,255,255,.22); /* 保存弹窗的玻璃底色 */
+  --modal-filter:blur(12px) saturate(160%) brightness(1.08); /* 保存弹窗的背景模糊、提饱和、提亮 */
+  --modal-tip:rgba(17,24,39,.78); /* 弹窗提示文字颜色 */
+  --modal-tip-shadow:0 1px 6px rgba(255,255,255,.7); /* 弹窗提示文字的光晕 */
+  /* 导出图片：背景、画布底色、标题颜色 */
+  --export-bg:linear-gradient(160deg,#ffffff 0%,#f4f2ff 55%,#eef3ff 100%); /* 导出图片的背景渐变 */
+  --export-base:#f4f2ff; /* 导出图片的画布底色 */
+  --export-title:#111827; /* 导出图片标题颜色 */
+  /* 同心圆角：外圆角 = 控件半高 + 内边距 */
+  --screen-extra:0px; /* iOS 主屏幕 App 里屏幕比视口高出的部分（由页面开头的脚本计算），背景层多延伸这么多，底部不露白边 */
+  --strip:#a99af0; /* iOS 主屏幕 App 底部系统色条的颜色（浅色）：中紫，与液体和靛蓝按钮协调，不显白 */
+  --pad:10px; /* 卡片内边距 */
+  --ctl-h:46px; /* 按钮、分段控件的高度 */
+  --radius-outer:calc(var(--ctl-h) / 2 + var(--pad)); /* 卡片外圆角 = 控件半高 + 内边距，内外圆角同心 */
+}
+@media (prefers-color-scheme: dark) { /* 系统为深色模式时覆盖下面的变量 */
+  :root { /* 深色模式的变量 */
+    --bg-page:#0b1026; /* 深色底色 */
+    --bg-canvas:linear-gradient(180deg,#07081a 0%,#0b1026 100%); /* 深色渐变底色 */
+    --text-main:#f1f5f9; /* 深色模式主要文字：近白 */
+    --text-sub:rgba(241,245,249,.75); /* 深色模式次要文字：在彩色液体上也要看得清 */
+    --primary:#818cf8; /* 深色模式主题色：浅靛 */
+    --liquid-1:#3d6bff; /* 深色液体颜色 1：蓝 */
+    --liquid-2:#8b3dff; /* 深色液体颜色 2：紫 */
+    --liquid-3:#ff3d8f; /* 深色液体颜色 3：玫红 */
+    --liquid-4:#ff8a24; /* 深色液体颜色 4：橙 */
+    --liquid-5:#1fb8b0; /* 深色液体颜色 5：青 */
+    --liquid-6:#5a4dff; /* 深色液体颜色 6：靛 */
+    --liquid-7:#ffb020; /* 深色液体颜色 7：金黄 */
+    --liquid-8:#12c27a; /* 深色液体颜色 8：翠绿 */
+    --liquid-9:#ff4f5e; /* 深色液体颜色 9：珊瑚红 */
+    --liquid-10:#1ea7ff; /* 深色液体颜色 10：天蓝 */
+    --liquid-tone:.65 0; /* 深色：颜色乘 0.65 压暗，不混白 */
+    --title-glow:0 0 14px rgba(0,0,0,.7); /* 深色标题外发光：黑色光晕 */
+    --label-glow:0 0 8px rgba(0,0,0,.72),0 0 2px rgba(0,0,0,.55); /* 深色分段控件文字的光晕：黑色（金黄、绿色等亮色液体上也看得清） */
+    --glass-bg:rgba(20,22,40,.08); /* 深色玻璃底色：8% 深蓝灰 */
+    --glass-bg-strong:rgba(54,60,84,.74); /* 深色较实的玻璃底色 */
+    --glass-blur:blur(5px) saturate(140%); /* 深色 CSS 玻璃的模糊和提饱和 */
+    --glass-spec:radial-gradient(120% 85% at 18% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%); /* 深色镜面反光（更弱） */
+    --glass-rim:linear-gradient(140deg,rgba(255,255,255,.8),rgba(255,255,255,.2) 20%,rgba(255,255,255,.1) 42%,rgba(255,255,255,.1) 62%,rgba(255,255,255,.18) 82%,rgba(255,255,255,.55)); /* 深色高光描边（更弱），中段保留 10% 白，描边不断开 */
+    --glass-edge:0 0 .5px #000,0 0 .5px #000,0 0 2px rgba(0,0,0,.55); /* 深色外圈黑色细边 */
+    --glass-border:rgba(0,0,0,.6); /* 深色大面板细边颜色 */
+    --glass-inset: /* 深色内侧高光（多行取值） */
+      inset 0 1px 0 rgba(255,255,255,.3), /* 顶部亮线（更弱） */
+      inset 2px 2px 4px rgba(255,255,255,.16), /* 左上透镜光带 */
+      inset -2px -2px 4px rgba(255,255,255,.08), /* 右下透镜光带 */
+      inset 0 0 16px rgba(255,255,255,.05); /* 内侧柔光 */
+    --glass-shadow: /* 深色小控件的玻璃阴影（多行取值） */
+      var(--glass-edge), /* 深色细边 */
+      var(--glass-inset), /* 内侧高光 */
+      0 12px 32px rgba(0,0,0,.4), /* 远处投影（更深） */
+      0 2px 6px rgba(0,0,0,.3); /* 近处投影 */
+    --gl-look:2.5 .3 .04 1; /* 深色：磨砂 2.5、高光 0.3、顶部反光 0.04、不提亮 */
+    --gl-tint:rgba(20,22,40,.08); /* 深色 WebGL 玻璃底色：8% 深蓝灰 */
+    --strip:#0b1026; /* 深色 iOS 主屏幕 App 底部系统色条的颜色：深海军蓝，像自然的暗角 */
+    --gl-sheen:0; /* 深色：边缘反光用白光（暗背景上是一条清晰的亮线） */
+    --gl-shadow:rgba(0,0,0,.25); /* 深色面板投影颜色 */
+    --glow:rgba(255,255,255,.26); /* 深色触摸发光（更弱） */
+    --tint-primary:rgba(99,102,241,.72); /* 深色主按钮底色 */
+    --thumb-bg:rgba(255,255,255,.22); /* 深色滑块底色 */
+    --thumb-lens:rgba(255,255,255,.1); /* 深色按住滑块时的透镜底色 */
+    --overlay-bg:rgba(0,0,0,.4); /* 深色弹窗遮罩 */
+    --glass-modal:rgba(20,22,40,.16); /* 深色弹窗玻璃底色 */
+    --modal-filter:blur(12px) saturate(160%) brightness(1.3); /* 深色弹窗背景模糊，提亮更多 */
+    --modal-tip:rgba(241,245,249,.85); /* 深色弹窗提示文字 */
+    --modal-tip-shadow:0 1px 6px rgba(0,0,0,.5); /* 深色弹窗提示文字的阴影 */
+    --export-bg:linear-gradient(160deg,#151b3d 0%,#0b1026 55%,#1c1033 100%); /* 深色导出图片背景渐变 */
+    --export-base:#0b1026; /* 深色导出图片画布底色 */
+    --export-title:#f1f5f9; /* 深色导出图片标题颜色 */
+  }
+}
+/* 系统“降低透明度”时改用实底材质 */
+@media (prefers-reduced-transparency: reduce) { /* 系统开启“降低透明度”时 */
+  :root { /* 覆盖玻璃变量 */
+    --glass-bg:#ffffff; /* 玻璃改为白色实底 */
+    --glass-bg-strong:#ffffff; /* 较实的玻璃也改为白色实底 */
+    --glass-modal:#ffffff; /* 弹窗改为白色实底 */
+    --glass-blur:none; /* 不做背景模糊 */
+    --scrim-filter:none; /* 弹窗后面的页面只压暗、不模糊 */
+    --overlay-bg:rgba(15,23,42,.55); /* 不模糊时压得更暗，背后的内容不抢眼 */
+    --glass-spec:none; /* 去掉镜面反光 */
+  }
+}
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) { /* 降低透明度且为深色模式时 */
+  :root { /* 覆盖玻璃变量 */
+    --glass-bg:#1e2333; /* 玻璃改为深色实底 */
+    --glass-bg-strong:#1e2333; /* 较实的玻璃改为深色实底 */
+    --glass-modal:#1e2333; /* 弹窗改为深色实底 */
+    --overlay-bg:rgba(0,0,0,.65); /* 深色遮罩压得更暗 */
+  }
+}
+* {box-sizing:border-box;} /* 所有元素的宽高包含内边距和边框 */
+  html, /* 根元素和 */
+  body { /* 页面主体的共同样式 */
+  margin: 0; /* 去掉默认外边距 */
+  padding: 0; /* 去掉默认内边距 */
+  width: 100%; /* 宽度铺满窗口 */
+  height: 100%; /* 高度铺满窗口 */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", "Helvetica Neue", Arial, sans-serif; /* 字体：优先苹果系统字体和苹方 */
+  -webkit-font-smoothing: antialiased; /* 苹果设备上字体平滑 */
+  color: var(--text-main); /* 默认文字颜色 */
+  display: flex; /* 用 flex 布局 */
+  align-items: center; /* 内容垂直居中 */
+  justify-content: center; /* 内容水平居中 */
+  overflow: hidden; /* 页面不滚动 */
+  touch-action: none; /* 禁止浏览器默认的触摸手势（缩放、滚动） */
+  -webkit-user-select: none; /* 禁止选中文字（Safari） */
+  user-select: none; /* 禁止选中文字 */
+  -webkit-touch-callout: none; /* 禁止长按弹出菜单（Safari） */
+  }
+  html { /* 根元素单独的样式 */
+  background-color: var(--bg-page); /* 底色 */
+  background-image: var(--bg-canvas); /* 渐变底色 */
+  background-repeat: no-repeat; /* 渐变不重复 */
+  background-size: 100% 100vh; /* 渐变高度等于视口高度（旧浏览器） */
+  background-size: 100% 100lvh; /* 渐变高度等于大视口高度，盖住 iOS 工具栏区域 */
+  background-size: 100% calc(100lvh + var(--screen-extra)); /* 主屏幕 App 里再多延伸状态栏的高度 */
+  }
+  * { /* 所有元素 */
+  -webkit-tap-highlight-color: transparent; /* 去掉点击时的灰色高亮 */
+  }
+  .container, /* 容器、 */
+  .form-box, /* 表单卡片、 */
+  .result-box, /* 结果卡片、 */
+  .result-inner, /* 结果内容、 */
+  .pick-box, /* 一注卡片、 */
+  h1, /* 标题、 */
+  button, /* 按钮、 */
+  .segmented, /* 分段控件、 */
+  .segmented label { /* 分段控件的选项文字： */
+  touch-action: none; /* 禁止浏览器默认的触摸手势 */
+  -ms-touch-action: none; /* 旧版 IE/Edge 的同一属性 */
+}

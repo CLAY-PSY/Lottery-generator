@@ -1,0 +1,109 @@
+/* 保存图片的预览弹窗（iPhone、iPad 长按保存到相册） */
+.ios-save-overlay { /* 保存图片弹窗的遮罩 */
+  position: fixed; /* 固定在视口上 */
+  top: 0; /* 贴住顶部 */
+  right: 0; /* 贴住右边 */
+  bottom: calc(0px - var(--screen-extra)); /* 贴住底部；主屏幕 App 里多往下延伸状态栏的高度，压暗整个屏幕 */
+  left: 0; /* 贴住左边 */
+  z-index: 99999; /* 放在所有内容上面 */
+  /* 遮罩本身只压暗，并用背景色淡入：遮罩带模糊或透明度小于 1 时，弹窗自己的背景模糊看不到后面的页面；
+     页面模糊交给遮罩里、弹窗旁边的单独一层（.ios-save-blur） */
+  background: rgba(0, 0, 0, 0); /* 初始完全透明 */
+  transition: background-color 0.22s ease; /* 遮罩颜色 0.22 秒淡入淡出 */
+  isolation: isolate; /* 新建层叠上下文 */
+  -webkit-transform: translateZ(0); /* 开启 GPU 合成（Safari） */
+  transform: translateZ(0); /* 开启 GPU 合成 */
+  touch-action: none; /* 禁止触摸手势 */
+}
+.ios-save-overlay.show { /* 显示时的遮罩 */
+  background: var(--overlay-bg); /* 压暗背后的页面 */
+}
+.ios-save-blur { /* 弹窗后面的模糊层：和弹窗并列（不是弹窗的父元素），弹窗的玻璃仍能透出后面 */
+  position: absolute; /* 铺满遮罩 */
+  inset: 0; /* 四边贴齐 */
+  -webkit-backdrop-filter: var(--scrim-filter); /* 模糊后面的页面（Safari） */
+  backdrop-filter: var(--scrim-filter); /* 模糊后面的页面 */
+  opacity: 0; /* 初始看不到 */
+  transition: opacity .22s ease; /* 和遮罩一起淡入淡出 */
+  pointer-events: none; /* 不挡点击：点弹窗外面仍能关闭 */
+}
+.ios-save-overlay.show .ios-save-blur { /* 显示时的模糊层 */
+  opacity: 1; /* 完全显示 */
+}
+/* 弹窗的居中区域：不用固定定位，和页面内容在同一个坐标里、按同样的安全区居中。
+   iOS 26 主屏幕 App 里固定定位的元素可能被挪位置（WebKit Bug 301108），而页面内容的位置是对的 */
+.ios-save-stage { /* 弹窗的居中区域 */
+  position: absolute; /* 相对页面定位（页面不滚动，和 body 重合） */
+  top: 0; /* 贴住页面顶部 */
+  left: 0; /* 贴住页面左边 */
+  width: 100%; /* 和页面一样宽 */
+  height: 100%; /* 和页面一样高 */
+  z-index: 100000; /* 盖在遮罩上面 */
+  display: flex; /* 用 flex 布局 */
+  align-items: center; /* 弹窗垂直居中 */
+  justify-content: center; /* 弹窗水平居中 */
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); /* 避开状态栏和底部横条，和页面内容的留白方式一致 */
+  pointer-events: none; /* 自己不接收点击：点弹窗外面落到遮罩上，关闭弹窗 */
+}
+html.ios-app .ios-save-stage { /* 主屏幕 App 里 */
+  min-height: var(--screen-h); /* 和页面一样至少一个屏幕高 */
+}
+.ios-save-modal { /* 保存图片弹窗 */
+  position: relative; /* 建立定位上下文，供高光描边定位 */
+  width: min(340px, 85vw); /* 宽 340px，屏幕窄时为屏幕宽度的 85% */
+  max-height: 80vh; /* 最高为屏幕高度的 80% */
+  padding: 14px; /* 内边距 */
+  /* 通透玻璃：透过弹窗看到后面模糊的液体，比压暗的背景亮一些 */
+  background: var(--glass-spec), var(--glass-modal); /* 镜面反光叠在玻璃底色上 */
+  -webkit-backdrop-filter: var(--modal-filter); /* 背景模糊（Safari） */
+  backdrop-filter: var(--modal-filter); /* 背景模糊 */
+  border-radius: 32px; /* 圆角 */
+  border: .5px solid var(--glass-border); /* 深色细边 */
+  box-shadow: var(--glass-inset); /* 内侧高光 */
+  display: flex; /* 用 flex 布局 */
+  flex-direction: column; /* 纵向排列：图片、提示、关闭按钮 */
+  align-items: center; /* 水平居中 */
+  overflow: hidden; /* 超出部分裁掉 */
+  pointer-events: auto; /* 弹窗本身可以点 */
+  -webkit-transform: translateZ(0) scale(.9); /* 初始缩小到 90%（Safari） */
+  transform: translateZ(0) scale(.9); /* 初始缩小到 90% */
+  -webkit-filter: blur(10px); /* 初始模糊（Safari） */
+  filter: blur(10px); /* 初始模糊 */
+  opacity: 0; /* 初始透明 */
+  transition: transform .45s cubic-bezier(.34,1.56,.64,1), filter .3s ease, -webkit-filter .3s ease, opacity .22s ease; /* 缩放带回弹，模糊和透明度平滑过渡 */
+}
+.ios-save-stage.show .ios-save-modal { /* 显示时的弹窗 */
+  -webkit-transform: translateZ(0) scale(1); /* 恢复原大小（Safari） */
+  transform: translateZ(0) scale(1); /* 恢复原大小 */
+  -webkit-filter: none; /* 变清晰（Safari） */
+  filter: none; /* 变清晰 */
+  opacity: 1; /* 完全不透明 */
+}
+.ios-save-preview { /* 弹窗里的预览图 */
+  display: block; /* 块级显示 */
+  width: 100%; /* 宽度铺满弹窗 */
+  height: auto; /* 高度按比例 */
+  max-height: 65vh; /* 最高为屏幕高度的 65% */
+  object-fit: contain; /* 完整显示图片，不裁剪 */
+  border-radius: 18px; /* 圆角 */
+  -webkit-user-select: none; /* 禁止选中（Safari） */
+  user-select: none; /* 禁止选中 */
+  -webkit-touch-callout: default; /* 允许长按弹出“存储到照片”菜单 */
+}
+.ios-save-tip { /* 弹窗提示文字 */
+  margin-top: 10px; /* 与图片的间距 */
+  font-size: 13px; /* 字号 */
+  line-height: 20px; /* 行高 */
+  color: var(--modal-tip); /* 文字颜色 */
+  text-shadow: var(--modal-tip-shadow); /* 文字光晕，让它在彩色液体上也清楚 */
+  text-align: center; /* 居中 */
+}
+.ios-save-close { /* 弹窗的关闭按钮 */
+  --glow: rgba(255, 255, 255, 0.35); /* 触摸发光调弱，避免盖住白字 */
+  flex: none; /* 不伸缩（按钮默认会平分宽度） */
+  width: 100%; /* 宽度铺满弹窗 */
+  margin-top: 10px; /* 与提示文字的间距 */
+  background: var(--glass-spec), var(--tint-primary); /* 镜面反光叠在靛蓝底色上 */
+  color: #fff; /* 白色文字 */
+  font-size: 15px; /* 字号 */
+}

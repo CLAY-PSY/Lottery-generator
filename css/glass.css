@@ -1,0 +1,58 @@
+/* 液态玻璃材质：半透明、背景模糊、高光描边、触摸发光 */
+/* 液体玻璃基础材质：半透明 + 背景模糊增饱和 + 镜面高光 + 高光边缘 */
+.glass { /* 玻璃面板 */
+  position:relative; /* 建立定位上下文，供伪元素定位 */
+  isolation:isolate; /* 新建层叠上下文，让触摸发光层留在面板内容下面 */
+  background:var(--glass-spec),var(--glass-bg); /* 镜面反光叠在玻璃底色上 */
+  -webkit-backdrop-filter:var(--glass-blur); /* 背景模糊（Safari） */
+  backdrop-filter:var(--glass-blur); /* 背景模糊 */
+  /* 大面板不用外侧模糊投影：Safari 给大尺寸圆角元素画外侧模糊阴影时会分块拼贴，
+     圆角外会露出一块方形色块。深色细边改用边框画，内侧高光保留 */
+  border:.5px solid var(--glass-border); /* 0.5px 深色细边 */
+  box-shadow:var(--glass-inset); /* 内侧高光 */
+}
+.glass::before, /* 玻璃面板、 */
+button::before, /* 按钮、 */
+.segmented-thumb::before, /* 分段控件滑块、 */
+.ios-save-modal::before { /* 保存弹窗的高光描边层： */
+  content:""; /* 伪元素必须有 content 才会显示 */
+  position:absolute; /* 绝对定位 */
+  top:0; /* 贴住顶部 */
+  right:0; /* 贴住右边 */
+  bottom:0; /* 贴住底部 */
+  left:0; /* 贴住左边 */
+  border-radius:inherit; /* 圆角跟随父元素 */
+  padding:var(--rim-w); /* 内边距等于描边宽度 */
+  background:var(--glass-rim); /* 描边的渐变 */
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0); /* 用两层遮罩相减，只留下内边距那一圈（Safari） */
+  -webkit-mask-composite:xor; /* 两层遮罩做异或（Safari） */
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0); /* 两层遮罩相减，只留下一圈描边 */
+  pointer-events:none; /* 不接收点击 */
+}
+/* 触摸发光：光从手指处向外扩散，并带亮所在的玻璃面板 */
+.glass::after, /* 玻璃面板、 */
+button::after, /* 按钮、 */
+.segmented-thumb::after { /* 分段控件滑块的触摸发光层： */
+  content:""; /* 伪元素必须有 content 才会显示 */
+  position:absolute; /* 绝对定位 */
+  top:0; /* 贴住顶部 */
+  right:0; /* 贴住右边 */
+  bottom:0; /* 贴住底部 */
+  left:0; /* 贴住左边 */
+  z-index:-1; /* 放在元素内容下面 */
+  border-radius:inherit; /* 圆角跟随父元素 */
+  background:radial-gradient(circle var(--glow-size,90px) at var(--lx,50%) var(--ly,50%),var(--glow),transparent); /* 以手指位置为中心的圆形光晕（--lx、--ly 由 JS 设置） */
+  opacity:0; /* 平时不显示 */
+  transition:opacity .6s ease; /* 松手后 0.6 秒淡出 */
+  pointer-events:none; /* 不接收点击 */
+}
+.glass::after { /* 玻璃面板的发光层 */
+  --glow-size:150px; /* 光晕更大 */
+}
+.lit::after { /* 按下时的发光层 */
+  opacity:1; /* 显示光晕 */
+  transition-duration:.15s; /* 按下时 0.15 秒快速亮起 */
+}
+.glass.lit::after { /* 玻璃面板被带亮时 */
+  opacity:.55; /* 光晕只亮到 55% */
+}

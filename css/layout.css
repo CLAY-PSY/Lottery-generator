@@ -1,0 +1,84 @@
+/* 页面布局：背景画布、内容容器、主屏幕 App 的修正、状态栏、标题 */
+.backdrop { /* 2D 兜底背景的容器 */
+  position:fixed; /* 固定在视口上，不随内容移动 */
+  top:0; /* 贴住顶部 */
+  left:0; /* 贴住左边 */
+  right:0; /* 贴住右边 */
+  height:100vh; /* 高度等于视口（旧浏览器） */
+  height:100lvh; /* 高度等于大视口，盖住 iOS 工具栏区域 */
+  height:calc(100lvh + var(--screen-extra)); /* 主屏幕 App 里再多延伸状态栏的高度，底部不露白边 */
+  z-index:0; /* 放在内容下面 */
+  overflow:hidden; /* 超出部分裁掉 */
+  pointer-events:none; /* 不接收点击 */
+}
+.backdrop canvas { /* 兜底背景的画布 */
+  display:block; /* 块级显示，去掉行内元素底部的空隙 */
+  width:100%; /* 宽度铺满（低分辨率画布由浏览器放大） */
+  height:100%; /* 高度铺满 */
+}
+/* WebGL 版：背景和玻璃面板由画布绘制，CSS 只保留边框、高光描边和触摸发光 */
+.lg-canvas { /* WebGL 画布 */
+  position:fixed; /* 固定在视口上 */
+  top:0; /* 贴住顶部 */
+  left:0; /* 贴住左边 */
+  width:100%; /* 宽度铺满 */
+  height:100vh; /* 高度等于视口（旧浏览器） */
+  height:100lvh; /* 高度等于大视口 */
+  height:calc(100lvh + var(--screen-extra)); /* 主屏幕 App 里再多延伸状态栏的高度，底部不露白边 */
+  z-index:0; /* 放在内容下面 */
+  pointer-events:none; /* 不接收点击 */
+}
+.lg-webgl .backdrop { /* WebGL 生效时，隐藏 2D 兜底背景 */
+  visibility:hidden; /* 隐藏但保留布局 */
+}
+.lg-webgl .glass { /* WebGL 生效时，CSS 玻璃面板 */
+  background:transparent; /* 去掉 CSS 底色（由 WebGL 画） */
+  -webkit-backdrop-filter:none; /* 去掉 CSS 背景模糊（Safari） */
+  backdrop-filter:none; /* 去掉 CSS 背景模糊 */
+  box-shadow:none; /* 去掉内侧高光（由 WebGL 画） */
+}
+.container { /* 页面内容容器 */
+  position:relative; /* 建立定位上下文 */
+  z-index:1; /* 放在背景画布上面 */
+  width:100%; /* 宽度铺满 */
+  max-width:480px; /* 最宽 480px */
+  display:flex; /* 用 flex 布局 */
+  flex-direction:column; /* 纵向排列：标题、表单、结果 */
+  gap:16px; /* 各块之间的间距 */
+  padding:max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); /* 四周留白，至少 24px，并避开刘海和圆角安全区 */
+}
+/* iOS 主屏幕 App：页面至少和屏幕一样高（WebKit Bug 301108：页面比屏幕矮时，iOS 把可视区域缩短一个状态栏，底部露出空白） */
+html.ios-app, /* 主屏幕 App 的根元素和 */
+html.ios-app body { /* 页面主体 */
+  min-height:var(--screen-h); /* 至少一个屏幕高（overflow:hidden，页面不会因此滚动） */
+}
+html.ios-app { /* 主屏幕 App 的根元素 */
+  background-color:var(--strip); /* 万一底部仍留一条，用与液体协调的颜色代替发白的底色（系统用页面底色给那一条上色） */
+}
+html.ios-app .lg-canvas, /* 主屏幕 App 的 WebGL 画布和 */
+html.ios-app .backdrop { /* 兜底背景 */
+  min-height:var(--screen-h); /* 至少铺满整个屏幕 */
+}
+/* 从主屏幕全屏打开时状态栏是透明的，文字固定为白色：浅色背景上看不清，在顶部加一层淡淡的暗色渐变 */
+@media (display-mode: standalone) and (prefers-color-scheme: light) { /* 主屏幕 App 且为浅色模式时 */
+  body::before { /* 状态栏底下的渐变层 */
+    content:""; /* 伪元素必须有 content 才会显示 */
+    position:fixed; /* 固定在屏幕顶部 */
+    top:0; /* 贴住顶部 */
+    left:0; /* 贴住左边 */
+    right:0; /* 贴住右边 */
+    height:calc(env(safe-area-inset-top) + 20px); /* 高度：状态栏再往下 20px */
+    background:linear-gradient(rgba(15,23,42,.3),rgba(15,23,42,0)); /* 从上往下由淡暗色渐变到透明 */
+    z-index:2; /* 盖在背景和内容上面 */
+    pointer-events:none; /* 不接收点击 */
+  }
+}
+h1 { /* 标题 */
+  text-align:center; /* 文字居中 */
+  font-size:1.5rem; /* 字号 1.5 倍 */
+  font-weight:700; /* 粗体 */
+  letter-spacing:-.01em; /* 字距稍微收紧 */
+  margin:0 0 4px; /* 底部留 4px */
+  /* 液体随机流过标题后面时，保证文字清楚 */
+  text-shadow:var(--title-glow); /* 标题外发光 */
+}
