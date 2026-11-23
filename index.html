@@ -1207,7 +1207,7 @@ function toggleButtons(disabled){ // 统一禁用或启用按钮、彩种切换�
   typeInputs.forEach(input=>input.disabled=disabled) // 两个彩种单选框
   modeInputs.forEach(input=>input.disabled=disabled) // 两个选号方式单选框
 }
-const RANDOM_MS=10000 // 随机选号的过程一共 10 秒：每个球的计算一个字一个字写出来，写完时中间的卡片填上这个球
+const RANDOM_MS=5000 // 随机选号的过程一共 5 秒：每个球的计算一个字一个字写出来，写完时中间的卡片填上这个球
 async function generateRandom(){ // 随机选号：一个个球抽出来，中间的卡片出一注，下面的窗口写出每个球是从哪些号码里抽出来的、怎么算的
   if(isRolling) return // 正在生成就忽略
   const type=getType(),rule=DEEP_RULES[type],[kr,Mr]=rule.red,[kb,Mb]=rule.blue // 彩种、红球蓝球的个数和范围
@@ -1216,7 +1216,7 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   resultInner.setAttribute("aria-busy","true") // 告诉读屏软件内容正在变化，先不播报
   const quick=matchMedia("(prefers-reduced-motion: reduce)").matches // 减弱动态效果时不停顿、不逐字写
   const t0=performance.now(),steps=kr+kb+1 // 开始时间、一共几步（每个球一步，最后的结果一步）
-  const until=k=>quick?Promise.resolve():new Promise(resolve=>setTimeout(resolve,Math.max(0,t0+RANDOM_MS*k/steps-performance.now()))) // 等到第 k 步该结束的时刻（10 秒平均分给每一步）
+  const until=k=>quick?Promise.resolve():new Promise(resolve=>setTimeout(resolve,Math.max(0,t0+RANDOM_MS*k/steps-performance.now()))) // 等到第 k 步该结束的时刻（总时长平均分给每一步）
   resultInner.innerHTML="" // 清空过程窗口
   resultInner.className="result-inner deep" // 和深度思考一样的过程窗口样式
   const head=document.createElement("div") // 标题行
@@ -1279,7 +1279,7 @@ async function generateRandom(){ // 随机选号：一个个球抽出来，中�
   await draw(Mr,kr,reds,"red","红球") // 先抽红球
   await draw(Mb,kb,blues,"blue","蓝球") // 再抽蓝球
   await line("结果",[[`红球从小到大排好：${nums([...reds].sort((x,y)=>x-y))}；蓝球：${nums([...blues].sort((x,y)=>x-y))}。`]],t0+RANDOM_MS-performance.now()-150) // 最后一步：结果
-  await until(steps) // 正好 10 秒
+  await until(steps) // 正好 5 秒
   head.querySelector(".deep-title").textContent="已随机选号" // 标题改成已完成
   resultInner.classList.add("deep-done") // 抽完了（过程留在窗口里，可以上下滑动回看）
   log.onscroll=fade // 手动滚动时更新上下渐隐
