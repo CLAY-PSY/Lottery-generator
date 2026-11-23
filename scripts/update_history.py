@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# 抓取双色球、大乐透的全部历史开奖号码，校验后写入 data/ssq.json 和 data/dlt.json（网页“深度思考”用）
+# 抓取双色球、大乐透的全部历史开奖号码，校验后写入 web/data/ssq.json 和 web/data/dlt.json（网页“深度思考”用）
 # 数据来源：500.com 提供的开奖 XML（每期一行：期号、开奖号码、开奖时间），比解析网页表格更直接可靠。
 # 新开奖按开奖日、期号连续、日期先后检查，已有的历史不允许变化，
 # 任何一项不通过就报错退出，不写入。
@@ -19,7 +19,7 @@ GAMES = {  # 彩种配置
     "dlt": {"name": "大乐透", "url": "https://kaijiang.500.com/static/info/kaijiang/xml/dlt/list.xml", "red": (5, 35), "blue": (2, 12), "first": "2007001",  # 大乐透：5 红（1～35）+ 2 蓝（1～12）
             "weekdays": {0, 2, 5}},  # 开奖日：周一、三、六
 }
-OUT = Path(__file__).resolve().parent.parent / "data"  # 输出目录：仓库根目录下的 data
+OUT = Path(__file__).resolve().parent.parent / "web" / "data"  # 输出目录：网站文件夹 web 里的 data
 
 
 def fetch(url, tries=3):  # 下载并按 UTF-8 解码；网络偶尔断开时等一会儿再试，最多 3 次

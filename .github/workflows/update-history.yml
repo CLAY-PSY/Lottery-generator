@@ -27,10 +27,10 @@ jobs:  # 任务
       - name: 有新数据就提交  # 提交并推送
         id: commit  # 供下一步判断
         run: |  # 多行脚本
-          if git diff --quiet -- data; then echo "没有新开奖"; exit 0; fi  # 数据没变就结束
+          if git diff --quiet -- web/data; then echo "没有新开奖"; exit 0; fi  # 数据没变就结束
           git config user.name "github-actions[bot]"  # 提交者名字
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"  # 提交者邮箱
-          git add data  # 加入数据文件
+          git add web/data  # 加入数据文件
           git commit -m "更新开奖历史 $(TZ=Asia/Shanghai date +%F)"  # 提交说明带上日期
           git push  # 推送到 main
           echo "pushed=true" >> "$GITHUB_OUTPUT"  # 记下已推送

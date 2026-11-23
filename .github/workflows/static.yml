@@ -38,8 +38,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          # 只发布 web 文件夹（网页、样式、脚本、图标、图片、开奖数据、离线缓存），它就是网站的最外层，网址和原来一样
+          path: './web'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
