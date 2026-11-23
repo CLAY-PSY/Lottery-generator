@@ -578,17 +578,6 @@ button::after, /* 按钮、 */
   color:var(--text-sub); /* 颜色淡一点 */
   font-variant-numeric:tabular-nums; /* 数字等宽 */
 }
-/* 随机选号的开奖窗口：标题行下面是摇奖机动画（画布） */
-.result-inner.draw { /* 开奖窗口 */
-  gap:5px; /* 标题行和动画的间距 */
-}
-.draw-stage { /* 摇奖机画布 */
-  display:block; /* 块级，去掉行内元素底部空隙 */
-  flex:1 1 auto; /* 占满标题行下面的空间 */
-  min-height:0; /* 允许缩小 */
-  align-self:stretch; /* 占满宽度 */
-  width:100%; /* 宽度 */
-}
 /* 一注卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的一注（随机选号、深度思考都是） */
 .pick-box { /* 一注卡片 */
   flex-shrink:0; /* 不被压缩 */
@@ -1197,216 +1186,64 @@ function toggleButtons(disabled){ // 统一禁用或启用按钮、彩种切换�
   typeInputs.forEach(input=>input.disabled=disabled) // 两个彩种单选框
   modeInputs.forEach(input=>input.disabled=disabled) // 两个选号方式单选框
 }
-// ===== 随机选号：摇奖机动画，像彩票现场开奖 =====
-// 玻璃滚筒里的彩球被气流吹得翻滚，按顺序一个个从顶部出口吸出，沿出球管滚到右边的轨道上排好；先摇红球，再换蓝球。
-// 抽哪个号由浏览器的加密随机数决定（剩下的每个号码机会均等），动画只负责把那个球“吸”出来，翻滚的样子用普通随机数
-function lotteryDraw(canvas,rule,hooks){ // 在画布上播放一次开奖，返回 Promise，结果为 {red,blue}；hooks.status(文字) 报告进行到哪，hooks.ball(号码,颜色) 在球落到轨道上时调用
-  const [kr,Mr]=rule.red,[kb,Mb]=rule.blue // 红球、蓝球的个数和范围
-  const quick=matchMedia("(prefers-reduced-motion: reduce)").matches // 减弱动态效果：不播动画，直接给结果
-  const dpr=Math.min(window.devicePixelRatio||1,3) // 像素密度
-  const W=canvas.clientWidth,H=canvas.clientHeight // 画布的 CSS 尺寸
-  canvas.width=Math.round(W*dpr) // 实际像素宽
-  canvas.height=Math.round(H*dpr) // 实际像素高
-  const ctx=canvas.getContext("2d") // 2D 绘图
-  ctx.scale(dpr,dpr) // 之后按 CSS 像素作画
-  const R=Math.max(30,Math.min(H/2-8,W*.25)),cx=R+8,cy=H/2,b=R*.12,ballR=b // 滚筒：圆心、半径；球的半径
-  const railX0=cx+R+14,railX1=W-4,railY=cy+R*.42 // 出球轨道：起点、终点、高度
-  const slotW=Math.min(2*b+3,(railX1-railX0-6)/(kr+kb)),rb=Math.min(b,slotW/2-1) // 轨道上每个球占的宽度、轨道上球的半径（放不下时缩小）
-  const slotX=i=>railX0+4+slotW/2+i*slotW // 第 i 个出来的球在轨道上的位置
-  const P0={x:cx+R*.38,y:cy-R*.92+b},P1={x:railX0+8,y:cy-R-4},P2={x:railX0+2,y:railY} // 出球管：滚筒右上方的出口 → 弯过来 → 轨道起点
-  const theme=getComputedStyle(document.documentElement) // 当前深浅模式的颜色
-  const sprites={} // 每个号码球预先画好的图（每帧直接贴图，手机上也流畅）
-  const sprite=(n,color,b=ballR)=>{ // 取（没有就先画）一个号码球的图：b 为半径
-    const key=color+n+"@"+b // 键
-    if(sprites[key]) return sprites[key] // 画过了
-    const size=Math.ceil((2*b+2)*dpr),c=document.createElement("canvas") // 图的像素尺寸
-    c.width=c.height=size // 正方形
-    const g=c.getContext("2d") // 绘图
-    g.scale(dpr,dpr) // 按 CSS 像素画
-    const o=b+1 // 圆心
-    const grad=g.createRadialGradient(o-b*.36,o-b*.48,0,o-b*.36,o-b*.48,b*1.6) // 左上偏高光的径向渐变，和页面上的球一致
-    grad.addColorStop(0,theme.getPropertyValue(`--${color}-hi`).trim()) // 高光色
-    grad.addColorStop(.55,theme.getPropertyValue(`--${color}`).trim()) // 主色
-    grad.addColorStop(1,theme.getPropertyValue(`--${color}-lo`).trim()) // 暗部色
-    g.fillStyle=grad;g.beginPath();g.arc(o,o,b,0,Math.PI*2);g.fill() // 球
-    g.fillStyle="rgba(255,255,255,.35)";g.beginPath();g.ellipse(o-b*.3,o-b*.5,b*.42,b*.2,-.5,0,Math.PI*2);g.fill() // 高光
-    g.fillStyle="#fff";g.font=`700 ${Math.round(b*1.02)}px ${getComputedStyle(document.body).fontFamily}`;g.textAlign="center";g.textBaseline="middle";g.fillText(pad2(n),o,o+b*.06) // 号码
-    return sprites[key]=c // 记下
-  }
-  let balls=[],flying=[],rail=[],alpha=1,mixing=true,running=true // 滚筒里的球、正在出来的球、轨道上的球、滚筒里球的透明度（换球时淡入淡出）、是否在吹、是否在播放
-  const spawn=(M,color)=>{ // 往滚筒里放 1～M 号球（随机位置，不重叠太多）
-    balls=Array.from({length:M},(_,i)=>{ // 每个号码
-      let x,y // 位置
-      do{x=cx+(Math.random()*2-1)*(R-b);y=cy+(Math.random()*2-1)*(R-b)}while(Math.hypot(x-cx,y-cy)>R-b-1) // 在滚筒里面
-      return {n:i+1,color,x,y,vx:(Math.random()-.5)*200,vy:(Math.random()-.5)*200,a:Math.random()*6.28} // 号码、颜色、位置、速度、转角
-    })
-  }
-  const step=dt=>{ // 物理一步：重力、气流、碰壁、互相碰撞
-    for(const p of balls){ // 每个球
-      p.vy+=900*dt // 重力
-      if(mixing){ // 吹气搅拌
-        const dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy)||1 // 相对圆心
-        if(dy>R*.15) p.vy-=(1500+Math.random()*2200)*dt // 下面的球被气流往上吹
-        p.vx+=(-dy/d*520+(Math.random()-.5)*900)*dt // 绕圈打转，再加点乱流
-        p.vy+=(dx/d*520)*dt // 绕圈打转
-      }
-      p.vx*=.996;p.vy*=.996 // 空气阻力
-      p.x+=p.vx*dt;p.y+=p.vy*dt;p.a+=p.vx*dt/b // 移动、按滚动转动
-      const dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy),lim=R-b // 离圆心多远
-      if(d>lim){ // 撞到滚筒壁
-        const nx=dx/d,ny=dy/d,vn=p.vx*nx+p.vy*ny // 法线方向、法向速度
-        p.x=cx+nx*lim;p.y=cy+ny*lim // 推回壁内
-        if(vn>0){p.vx-=1.8*vn*nx;p.vy-=1.8*vn*ny} // 反弹（损失一点能量）
-      }
-    }
-    for(let i=0;i<balls.length;i++) for(let j=i+1;j<balls.length;j++){ // 两两碰撞
-      const p=balls[i],q=balls[j],dx=q.x-p.x,dy=q.y-p.y,d=Math.hypot(dx,dy) // 两球距离
-      if(d>=2*b||d===0) continue // 没碰到
-      const nx=dx/d,ny=dy/d,push=(2*b-d)/2 // 法线方向、各推开多少
-      p.x-=nx*push;p.y-=ny*push;q.x+=nx*push;q.y+=ny*push // 推开
-      const vn=(q.vx-p.vx)*nx+(q.vy-p.vy)*ny // 相对法向速度
-      if(vn<0){const k=-.95*vn;p.vx-=k*nx;p.vy-=k*ny;q.vx+=k*nx;q.vy+=k*ny} // 弹开
-    }
-  }
-  const drawBall=(p,r=b,al=1)=>{ // 画一个球
-    const big=r>b*1.3,s=big?sprite(p.n,p.color,Math.round(r)):sprite(p.n,p.color) // 球的图（大球单独画一张，放大不糊）
-    const base=big?Math.round(r):b // 图里球的半径
-    ctx.save();ctx.globalAlpha=al;ctx.translate(p.x,p.y);ctx.rotate(p.a||0) // 位置、转角
-    ctx.drawImage(s,-(base+1)*r/base,-(base+1)*r/base,(2*base+2)*r/base,(2*base+2)*r/base) // 贴图（按半径缩放）
-    ctx.restore() // 还原
-  }
-  const tube=(path,width)=>{ // 画一段玻璃管：一圈清楚的边，里面淡淡的白
-    ctx.save();ctx.lineCap="round";ctx.lineJoin="round" // 圆头
-    path();ctx.strokeStyle="rgba(255,255,255,.6)";ctx.lineWidth=width+2;ctx.stroke() // 外边
-    ctx.globalCompositeOperation="destination-out";path();ctx.lineWidth=width-1;ctx.stroke() // 掏空中间，只留一圈边
-    ctx.globalCompositeOperation="source-over";path();ctx.strokeStyle="rgba(255,255,255,.12)";ctx.stroke() // 里面淡淡的白
-    ctx.restore() // 还原
-  }
-  let latest=null // 刚出来的球（右上方放大展示）：{n,color,label,t}
-  const render=()=>{ // 画一帧
-    ctx.clearRect(0,0,W,H) // 清空
-    ctx.fillStyle="rgba(255,255,255,.10)";ctx.beginPath();ctx.moveTo(cx-R*.42,cy+R*.9);ctx.lineTo(cx+R*.42,cy+R*.9);ctx.lineTo(cx+R*.62,H-1);ctx.lineTo(cx-R*.62,H-1);ctx.closePath();ctx.fill() // 底座
-    const glassG=ctx.createRadialGradient(cx-R*.3,cy-R*.4,R*.1,cx,cy,R) // 滚筒玻璃
-    glassG.addColorStop(0,"rgba(255,255,255,.16)");glassG.addColorStop(1,"rgba(255,255,255,.05)") // 中间亮、边缘暗
-    ctx.fillStyle=glassG;ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fill() // 玻璃
-    ctx.save();ctx.beginPath();ctx.arc(cx,cy,R-.5,0,Math.PI*2);ctx.clip() // 球只画在滚筒里
-    for(const p of balls) drawBall(p,b,alpha) // 滚筒里的球
-    ctx.restore() // 取消裁剪
-    ctx.strokeStyle="rgba(255,255,255,.6)";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.stroke() // 滚筒边
-    ctx.strokeStyle="rgba(255,255,255,.55)";ctx.lineWidth=2.5;ctx.lineCap="round";ctx.beginPath();ctx.arc(cx,cy,R-5,Math.PI*1.12,Math.PI*1.45);ctx.stroke() // 左上的反光
-    tube(()=>{ctx.beginPath();ctx.moveTo(P0.x,P0.y);ctx.quadraticCurveTo(P1.x,P1.y,P2.x,P2.y)},2*b+5) // 出球管
-    tube(()=>{ctx.beginPath();ctx.moveTo(P2.x,railY);ctx.lineTo(railX1-rb-4,railY)},2*rb+5) // 轨道
-    if(latest){ // 右上方放大展示刚出来的球
-      const k=Math.min(1,(performance.now()-latest.t)/260),pop=1+.25*Math.sin(Math.PI*k) // 弹一下
-      const bx=(railX0+railX1)/2,by=cy-R*.38,br=Math.min(R*.3,(railX1-railX0)*.16) // 位置、半径
-      drawBall({n:latest.n,color:latest.color,x:bx,y:by,a:0},br*pop) // 大球
-      ctx.fillStyle=theme.getPropertyValue("--text-sub").trim();ctx.font=`600 11px ${getComputedStyle(document.body).fontFamily}`;ctx.textAlign="center";ctx.textBaseline="top";ctx.fillText(latest.label,bx,by+br+6) // 是第几个球
-    }
-    for(const p of rail) drawBall(p,rb) // 轨道上的球
-    for(const f of flying) drawBall(f.p,f.r) // 正在出来的球
-  }
-  const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2 // 先加速后减速
-  const extract=(n,color,slot,label)=>new Promise(resolve=>{ // 把号码 n 的球从滚筒里吸出来，送到轨道第 slot 个位置；label 是“第几个红球”
-    const i=balls.findIndex(p=>p.n===n) // 找到这个球
-    const p=balls.splice(i,1)[0] // 拿出滚筒（不再参与碰撞）
-    const from={x:p.x,y:p.y},t0=performance.now() // 起点、开始时间
-    const A=170,B=230,C=180 // 三段用时：吸到出口、过出球管、在轨道上滚到位
-    flying.push({p,r:b,update(now){ // 每帧更新位置
-      const t=now-t0 // 过了多久
-      if(t<A){const k=ease(t/A);p.x=from.x+(P0.x-from.x)*k;p.y=from.y+(P0.y-from.y)*k} // 吸到出口
-      else if(t<A+B){const k=ease((t-A)/B),u=1-k;p.x=u*u*P0.x+2*u*k*P1.x+k*k*P2.x;p.y=u*u*P0.y+2*u*k*P1.y+k*k*P2.y;this.r=b+(rb-b)*k} // 过出球管（二次曲线）
-      else if(t<A+B+C){const k=1-Math.pow(1-(t-A-B)/C,3);p.x=P2.x+(slotX(slot)-P2.x)*k;p.y=railY;this.r=rb} // 在轨道上滚到位
-      else{p.x=slotX(slot);p.y=railY;p.a=0;flying.splice(flying.indexOf(this),1);rail.push(p);latest={n,color,label,t:performance.now()};hooks.ball(n,color);resolve();return} // 到位：摆正号码，右上方放大展示
-      p.a+=.25 // 一边走一边转
-    }})
-  })
-  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms)) // 等一会儿
-  const remaining=M=>Array.from({length:M},(_,i)=>i+1) // 号码池
-  if(quick){ // 减弱动态效果：直接给结果，画一张静止的图
-    const red=[],blue=[],poolR=remaining(Mr),poolB=remaining(Mb) // 结果、号码池
-    for(let i=0;i<kr;i++) red.push(poolR.splice(randomIntUnbiased(poolR.length),1)[0]) // 抽红球
-    for(let i=0;i<kb;i++) blue.push(poolB.splice(randomIntUnbiased(poolB.length),1)[0]) // 抽蓝球
-    spawn(Mb,"blue");mixing=false;for(let k=0;k<240;k++) step(1/120) // 滚筒里留着蓝球，让它们落下来静止
-    balls=balls.filter(p=>!blue.includes(p.n)) // 抽走的蓝球不在滚筒里
-    ;[...red.map(n=>[n,"red"]),...blue.map(n=>[n,"blue"])].forEach(([n,color],i)=>{rail.push({n,color,x:slotX(i),y:railY,a:0});hooks.ball(n,color)}) // 放到轨道上
-    latest={n:blue[blue.length-1],color:"blue",label:kb>1?`第 ${kb} 个蓝球`:"蓝球",t:0} // 右上方展示最后一个球
-    render() // 画一张
-    return Promise.resolve({red,blue}) // 结果
-  }
-  let last=performance.now() // 上一帧时间
-  const frame=now=>{ // 每帧
-    const dt=Math.min(.033,(now-last)/1000);last=now // 时间步长（切到后台再回来时不跳太远）
-    step(dt/2);step(dt/2) // 分两小步，碰撞更稳
-    for(const f of [...flying]) f.update(now) // 正在出来的球
-    render() // 画
-    if(running) requestAnimationFrame(frame) // 继续
-  }
-  spawn(Mr,"red") // 先放红球
-  requestAnimationFrame(frame) // 开始
-  return (async()=>{ // 开奖流程
-    const red=[],blue=[] // 结果
-    const run=async(M,k,list,color,name,offset)=>{ // 摇一种颜色的球
-      const pool=remaining(M),landed=[] // 号码池、落到轨道的
-      for(let i=0;i<k;i++){ // 一个个出球
-        const label=k>1?`第 ${i+1} 个${name}`:name // 第几个
-        hooks.status(label) // 报告进度
-        const n=pool.splice(randomIntUnbiased(pool.length),1)[0] // 加密随机数：剩下的号码里等概率抽一个
-        list.push(n) // 记下
-        landed.push(extract(n,color,offset+i,label)) // 把它吸出来（不等落定，下一个接着出，像现场一样连贯）
-        await wait(i<k-1?380:0) // 隔一会儿再出下一个
-      }
-      await Promise.all(landed) // 等都落到轨道上
-    }
-    await wait(450) // 先吹一会儿，搅匀
-    await run(Mr,kr,red,"red","红球",0) // 摇红球
-    hooks.status("换蓝球") // 换球
-    const t0=performance.now() // 开始换球
-    await new Promise(resolve=>{const fade=now=>{alpha=Math.max(0,1-(now-t0)/220);if(alpha>0) requestAnimationFrame(fade);else resolve()};requestAnimationFrame(fade)}) // 红球淡出
-    spawn(Mb,"blue") // 放入蓝球
-    const t1=performance.now() // 开始淡入
-    await new Promise(resolve=>{const fade=now=>{alpha=Math.min(1,(now-t1)/220);if(alpha<1) requestAnimationFrame(fade);else resolve()};requestAnimationFrame(fade)}) // 蓝球淡入
-    await wait(300) // 搅一会儿
-    await run(Mb,kb,blue,"blue","蓝球",kr) // 摇蓝球
-    mixing=false // 停止吹气，滚筒里的球落下来
-    await wait(400) // 落一会儿
-    running=false // 停止动画
-    for(let i=0;i<240;i++) step(1/120) // 再算 2 秒，让球在底部落稳（帧率低的设备也一样）
-    render() // 停在最后一帧
-    return {red,blue} // 结果
-  })()
-}
-async function generateRandom(){ // 随机选号：下面的窗口播放摇奖机开奖，球落到轨道上时，中间的卡片按从小到大填上这一注
+async function generateRandom(){ // 随机选号：一个个球抽出来，中间的卡片出一注，下面的窗口写出每个球是从哪些号码里抽出来的
   if(isRolling) return // 正在生成就忽略
-  const rule=DEEP_RULES[getType()] // 当前彩种的规则
+  const type=getType(),rule=DEEP_RULES[type],[kr,Mr]=rule.red,[kb,Mb]=rule.blue // 彩种、红球蓝球的个数和范围
   isRolling=true // 标记为生成中
   toggleButtons(true) // 禁用按钮和切换
   resultInner.setAttribute("aria-busy","true") // 告诉读屏软件内容正在变化，先不播报
-  resultInner.innerHTML="" // 清空窗口
-  resultInner.className="result-inner draw" // 开奖窗口
+  const quick=matchMedia("(prefers-reduced-motion: reduce)").matches // 减弱动态效果时不停顿
+  const wait=ms=>quick?Promise.resolve():new Promise(resolve=>setTimeout(resolve,ms)) // 每抽一个球停一下
+  resultInner.innerHTML="" // 清空过程窗口
+  resultInner.className="result-inner deep" // 和深度思考一样的过程窗口样式
   const head=document.createElement("div") // 标题行
-  head.className="deep-head" // 和深度思考一样的标题行
-  head.innerHTML='<span class="deep-dot"></span><span class="deep-title">开奖中</span><span class="deep-time"></span>' // 圆点、标题、进度
-  const stage=document.createElement("canvas") // 摇奖机画布
-  stage.className="draw-stage" // 样式
-  stage.setAttribute("aria-hidden","true") // 纯动画，读屏软件忽略（号码在一注卡片里播报）
-  resultInner.append(head,stage) // 放进窗口
-  const status=head.querySelector(".deep-time") // 右边的进度文字
-  const reds=[],blues=[] // 已落到轨道上的红球、蓝球
-  showPickPartial([],[]) // 一注卡片先全是空球
-  try{ // 开奖
-    await lotteryDraw(stage,rule,{ // 播放
-      status:text=>{status.textContent=text}, // 进度
-      ball:(n,color)=>{(color==="red"?reds:blues).push(n);showPickPartial(reds,blues,[n,color])}, // 落到轨道：填进一注卡片
-    })
-    head.querySelector(".deep-title").textContent="开奖完成" // 标题改成已完成
-    status.textContent="" // 去掉进度
-    resultInner.classList.add("deep-done") // 圆点不再闪
-    resultMode="random" // 结果来自随机选号
-  }finally{ // 无论成败
-    isRolling=false // 标记为生成结束
-    resultInner.removeAttribute("aria-busy") // 读屏软件播报
-    toggleButtons(false) // 恢复按钮和切换
+  head.className="deep-head" // 样式
+  head.innerHTML='<span class="deep-dot"></span><span class="deep-title">随机选号中</span><span class="deep-time"></span>' // 圆点、标题
+  const log=document.createElement("div") // 过程正文
+  log.className="deep-log" // 样式
+  resultInner.append(head,log) // 放进窗口
+  const fade=()=>{ // 上面还有内容就让顶部渐隐，下面还有内容就让底部渐隐
+    log.classList.toggle("fade-top",log.scrollTop>1) // 往下滚过
+    log.classList.toggle("fade-bottom",log.scrollTop+log.clientHeight<log.scrollHeight-1) // 还没滚到底
   }
+  const line=(label,text)=>{ // 写一段：加粗的小标题 + 正文
+    const p=document.createElement("p") // 一段
+    p.className="deep-p" // 样式
+    const b=document.createElement("b") // 小标题
+    b.className="deep-step" // 样式
+    b.textContent=label // 文字
+    p.append(b,text) // 小标题和正文
+    log.appendChild(p) // 放进窗口
+    log.scrollTop=log.scrollHeight // 滚到最新
+    fade() // 更新渐隐
+  }
+  const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
+  const range=M=>`01～${pad2(M)}` // 号码范围
+  line("方法",`用浏览器的加密随机数抽号：红球从 ${range(Mr)} 里不放回地抽 ${kr} 个，蓝球从 ${range(Mb)} 里抽 ${kb} 个。每次抽之前，剩下的每个号码被抽中的机会都一样。`)
+  showPickPartial([],[]) // 一注卡片先全是空球
+  const reds=[],blues=[] // 抽出的红球、蓝球
+  const draw=async(M,k,picked,color,name)=>{ // 抽一种颜色的球
+    const pool=Array.from({length:M},(_,i)=>i+1) // 号码池：1～M
+    for(let i=0;i<k;i++){ // 抽 k 个
+      await wait(160) // 停一下，一个个出来
+      const taken=[...picked].sort((x,y)=>x-y) // 已经抽出的（从小到大）
+      const n=pool.splice(randomIntUnbiased(pool.length),1)[0] // 从剩下的号码里等概率抽一个，拿出号码池
+      picked.push(n) // 记下
+      line(k>1?`第 ${i+1} 个${name}`:name,taken.length?`${range(M)} 去掉已抽出的 ${taken.map(pad2).join("、")}，剩 ${pool.length+1} 个号码，抽出 ${pad2(n)}`:`${range(M)} 共 ${M} 个号码，抽出 ${pad2(n)}`) // 写出这一步
+      showPickPartial(reds,blues,[n,color]) // 填进一注卡片
+    }
+  }
+  await draw(Mr,kr,reds,"red","红球") // 先抽红球
+  await draw(Mb,kb,blues,"blue","蓝球") // 再抽蓝球
+  await wait(160) // 停一下
+  line("结果",`红球从小到大排好：${nums([...reds].sort((x,y)=>x-y))}；蓝球：${nums([...blues].sort((x,y)=>x-y))}。`)
+  head.querySelector(".deep-title").textContent="已随机选号" // 标题改成已完成
+  resultInner.classList.add("deep-done") // 抽完了（过程留在窗口里，可以上下滑动回看）
+  log.onscroll=fade // 手动滚动时更新上下渐隐
+  resultMode="random" // 结果来自随机选号
+  isRolling=false // 标记为生成结束
+  resultInner.removeAttribute("aria-busy") // 读屏软件播报
+  toggleButtons(false) // 恢复按钮和切换
 }
 // ===== 深度思考：多专家 + 回测 + 贝叶斯加权 + 候选优化 + 自我检查，过程像推理模型一样实时显示 =====
 // 开奖是独立随机事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。这里按严谨的预测流程来做，并如实显示结论：
