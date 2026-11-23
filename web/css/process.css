@@ -94,132 +94,9 @@
   font-variant-numeric:tabular-nums; /* 数字等宽 */
 }
 /* 随机选号过程：剩下的号码淡一点，抽中的号码醒目 */
-/* 随机选号的过程：把抽号画出来——号码池（红球按三个区排三行，蓝球一行）、随机数落点条、当前这一步 */
-.rp { /* 可视化区域 */
-  flex:1 1 auto; /* 占满标题行下面的空间 */
-  min-height:0; /* 允许比内容矮 */
-  align-self:stretch; /* 占满宽度 */
-  display:flex; /* 纵向排列 */
-  flex-direction:column; /* 从上到下：红球池、蓝球池、落点条、这一步 */
-  justify-content:center; /* 上下居中 */
-  gap:7px; /* 间距 */
-  padding-left:13px; /* 给左侧竖线留位置，和标题文字左对齐 */
-}
-.rp-pool { /* 号码池 */
-  display:grid; /* 网格 */
-  grid-template-columns:repeat(var(--cols),1fr); /* 每行 --cols 格，平分宽度 */
-  gap:3px; /* 格子间距 */
-  transition:opacity .3s; /* 变淡、亮起都柔和 */
-}
-.rp-pool.idle {opacity:.4;} /* 没轮到的池子变淡 */
-.rp-cell { /* 一个号码 */
-  height:18px; /* 高 */
-  border-radius:6px; /* 圆角 */
-  display:flex; /* 数字居中 */
-  align-items:center; /* 垂直居中 */
-  justify-content:center; /* 水平居中 */
-  font-size:10px; /* 字号 */
-  font-weight:600; /* 半粗 */
-  font-variant-numeric:tabular-nums; /* 数字等宽 */
-  color:var(--text-sub); /* 还在池子里：次要文字颜色 */
-  background:rgba(255,255,255,.3); /* 半透明白底 */
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.45); /* 细边 */
-  transition:background-color .25s,color .25s,box-shadow .25s; /* 填色时柔和过渡 */
-}
-.rp-pool.rp-red .rp-cell.drawn { /* 抽中的红球 */
-  color:#fff; /* 白字 */
-  background:linear-gradient(160deg,var(--red-hi),var(--red) 55%,var(--red-lo)); /* 和号码球一样的红 */
-  box-shadow:0 0 8px rgba(239,68,68,.55); /* 红色光晕 */
-}
-.rp-pool.rp-blue .rp-cell.drawn { /* 抽中的蓝球 */
-  color:#fff; /* 白字 */
-  background:linear-gradient(160deg,var(--blue-hi),var(--blue) 55%,var(--blue-lo)); /* 和号码球一样的蓝 */
-  box-shadow:0 0 8px rgba(59,130,246,.55); /* 蓝色光晕 */
-}
-.rp-cell.hit {animation:rp-hit .45s cubic-bezier(.34,1.56,.64,1);} /* 刚抽中：弹一下 */
-@keyframes rp-hit { /* 弹一下 */
-  40% {transform:scale(1.35);} /* 放大 */
-}
-.rp-bar { /* 随机数落点条：整条代表全部可能的随机数（0～2^32） */
-  position:relative; /* 给落点定位 */
-  flex:none; /* 不伸缩 */
-  height:30px; /* 上面留给号码标签 */
-  transition:opacity .3s; /* 收起时淡出 */
-}
-.rp-bar.done {opacity:.35;} /* 抽完后变淡 */
-.rp-segs { /* 平均分成的段：剩下的每个号码一段，一样宽 */
-  position:absolute; /* 贴着底部 */
-  left:0; /* 铺满 */
-  right:0; /* 铺满 */
-  bottom:2px; /* 底部留一点 */
-  height:10px; /* 条的粗细 */
-  display:flex; /* 横排 */
-  gap:1px; /* 段与段之间的细缝 */
-  border-radius:5px; /* 两头圆 */
-  overflow:hidden; /* 圆角外的裁掉 */
-  background:rgba(255,255,255,.35); /* 段与段之间的细缝露出浅色底 */
-  box-shadow:0 0 0 1px rgba(255,255,255,.5); /* 外圈细边：在彩色液体上也看得出整条 */
-}
-.rp-segs span {flex:1;background:rgba(239,68,68,.48);transition:background-color .2s,box-shadow .2s;} /* 一段：红球阶段淡红 */
-.rp-segs span:nth-child(even) {background:rgba(239,68,68,.3);} /* 相邻两段深浅交替，看得出是一段段的 */
-.rp-segs.rp-blue span {background:rgba(59,130,246,.5);} /* 蓝球阶段：淡蓝 */
-.rp-segs.rp-blue span:nth-child(even) {background:rgba(59,130,246,.32);} /* 深浅交替 */
-.rp-segs span.hit {background:var(--red);box-shadow:0 0 6px var(--red);} /* 落中的一段：亮红 */
-.rp-segs.rp-blue span.hit {background:var(--blue);box-shadow:0 0 6px var(--blue);} /* 落中的一段：亮蓝 */
-.rp-mark { /* 落点：一根竖线 */
-  position:absolute; /* 按随机数定位 */
-  bottom:0; /* 从底部往上 */
-  width:2px; /* 线宽 */
-  height:17px; /* 穿过分段条 */
-  margin-left:-1px; /* 线的中心对准落点 */
-  border-radius:1px; /* 圆头 */
-  background:var(--text-main); /* 深色线 */
-  opacity:0; /* 平时隐藏 */
-  transform:translateY(-12px); /* 从上方落下 */
-}
-.rp-mark.show { /* 落下 */
-  opacity:1; /* 出现 */
-  transform:none; /* 落到位 */
-  transition:opacity .15s,transform .25s cubic-bezier(.3,1.5,.6,1); /* 带一点回弹 */
-}
-.rp-mark.reject {background:var(--text-sub);} /* 作废的落点：灰色 */
-.rp-tag { /* 落点上方的号码标签 */
-  position:absolute; /* 在竖线上方 */
-  bottom:19px; /* 竖线顶上 */
-  left:50%; /* 以竖线为中心（贴边时由脚本往里挪） */
-  height:13px; /* 高 */
-  line-height:13px; /* 行高 */
-  padding:0 5px; /* 左右留白 */
-  border-radius:7px; /* 圆角 */
-  font-size:10px; /* 字号 */
-  font-weight:700; /* 粗体 */
-  font-style:normal; /* 不倾斜 */
-  white-space:nowrap; /* 不换行 */
-  color:#fff; /* 白字 */
-  background:var(--primary); /* 主题色底 */
-}
-.rp-mark.reject .rp-tag {background:var(--text-sub);} /* 作废：灰底 */
-.rp-status { /* 当前这一步：第几个球、几选一、抽中哪个 */
-  flex:none; /* 不伸缩 */
-  display:flex; /* 横排 */
-  align-items:center; /* 垂直居中 */
-  gap:8px; /* 间距 */
-  height:16px; /* 高 */
-  font-size:12px; /* 字号 */
-  font-weight:600; /* 半粗 */
-  white-space:nowrap; /* 不换行 */
-  color:var(--text-main); /* 主要文字颜色 */
-  text-shadow:var(--label-glow); /* 文字光晕：液体流过时看得清 */
-}
-.rp-status span {font-weight:500;color:var(--text-sub);} /* 几选一：次要颜色 */
-.rp-status b {color:var(--primary);font-variant-numeric:tabular-nums;} /* 抽中的号码：主题色 */
-.sr-only { /* 只给读屏软件看，不显示 */
-  position:absolute; /* 不占位置 */
-  width:1px; /* 极小 */
-  height:1px; /* 极小 */
-  overflow:hidden; /* 裁掉 */
-  clip:rect(0 0 0 0); /* 完全不可见 */
-  white-space:nowrap; /* 不换行 */
+.draw-hit { /* 抽中的号码 */
+  font-weight:700; /* 加粗 */
+  color:var(--primary); /* 主题色 */
 }
 /* 一注卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的一注（随机选号、深度思考都是） */
 .pick-box { /* 一注卡片 */
@@ -263,7 +140,5 @@
 @media (prefers-reduced-motion: reduce) { /* 减弱动态效果时 */
   .deep-dot, /* 思考中的闪动圆点、 */
   .pick-line .ghost, /* 一注的空球、 */
-  .pick-line .ball.reveal, /* 一注的号码、 */
-  .rp-cell.hit {animation:none;} /* 随机选号抽中的号码不做动画 */
-  .rp-mark.show,.rp-cell,.rp-pool,.rp-bar,.rp-segs span {transition:none;} /* 随机选号的落点、填色直接到位 */
+  .pick-line .ball.reveal {animation:none;} /* 一注的号码不做动画 */
 }
