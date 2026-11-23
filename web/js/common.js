@@ -69,17 +69,17 @@ function randomIntUnbiased(max){ // 取 [0,max) 内的无偏随机整数
   }while(x>=limit) // 落在尾部不能整除的区间就重取
   return x%max // 取余，得到 [0,max) 的无偏结果
 }
-function randomIndexWork(max){ // 和 randomIntUnbiased 一样取 [0,max) 的无偏随机整数，同时交出计算过程：用到的加密随机数 x、丢掉重取的数
-  const limit=0x100000000-0x100000000%max // 不超过 2^32 的最大的 max 整数倍：x 落在它以上会让小号码多一点机会，要重取
-  const rejected=[] // 丢掉的数
+function randomIndexWork(max){ // 和 randomIntUnbiased 一样取 [0,max) 的无偏随机整数，按“落点”算：把 0～2^32 的随机数平均分成 max 段，随机数落在第几段就是第几个
+  const size=Math.floor(0x100000000/max),limit=size*max // 每段一样宽（size 个数）；limit 以上是分不匀的尾部，落在那里要重取
+  const rejected=[] // 落在尾部、作废的数
   let x // 加密随机数
   for(;;){ // 直到取到可用的数
     crypto.getRandomValues(randomWord) // 浏览器的加密随机数生成器
     x=randomWord[0] // 0～4294967295 之间的整数
     if(x<limit) break // 可用
-    rejected.push(x) // 落在尾部，丢掉重取
+    rejected.push(x) // 落在尾部，作废重取
   }
-  return {index:x%max,x,quotient:Math.floor(x/max),rejected} // 余数（第几个，从 0 数）、x、商、丢掉的数
+  return {index:Math.floor(x/size),x,rejected} // 落在第几段（从 0 数）、随机数、作废的数；x/2^32 就是落点在整条上的位置
 }
 function createBall(n,color){ // 创建一个号码球
   const span=document.createElement("span") // 外层：球
