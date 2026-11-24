@@ -686,10 +686,10 @@ function deepAnalyze({draws,rule}){ // 研究全部开奖：17 张走势图（�
   }
 }
 // ===== 选号和自我检查 =====
-function popularity(reds,prevSet){ // 大众爱选的程度：研究发现生日号（1～31）、连号、等差数列、照抄上期的号码都是很多人爱买的，中了奖要和更多人分
-  let birthday=0,repeat=0,run=1,longest=1,ap=reds.length>2;const step=reds[1]-reds[0] // 生日号、重号、连号、是不是等差
-  reds.forEach((n,i)=>{if(n<=31)birthday++;if(prevSet[n])repeat++;if(i){run=n===reds[i-1]+1?run+1:1;longest=Math.max(longest,run);if(n-reds[i-1]!==step)ap=false}}) // 逐个看
-  return birthday+2*(longest-1)+(ap?5:0)+repeat // 越大越多人爱选
+function popularity(reds,prevSet){ // 大众爱选的程度：连号、等差数列、照抄上期的号码都是很多人爱买的，中了奖要和更多人分
+  let repeat=0,run=1,longest=1,ap=reds.length>2;const step=reds[1]-reds[0] // 重号、连号、是不是等差
+  reds.forEach((n,i)=>{if(prevSet[n])repeat++;if(i){run=n===reds[i-1]+1?run+1:1;longest=Math.max(longest,run);if(n-reds[i-1]!==step)ap=false}}) // 逐个看
+  return 2*(longest-1)+(ap?5:0)+repeat // 越大越多人爱选
 }
 function deepPickTask({rule,redMix,blueMix,limits,state,jackpots}){ // 选号（不用随机数）：枚举全部红球组合，去掉走势图上少见的形态，逐一算分；得分最高、相差不到 2% 的几注里挑大众最少选的
   const [kr,Mr]=rule.red,[kb,Mb]=rule.blue,score=Array.from({length:Mr+1},(_,n)=>n?Math.log(redMix[n]*Mr/kr):0) // 规则、每个号码的分数（概率相对平均值的对数）
@@ -857,7 +857,7 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     await write("第六步｜分配权重",`${t.rel>0&&t.p<.05?`${t.name}显著好于平均水平，但优势很小，不能全信。`:drift?"二十三位专家都没有显著超过平均水平：年份漂移是很多年里慢慢形成的整体变化，对下一期几乎没有帮助，历史上的“冷热”多半是巧合。":"二十三位专家都没有显著超过平均水平：开奖本身没有规律可循，历史上的“冷热”多半是巧合。"}所以按考试成绩分配发言权（贝叶斯模型平均），成绩差距小就不拉开太多：${head5.map(m=>`${m.name} ${pct(m.weight)}`).join("、")}，其余 ${rest.length} 位合计 ${pct(rest.reduce((s,m)=>s+m.weight,0))}。蓝球里${blueTop.name}的发言权最高（${pct(blueTop.weight)}）。`)
     const pick=await pickJob,ticket=pick.ticket // 精确计算的结果（后台线程）
     const inPick=consensus.filter(n=>ticket.red.includes(n)) // 多位专家共同看好、并且在这一注里的号码
-    await write("第七步｜精确计算",`不只看前 20 个号码，直接枚举全部 ${fmt(pick.total)} 种红球组合，用 ${CHARTS.length-1} 张红球走势图的常见范围去掉少见形态，剩 ${fmt(pick.valid)} 种，逐一按加权后的分数算分。${pick.near>1?`得分最高的 ${fmt(pick.near)} 注彼此相差不到 2%，再按期望奖金挑大众最少选的：生日号（01～31）、连号、等差、照抄上期号码都是很多人爱买的，中了奖要和更多人分。${pick.changed?"":"得分最高的那注正好也是最少人选的。"}`:"得分最高的一注明显领先。"}选定红 ${nums(ticket.red)}。蓝球取分数最高、又不和这注红球凑成历史头奖的：${nums(ticket.blue)}。${!consensus.length?"":inPick.length?`四位以上专家看好的 ${list(inPick)} 在这一注里。`:"四位以上专家看好的号码因为分数或形态限制，没有进入这一注。"}`)
+    await write("第七步｜精确计算",`不只看前 20 个号码，直接枚举全部 ${fmt(pick.total)} 种红球组合，用 ${CHARTS.length-1} 张红球走势图的常见范围去掉少见形态，剩 ${fmt(pick.valid)} 种，逐一按加权后的分数算分。${pick.near>1?`得分最高的 ${fmt(pick.near)} 注彼此相差不到 2%，再按期望奖金挑大众最少选的：连号、等差、照抄上期号码都是很多人爱买的，中了奖要和更多人分。${pick.changed?"":"得分最高的那注正好也是最少人选的。"}`:"得分最高的一注明显领先。"}选定红 ${nums(ticket.red)}。蓝球取分数最高、又不和这注红球凑成历史头奖的：${nums(ticket.blue)}。${!consensus.length?"":inPick.length?`四位以上专家看好的 ${list(inPick)} 在这一注里。`:"四位以上专家看好的号码因为分数或形态限制，没有进入这一注。"}`)
     const check=deepCheck(a,rule,ticket),x=check.x,L=a.limits // 自我检查、这注的指标、常见范围
     await write("第八步｜自我检查",check.ok // 检查通过
       ?`号码个数和范围正确；和值 ${x.sum}（常见 ${L.sum[0]}～${L.sum[1]}）、跨度 ${x.span}（常见 ${L.span[0]}～${L.span[1]}）、AC 值 ${x.ac}、奇偶 ${ratio(x.odd,kr)}、区间 ${ratio3(x.zones)}、冷温热 ${ratio3(x.hwc)}、重号 ${x.repeat} 个，全部 ${CHARTS.length-1} 张红球走势图都在常见范围；不是历史头奖组合。全部通过，给出结果。`
