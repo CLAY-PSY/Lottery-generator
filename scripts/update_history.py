@@ -3,7 +3,7 @@
 # 数据来源：500.com 提供的开奖 XML（每期一行：期号、开奖号码、开奖时间），比解析网页表格更直接可靠。
 # 新开奖按开奖日、期号连续、日期先后检查，已有的历史不允许变化，
 # 任何一项不通过就报错退出，不写入。
-# 只用 Python 标准库，GitHub Actions 全天每 15 分钟运行一次。
+# 只用 Python 标准库，GitHub Actions 全天每 5 分钟运行一次。
 # 退出码：0 成功（有没有新数据都算）；75 暂时连不上数据源，下一轮再试；1 校验不通过或数据太久没更新
 import json  # 读写 JSON
 import re  # 解析 XML 的每一行
@@ -30,16 +30,16 @@ class TempFail(Exception):  # 暂时连不上数据源（网络问题），这�
 STALE_DAYS = 4  # 两种彩票最长隔 3 天开一次奖；本地数据最新一期超过 4 天，说明漏了开奖、连不上的时间太长，要报错
 
 
-def fetch(url, tries=3):  # 下载并按 UTF-8 解码；网络偶尔断开时等一会儿再试，最多 3 次
+def fetch(url, tries=3):  # 下载并按 UTF-8 解码；网络偶尔断开时等一会儿再试，最多 3 次（连不上时一个彩种最多耗约 2 分钟，整轮赶在下一轮 5 分钟之前结束）
     # 用 Python 默认的标识如实访问，不伪装成浏览器
     for attempt in range(1, tries + 1):  # 第几次
         try:  # 尝试下载
-            with urllib.request.urlopen(url, timeout=60) as resp:  # 最多等 60 秒
+            with urllib.request.urlopen(url, timeout=30) as resp:  # 最多等 30 秒（正常一两秒就下载完）
                 return resp.read().decode("utf-8")  # XML 是 UTF-8
         except OSError as error:  # 连接被重置、超时、服务器出错等网络问题
             if attempt == tries:  # 最后一次也失败
                 raise TempFail(f"连不上 {url}（{error}）") from error  # 当作暂时的问题，交给调用方处理
-            time.sleep(10 * attempt)  # 等 10 秒、20 秒再试
+            time.sleep(5 * attempt)  # 等 5 秒、10 秒再试
 
 
 def parse(xml, game):  # 从开奖 XML 里取出每一期：期号、日期、红球、蓝球
