@@ -29,7 +29,7 @@ jobs:
     environment:
       name: github-pages
       # 网址取成功的那一次发布（第一次失败时取重试的）
-      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry1.outputs.page_url || steps.deployment_retry2.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry1.outputs.page_url || steps.deployment_retry2.outputs.page_url || steps.deployment_retry3.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -42,7 +42,8 @@ jobs:
           # 只发布 web 文件夹（网页、样式、脚本、图标、图片、开奖数据、离线缓存），它就是网站的最外层，网址和原来一样
           path: './web'
       # 发布失败自动重试：GitHub 偶尔刚上传完就找不到这个包（报“No artifacts named github-pages were found”），
-      # 稍等一会儿再发布就好。第一次失败等 30 秒再试，再失败等 60 秒试最后一次；三次都失败这次运行才算失败
+      # 或者 Pages 服务器暂时出错（500、502，有时持续好几分钟）。一共试 4 次：失败后分别等 1 分钟、3 分钟、10 分钟再试；
+      # 四次都失败这次运行才算失败（之后“更新开奖历史”发现网站数据落后，会再启动一次发布）
       - name: Deploy to GitHub Pages
         id: deployment
         continue-on-error: true # 失败了不停下，交给下面的重试
@@ -50,19 +51,29 @@ jobs:
       - name: Wait before retry (1)
         if: steps.deployment.outcome == 'failure'
         run: |
-          echo "::warning::第一次发布失败，30 秒后重试"
-          sleep 30
+          echo "::warning::第一次发布失败，1 分钟后重试"
+          sleep 60
       - name: Deploy to GitHub Pages (retry 1)
         id: deployment_retry1
         if: steps.deployment.outcome == 'failure'
-        continue-on-error: true # 失败了不停下，再试最后一次
+        continue-on-error: true # 失败了不停下，继续重试
         uses: actions/deploy-pages@v5
       - name: Wait before retry (2)
         if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure'
         run: |
-          echo "::warning::第二次发布也失败，60 秒后最后重试一次"
-          sleep 60
+          echo "::warning::第二次发布也失败，3 分钟后重试"
+          sleep 180
       - name: Deploy to GitHub Pages (retry 2)
         id: deployment_retry2
         if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure'
+        continue-on-error: true # 失败了不停下，再试最后一次
+        uses: actions/deploy-pages@v5
+      - name: Wait before retry (3)
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure' && steps.deployment_retry2.outcome == 'failure'
+        run: |
+          echo "::warning::第三次发布也失败，10 分钟后最后重试一次"
+          sleep 600
+      - name: Deploy to GitHub Pages (retry 3)
+        id: deployment_retry3
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure' && steps.deployment_retry2.outcome == 'failure'
         uses: actions/deploy-pages@v5 # 最后一次：这次再失败，整个运行标记为失败
