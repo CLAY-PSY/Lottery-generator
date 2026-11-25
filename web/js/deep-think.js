@@ -1,22 +1,20 @@
-// 深度思考：研究全部开奖的走势图、开奖日期和独立性，八位专家打分、回测、加权，枚举全部组合按综合得分选出一注；窗口里只写简单的结论，计算全部在后台做
+// 深度思考：研究全部开奖的走势图，八位专家打分、回测、加权，枚举全部组合按综合得分选出一注；窗口里只写简单的结论，计算全部在后台做
 // ===== 流程（过程像推理模型一样实时显示）=====
 // 开奖是独立事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。这里把能找到的分析方法都用上，按严谨的统计流程来做，并如实显示结论：
 // 1. 走势图：逐期算出 17 张走势图（和值、和尾、跨度、AC 值、奇偶、大小、质合、区间、012 路、尾数、连号、重号、冷温热、振幅、首位、末位、蓝球），
 //    做 Ljung-Box 检验（前 10 期的自相关）看走势会不会延续（振幅由和值算出，不单独检验；冷温热先扣掉热号多少的影响）；
 //    再定出各图的常见范围（全部历史都用上，越近的开奖分量越重：半衰期 500 期；合起来覆盖 80% 的开奖），用来筛选组合
-// 2. 开奖日期：红球、蓝球分别按星期、月份、年份分组做卡方检验，再检验全部开奖是否均匀（按每期不放回抽取校正）
-// 3. 独立性：游程检验、间隔检验、二维序列检验（上一期对下一期）、伴侣号检验（同一期两两同出，蒙特卡洛模拟校准）、热号命中检验
-// 4. 八位专家各自给下一期每个号码估概率，逐期往前走，每期只用它之前的数据。每位手里有几种方法，用回测前的 300 期挑出最准的方法、参数和收缩比例：
+// 2. 八位专家各自给下一期每个号码估概率，逐期往前走，每期只用它之前的数据。每位手里有几种方法，用回测前的 300 期挑出最准的方法、参数和收缩比例：
 //    冷热（频率、冷温热、回补、Holt 指数平滑）、遗漏（遗漏、周期、隐马尔可夫）、关联（转移、邻号、定位）、分组（尾数、012 路、区间）、
 //    日期（星期、同期）、时序（灰色预测 GM(1,1)、频谱、相似形态 k 近邻）、杀号（10 个常见杀号公式）、
 //    机器学习（神经网络、LSTM、梯度提升树、逻辑回归，四个模型取平均）
-// 5. 回测：最近 200 期逐期检验，算各专家的对数损失和命中；最好的专家和均衡基准做配对检验（8 位里挑最好的，按 Bonferroni 校正）
-// 6. 贝叶斯模型平均（按缓和系数降温）：把“均衡基准”（每个号码机会均等）也当作一个模型，按回测损失算后验权重，混合成最终概率
-// 7. 选号：枚举全部红球组合，去掉走势图上少见的形态，逐一算分，取得分最高的一注；
+// 3. 回测：最近 200 期逐期检验，算各专家的对数损失和命中；最好的专家和均衡基准做配对检验（8 位里挑最好的，按 Bonferroni 校正）
+// 4. 贝叶斯模型平均（按缓和系数降温）：把“均衡基准”（每个号码机会均等）也当作一个模型，按回测损失算后验权重，混合成最终概率
+// 5. 选号：枚举全部红球组合，去掉走势图上少见的形态，逐一算分，取得分最高的一注；
 //    蓝球取得分最高、又不和这注红球凑成历史头奖的
-// 8. 自我检查：号码规则、走势图形态、历史头奖逐项核对
-// 全程不用随机数：模型的起点和蒙特卡洛模拟由彩种和最新期号决定，选号按得分排序。同样的开奖数据，每次点击结果完全一样，开出新一期才会变
-const DEEP={window:200,tune:300,temper:5,cover:.8,chartHalfLife:500,lags:10,recent:30,sims:300} // 回测最近 200 期、调参用回测前的 300 期、权重的缓和系数、走势图常见范围合起来覆盖 80% 的开奖、常见范围里每往前 500 期分量减半、自相关检验看前 10 期、近期走势看 30 期、蒙特卡洛模拟 300 次
+// 6. 自我检查：号码规则、走势图形态、历史头奖逐项核对
+// 全程不用随机数：模型的起点由彩种和最新期号决定，选号按得分排序。同样的开奖数据，每次点击结果完全一样，开出新一期才会变
+const DEEP={window:200,tune:300,temper:5,cover:.8,chartHalfLife:500,lags:10,recent:30} // 回测最近 200 期、调参用回测前的 300 期、权重的缓和系数、走势图常见范围合起来覆盖 80% 的开奖、常见范围里每往前 500 期分量减半、自相关检验看前 10 期、近期走势看 30 期
 const NN={features:15,hidden:16,epochs:6,train:1100,valid:200} // 神经网络设置：每个号码 15 项特征、隐藏层 16 个神经元、训练 6 轮、用 1100 期训练、最近 200 期留作回测（和其他专家同一段）
 const LSTM={steps:8,hidden:6,epochs:2,train:300,lr:.01} // LSTM 设置：看前 8 期、6 个记忆单元、训练 2 轮、用回测前的 300 期训练、学习率
 const GBDT={rounds:30,depth:3,bins:32,lr:.1,lambda:1,minHess:5,train:700} // 梯度提升树设置：30 棵树、每棵 3 层、特征分 32 档、学习率、L2 正则、叶子最少的样本权重、用回测前的 700 期训练
@@ -84,11 +82,6 @@ function normP(z){ // 标准正态分布的双侧 p 值：P(|Z| ≥ |z|)
 }
 function zoneOf(zones,n){ // 号码 n 在第几个区（从 0 数）
   return zones.findIndex(([lo,hi])=>n>=lo&&n<=hi) // 落在哪个区间
-}
-function scaledChiP(stat,mean,variance){ // 没有现成分布的统计量：用蒙特卡洛模拟得到它在“完全独立”时的平均值和方差，按缩放的卡方分布（矩匹配）算 p 值
-  if(!(variance>0)) return 1 // 模拟出来没有波动，无从比较
-  const c=variance/(2*mean),df=2*mean*mean/variance // 缩放系数、自由度：c·χ²(df) 的均值、方差和模拟的一样
-  return chiP(stat/c,df) // p 值
 }
 function popcount(x){ // 一个 32 位整数里有几个 1
   x=x-((x>>>1)&0x55555555);x=(x&0x33333333)+((x>>>2)&0x33333333) // 两两、四四相加
@@ -594,77 +587,20 @@ function fits(x,lim){ // 这注红球的形态在不在全部走势图的常见�
   return RANGE_KEYS.every(k=>x[k]>=lim[k][0]&&x[k]<=lim[k][1])&&SET_KEYS.every(k=>lim[k].has(x[k])) // 每张图都要在范围内
 }
 // ===== 开奖日期 =====
-function dateTests(ch,col,k,M){ // 一种球的 4 项卡方检验：按星期、月份、年份分组号码分布有没有差别，全部开奖是否均匀；返回各项 p 值
-  const fix=(M-1)/(M-k) // 每期不放回抽 k 个：号码之间负相关，皮尔逊统计量要乘这个系数才服从卡方分布
-  const grouped=keyOf=>{ // 按 keyOf(开奖日期) 分组，做齐性检验
-    const groups=new Map() // 组 → {期数, 各号码次数}
-    for(const d of ch){const g=keyOf(d[1]);if(!groups.has(g))groups.set(g,{n:0,c:new Float64Array(M+1)});const x=groups.get(g);x.n++;for(const n of d[col])x.c[n]++} // 计数
-    const kept=[...groups.values()].filter(x=>x.n*k/M>=5) // 每格期望次数至少 5 的组才参加（例如个别改期的开奖日不算）
-    if(kept.length<2) return 1 // 只有一组，无从比较
-    const N=kept.reduce((a,x)=>a+x.n,0),tot=new Float64Array(M+1);kept.forEach(x=>{for(let n=1;n<=M;n++)tot[n]+=x.c[n]}) // 总期数、各号码总次数
-    let stat=0;kept.forEach(x=>{for(let n=1;n<=M;n++){const e=x.n*tot[n]/N;if(e>0)stat+=(x.c[n]-e)**2/e}}) // 皮尔逊卡方统计量
-    return chiP(stat*fix,(M-1)*(kept.length-1)) // p 值
-  }
-  const all=new Float64Array(M+1);for(const d of ch)for(const n of d[col])all[n]++ // 全部开奖里各号码的次数
-  const E=ch.length*k/M;let stat=0;for(let n=1;n<=M;n++)stat+=(all[n]-E)**2/E // 和均匀分布比
-  return { // 结果
-    weekday:grouped(s=>new Date(s+"T00:00:00Z").getUTCDay()), // 星期
-    month:grouped(s=>s.slice(5,7)), // 月份
-    year:grouped(s=>s.slice(0,4)), // 年份
-    uniform:chiP(stat*fix,M-1), // 整体均匀
-  }
-}
 function nextDrawDate(latest,days){ // 下一期的开奖日期：从最新一期往后找第一个开奖日（节假日停售时会顺延，所以只是预计）
   const d=new Date(latest+"T00:00:00Z") // 最新一期
   do d.setUTCDate(d.getUTCDate()+1);while(!days.includes(d.getUTCDay())) // 往后一天一天找
   return d.toISOString().slice(0,10) // 年-月-日
 }
-// ===== 独立性 =====
-function independenceTests(ch,col,k,M,rand){ // 一种球的独立性检验：游程、间隔、二维序列、伴侣号；期望值都按每个号码的实际出现频率算（不受冷热号多少的影响），没有现成分布的用蒙特卡洛模拟校准（rand 是固定的序列，结果可以复现）
-  const T=ch.length,W=M+1,fix=(M-1)/(M-k),real=new Uint8Array(T*k) // 期数、每期一行、不放回抽取的校正系数、真实开奖（平铺：第 t 期是 t*k 起的 k 个）
-  ch.forEach((d,t)=>d[col].forEach((n,j)=>{real[t*k+j]=n})) // 平铺
-  const prev=new Int8Array(W),runs=new Float64Array(W),ones=new Float64Array(W),stamp=new Int32Array(W) // 游程用：上一期状态、段数、开出次数、这一期的标记
-  const runsStat=D=>{ // 游程检验：每个号码“开、没开”交替的段数和理论值的偏差（Wald-Wolfowitz，标准化后平方，再把所有号码加起来）
-    prev.fill(-1);runs.fill(0);ones.fill(0);stamp.fill(0) // 清零
-    for(let t=0;t<T;t++){for(let j=0;j<k;j++)stamp[D[t*k+j]]=t+1;for(let n=1;n<=M;n++){const c=stamp[n]===t+1?1:0;if(c!==prev[n])runs[n]++;prev[n]=c;ones[n]+=c}} // 数段数
-    let s=0;for(let n=1;n<=M;n++){const n1=ones[n],n0=T-n1,mu=2*n1*n0/T+1,v=2*n1*n0*(2*n1*n0-T)/(T*T*(T-1));if(v>0)s+=(runs[n]-mu)**2/v}return s // 均值、方差
-  }
-  const O=new Float64Array(W*W),cnt=new Float64Array(W) // 伴侣号用：两两同出次数、每个号码的次数
-  const pairStat=D=>{ // 伴侣号检验：同一期里每两个号码一起开出的次数，和按各自频率算的期望比
-    O.fill(0);cnt.fill(0) // 清零
-    for(let t=0;t<T;t++)for(let i=0;i<k;i++){const x=D[t*k+i];cnt[x]++;for(let j=0;j<i;j++){const y=D[t*k+j];O[x<y?x*W+y:y*W+x]++}} // 计数
-    let sc=0,sq=0;for(let n=1;n<=M;n++){sc+=cnt[n];sq+=cnt[n]*cnt[n]}const pairs=T*k*(k-1)/2,norm=pairs/((sc*sc-sq)/2) // 总对数；期望 ∝ 两个号码各自的次数之积
-    let s=0;for(let a=1;a<=M;a++)for(let b=a+1;b<=M;b++){const e=norm*cnt[a]*cnt[b];if(e>0)s+=(O[a*W+b]-e)**2/e}return s // 皮尔逊统计量
-  }
-  const gapP=(()=>{ // 间隔检验：两次开出之间隔了几期，和几何分布（按每个号码自己的开出率）比
-    const bins=21,obs=new Float64Array(bins),exp=new Float64Array(bins),last=new Int32Array(W).fill(-1),gaps=new Float64Array(W),c=new Float64Array(W) // 0～19 期各一档、20 期以上一档
-    for(let t=0;t<T;t++)for(let j=0;j<k;j++){const n=real[t*k+j];c[n]++;if(last[n]>=0){obs[Math.min(bins-1,t-last[n]-1)]++;gaps[n]++}last[n]=t} // 数间隔
-    for(let n=1;n<=M;n++){const p=c[n]/T;for(let b=0;b<bins;b++)exp[b]+=gaps[n]*(b<bins-1?p*(1-p)**b:(1-p)**(bins-1))} // 期望
-    let s=0;for(let b=0;b<bins;b++)if(exp[b]>0)s+=(obs[b]-exp[b])**2/exp[b];return chiP(s,bins-1) // 卡方拟合优度
-  })()
-  const serialP=(()=>{ // 二维序列检验：上一期开出 m、下一期开出 n 的次数，看两期之间有没有关联（列联表独立性检验）
-    const C=new Float64Array(W*W),R=new Float64Array(W),Cn=new Float64Array(W);let N=0 // 计数、行和、列和、总数
-    for(let t=1;t<T;t++)for(let i=0;i<k;i++)for(let j=0;j<k;j++){const m=real[(t-1)*k+i],n=real[t*k+j];C[m*W+n]++;R[m]++;Cn[n]++;N++} // 计数
-    let s=0;for(let m=1;m<=M;m++)for(let n=1;n<=M;n++){const e=R[m]*Cn[n]/N;if(e>0)s+=(C[m*W+n]-e)**2/e}return chiP(s*fix*fix,(M-1)*(M-1)) // 两期都是不放回抽取，乘两次校正系数
-  })()
-  const pool=new Uint8Array(M),sim=new Uint8Array(T*k),rs=[],ps=[] // 抽号用的号码池、一套模拟开奖、模拟出的游程统计量、伴侣号统计量
-  for(let s=0;s<DEEP.sims;s++){ // 每次模拟一整套“完全独立”的开奖
-    for(let t=0;t<T;t++){for(let i=0;i<M;i++)pool[i]=i+1;for(let j=0;j<k;j++){const r=j+Math.floor(rand()*(M-j)),x=pool[r];pool[r]=pool[j];pool[j]=x;sim[t*k+j]=x}} // 每期不放回抽 k 个
-    rs.push(runsStat(sim));if(k>=2)ps.push(pairStat(sim)) // 算统计量
-  }
-  const mv=a=>{const m=a.reduce((x,y)=>x+y,0)/a.length;return [m,a.reduce((x,y)=>x+(y-m)**2,0)/(a.length-1)]} // 平均值、方差
-  return {runs:scaledChiP(runsStat(real),...mv(rs)),gap:gapP,serial:serialP,pair:k>=2?scaledChiP(pairStat(real),...mv(ps)):null} // 各项 p 值
-}
-function deepAnalyze({draws,rule}){ // 研究全部开奖：17 张走势图（常见范围、自相关检验）、开奖日期、独立性、下一期的冷温热、历史头奖
-  const ch=draws.slice().reverse(),T=ch.length,[kr,Mr]=rule.red,[kb,Mb]=rule.blue,sumOf=v=>v.reduce((a,b)=>a+b,0) // 按时间从早到晚、期数、规则、求和
-  const last=new Int32Array(Mr+1).fill(-1),cls=new Int8Array(Mr+1),prevSet=new Uint8Array(Mr+1),shapes=[],hotZ=[] // 每个号码上次开出的期、冷温热、上一期的红球、各期指标、热号命中的标准化偏差
-  let hotDiff=0,hotVar=0 // 热号命中：实际比期望多几个的累计、方差累计
+function deepAnalyze({draws,rule}){ // 研究全部开奖：17 张走势图（常见范围、自相关检验）、下一期的冷温热、历史头奖
+  const ch=draws.slice().reverse(),T=ch.length,[kr,Mr]=rule.red,sumOf=v=>v.reduce((a,b)=>a+b,0) // 按时间从早到晚、期数、红球规则、求和
+  const last=new Int32Array(Mr+1).fill(-1),cls=new Int8Array(Mr+1),prevSet=new Uint8Array(Mr+1),shapes=[],hotZ=[] // 每个号码上次开出的期、冷温热、上一期的红球、各期指标、热号个数扣掉“热号有多少”影响后的偏差（冷温热走势图的自相关检验用）
   for(let t=0;t<T;t++){ // 每一期
     const H=classOf(last,t,Mr,cls) // 开奖前的冷温热、热号个数
     if(t>=1){ // 从第 2 期起（重号、振幅要和上一期比）
       prevSet.fill(0);for(const n of ch[t-1][2])prevSet[n]=1 // 上一期的红球
       const x=shapeOf(ch[t][2],rule,prevSet,sumOf(ch[t-1][2]),cls);x.blue=sumOf(ch[t][3]);x.year=ch[t][1].slice(0,4);shapes.push(x) // 这一期的指标
-      if(t>=10){const p=H/Mr,e=kr*p,v=kr*p*(1-p)*(Mr-kr)/(Mr-1);hotDiff+=x.hot-e;hotVar+=v;hotZ.push(v>0?(x.hot-e)/Math.sqrt(v):0)} // 热号个数和“热号有多少”决定的期望比（超几何分布）
+      if(t>=10){const p=H/Mr,e=kr*p,v=kr*p*(1-p)*(Mr-kr)/(Mr-1);hotZ.push(v>0?(x.hot-e)/Math.sqrt(v):0)} // 热号个数和“热号有多少”决定的期望比（超几何分布）
     }
     for(const n of ch[t][2])last[n]=t // 记下开出的期
   }
@@ -680,14 +616,10 @@ function deepAnalyze({draws,rule}){ // 研究全部开奖：17 张走势图（�
   const avg=v=>v.reduce((a,b)=>a+b,0)/v.length,byYear=new Map() // 平均值、各年的和值
   shapes.forEach(s=>{if(!byYear.has(s.year))byYear.set(s.year,[]);byYear.get(s.year).push(s.sum)}) // 按年分组
   const ys=[...byYear.values()].filter(v=>v.length>=50).map(avg) // 各年（至少 50 期）和值平均
-  const rand=seededRandom(`${draws[0][0]}|${T}|independence`) // 蒙特卡洛模拟用的固定序列（由最新期号决定）
-  const red=independenceTests(ch,2,kr,Mr,rand),blue=independenceTests(ch,3,kb,Mb,rand) // 独立性检验
-  red.hot=hotVar>0?normP(hotDiff/Math.sqrt(hotVar)):1 // 热号命中检验（双侧）
   return { // 返回
     charts,limits,joint, // 自相关检验、常见范围、合起来的覆盖率
     sumAll:avg(shapes.map(s=>s.sum)),sumRecent:avg(shapes.slice(-DEEP.recent).map(s=>s.sum)),yearSums:[Math.min(...ys),Math.max(...ys)], // 和值：全部平均、近 30 期平均、各年平均的最小和最大
     oddMode:mode("odd"),bigMode:mode("big"),zoneMode:mode("zones"),hwcMode:mode("hwc"), // 最常见的奇数个数、大号个数、区间比、冷温热比
-    dates:{red:dateTests(ch,2,kr,Mr),blue:dateTests(ch,3,kb,Mb)},indep:{red,blue}, // 开奖日期、独立性
     state:{cls:Array.from(nextCls),prev:[...draws[0][2]],prevSum:sumOf(draws[0][2])}, // 下一期开奖前的状态：冷温热、上一期红球、上一期和值
     jackpots:new Set(draws.map(d=>d[2].join(",")+"|"+d[3].join(","))), // 开出过的头奖组合
   }
@@ -738,9 +670,9 @@ function deepWorkerURL(){ // 把用到的函数拼成后台线程（Web Worker�
   if(!deepWorkerUrl) deepWorkerUrl=URL.createObjectURL(new Blob([[ // 生成脚本地址
     ...Object.entries({NN,DEEP,LSTM,GBDT,PRIME_LIST,PRIME_MASK,SHRINK,CHARTS,RANGE_KEYS,SET_KEYS}).map(([name,value])=>`const ${name}=${JSON.stringify(value)}`), // 设置
     "const randomWord=new Uint32Array(1)", // 随机数缓冲区
-    randomIntUnbiased,randomFloat,seededRandom,lnGamma,gammaQ,chiP,normP,scaledChiP,popcount,comb,sigmoid,zoneOf, // 工具函数
+    randomIntUnbiased,randomFloat,seededRandom,lnGamma,gammaQ,chiP,normP,popcount,comb,sigmoid,zoneOf, // 工具函数
     nnTrainSpan,nnSamples,trainNet,nnWindow,pause,trainLSTM,trainGBDT,trainLogit,hmmFit,deepExperts,deepPool, // 专家和机器学习
-    shapeOf,ratio3,classOf,ljungBox,commonSet,limitsOf,fits,dateTests,independenceTests,deepAnalyze,deepPickTask,runDeepTaskHere, // 走势图、检验、选号（直接用页面里同一份函数代码）
+    shapeOf,ratio3,classOf,ljungBox,commonSet,limitsOf,fits,deepAnalyze,deepPickTask,runDeepTaskHere, // 走势图、检验、选号（直接用页面里同一份函数代码）
     `onmessage=async event=>{
   const {task,payload}=event.data
   const result=await runDeepTaskHere(task,payload,(stage,e,total,loss)=>{postMessage({progress:[stage,e,total,loss]})},1e9)
@@ -822,28 +754,21 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     await write("思路",`为${rule.name}选 1 注。先把全部开奖从头到尾复盘一遍，再请八位专家各自打分，用最近 ${DEEP.window} 期考一考谁更准，最后从所有组合里挑出综合得分最高的一注。`)
     await write("数据",`共 ${fmt(draws.length)} 期（${draws[draws.length-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。下一期预计 ${next.getUTCMonth()+1} 月 ${next.getUTCDate()} 日（${WEEKDAYS[next.getUTCDay()]}）开奖。`)
     const a=await analysisJob // 等全部开奖研究完
-    const tested=a.charts.filter(c=>c.p!==null),trend=tested.filter(c=>c.p<.05/tested.length) // 做了自相关检验的走势图、校正后有显著自相关的
-    const dr=a.dates.red,db=a.dates.blue,ir=a.indep.red,ib=a.indep.blue // 开奖日期、独立性的检验
-    const dates=[["红球星期",dr.weekday],["红球月份",dr.month],["红球年份",dr.year],["红球整体",dr.uniform],["蓝球星期",db.weekday],["蓝球月份",db.month],["蓝球年份",db.year],["蓝球整体",db.uniform]],dateSig=dates.filter(([,p])=>p<.05/dates.length) // 8 项日期检验、校正后显著的
-    const drift=dr.year<.05/dates.length,driftOnly=dateSig.every(([name])=>name==="红球年份"||name==="红球整体") // 红球随年份漂移；显著的是不是只有年份漂移带来的两项
-    const indep=[["游程",ir.runs],["间隔",ir.gap],["上期对下期",ir.serial],["伴侣号",ir.pair],["热号",ir.hot],["蓝球游程",ib.runs],["蓝球间隔",ib.gap],["蓝球上期对下期",ib.serial],...(ib.pair===null?[]:[["蓝球伴侣号",ib.pair]])],indSig=indep.filter(([,p])=>p<.05/indep.length) // 独立性检验、校正后显著的
+    const tested=a.charts.filter(c=>c.p!==null),trend=tested.filter(c=>c.p<.05/tested.length),drift=trend.some(c=>c.key==="sum") // 做了自相关检验的走势图、校正后有显著自相关的、和值走势图有显著自相关（整体水平随年份在变）
     await write("第一步｜看走势",`${CHARTS.length} 张走势图逐期看过，全部历史和近期走势都算进去：和值全部平均 ${Math.round(a.sumAll)}、近 ${DEEP.recent} 期 ${Math.round(a.sumRecent)}，最常见奇偶 ${ratio(a.oddMode,kr)}、大小 ${ratio(a.bigMode,kr)}、区间 ${ratio3(a.zoneMode)}。${trend.length?drift?`和值这些年整体在变（各年平均 ${Math.round(a.yearSums[0])}～${Math.round(a.yearSums[1])}）。`:`${trend.map(c=>c.name).join("、")}有点规律，也交给专家去验证。`:""}近期每个号码的冷热变化交给专家打分；挑形态时越近的开奖分量越重，去掉少见的形态。`)
-    const dateLine=!dateSig.length?"开奖日期（星期、月份、年份）和号码无关":drift&&driftOnly?"星期、月份和号码无关，只有早年和近年的号码分布不太一样":`开奖日期方面，${dateSig.map(([name])=>name).join("、")}有些不一样` // 日期的结论
-    const indLine=!indSig.length?"上一期不影响下一期，同一期也没有固定搭配的“伴侣号”，热号也不会更容易出":`${indSig.map(([name])=>name).join("、")}有些异常，交给专家去验证` // 独立性的结论
-    await write("第二步｜找规律",`${dateLine}；${indLine}。${dateSig.length||indSig.length?"":"每个号码的机会都一样。"}`)
-    await write("第三步｜专家打分","八位专家各管一个角度：冷热、遗漏、关联、分组、日期、时序、杀号、机器学习。每位手里有好几种方法，先用更早的开奖比一比，只用最准的那种；机器学习的模型当场训练，同样的数据每次结果都一样。")
+    await write("第二步｜专家打分","八位专家各管一个角度：冷热、遗漏、关联、分组、日期、时序、杀号、机器学习。每位手里有好几种方法，先用更早的开奖比一比，只用最准的那种；机器学习的模型当场训练，同样的数据每次结果都一样。")
     const red=await redJob // 等红球分析完成（不显示进度）
     const experts=red.models.filter(m=>m.key!=="uniform"),t=red.test,kill=red.kill // 八位专家、最好的专家和均衡基准的比较、杀号公式
     const votes={};experts.filter(m=>m.key!=="group"&&m.key!=="kill").forEach(m=>m.top.forEach(n=>{votes[n]=(votes[n]||0)+1})) // 每个号码被几位专家看好（各自前 3 名；分组专家只看组、杀号专家只看淡号码，不参加）
     const consensus=Object.keys(votes).map(Number).filter(n=>votes[n]>=3).sort((x,y)=>votes[y]-votes[x]||x-y) // 被三位以上专家同时看好的号码
-    await write("第四步｜考一考",`用最近 ${DEEP.window} 期逐期考试，每期只用之前的数据。${t.rel>0?`成绩最好的是${t.name}，但只比“每个号码机会均等”好一点点${t.p<.05?"，算是有点真本事":"，算不上真本事"}；`:"没有一位专家比“每个号码机会均等”考得好；"}杀号公式${kill.max-kill.base<.01?"也不比随便排除一个号准":"也只准一点点"}。${consensus.length?`看好 ${list(consensus)} 的专家最多。`:"专家们的看法很分散。"}`)
+    await write("第三步｜考一考",`用最近 ${DEEP.window} 期逐期考试，每期只用之前的数据。${t.rel>0?`成绩最好的是${t.name}，但只比“每个号码机会均等”好一点点${t.p<.05?"，算是有点真本事":"，算不上真本事"}；`:"没有一位专家比“每个号码机会均等”考得好；"}杀号公式${kill.max-kill.base<.01?"也不比随便排除一个号准":"也只准一点点"}。${consensus.length?`看好 ${list(consensus)} 的专家最多。`:"专家们的看法很分散。"}`)
     const blue=await blueJob // 等蓝球分析完成
     const ranked=[...red.models].sort((x,y)=>y.weight-x.weight) // 发言权从高到低
-    await write("第五步｜综合打分",`按考试成绩分配发言权，差距小就不拉开：${ranked.slice(0,3).map(m=>`${m.key==="uniform"?"机会均等":m.name.replace("专家","")} ${pct(m.weight)}`).join("、")} 排在前面，八位专家的意见合成每个号码的最终分数。`)
+    await write("第四步｜综合打分",`按考试成绩分配发言权，差距小就不拉开：${ranked.slice(0,3).map(m=>`${m.key==="uniform"?"机会均等":m.name.replace("专家","")} ${pct(m.weight)}`).join("、")} 排在前面，八位专家的意见合成每个号码的最终分数。`)
     const pick=await pickJob,ticket=pick.ticket // 综合选号的结果（后台线程）
-    await write("第六步｜综合选号",`把全部 ${fmt(pick.total)} 种红球组合逐一算分，去掉走势图上少见的形态，取得分最高的一注：红 ${nums(ticket.red)}，蓝 ${nums(ticket.blue)}。`)
+    await write("第五步｜综合选号",`把全部 ${fmt(pick.total)} 种红球组合逐一算分，去掉走势图上少见的形态，取得分最高的一注：红 ${nums(ticket.red)}，蓝 ${nums(ticket.blue)}。`)
     const check=deepCheck(a,rule,ticket) // 自我检查
-    await write("第七步｜自我检查",check.ok?"号码规则、走势图形态、历史头奖都核对过，全部通过。":`有一项没通过：${[!check.rules&&"号码规则",!check.shapes&&"走势图形态",check.jackpot&&"历史头奖"].filter(Boolean).join("、")}。`)
+    await write("第六步｜自我检查",check.ok?"号码规则、走势图形态、历史头奖都核对过，全部通过。":`有一项没通过：${[!check.rules&&"号码规则",!check.shapes&&"走势图形态",check.jackpot&&"历史头奖"].filter(Boolean).join("、")}。`)
     title.textContent="已深度思考" // 标题改成已完成（不显示用时）
     resultInner.classList.add("deep-done") // 想完了（思考过程留在窗口里，可以上下滑动回看）
     showPick(ticket) // 中间的卡片填上这一注
