@@ -12,11 +12,11 @@
 //    机器学习（神经网络、LSTM、梯度提升树、逻辑回归，四个模型取平均）
 // 5. 回测：最近 200 期逐期检验，算各专家的对数损失和命中；最好的专家和均衡基准做配对检验（8 位里挑最好的，按 Bonferroni 校正）
 // 6. 贝叶斯模型平均（按缓和系数降温）：把“均衡基准”（每个号码机会均等）也当作一个模型，按回测损失算后验权重，混合成最终概率
-// 7. 选号：枚举全部红球组合，去掉走势图上少见的形态，逐一算分；得分最高、彼此相差不到 2% 的几注里，挑大众最少选的（中奖后少人分奖）；
+// 7. 选号：枚举全部红球组合，去掉走势图上少见的形态，逐一算分，取得分最高的一注；
 //    蓝球取得分最高、又不和这注红球凑成历史头奖的
 // 8. 自我检查：号码规则、走势图形态、历史头奖逐项核对
 // 全程不用随机数：模型的起点和蒙特卡洛模拟由彩种和最新期号决定，选号按得分排序。同样的开奖数据，每次点击结果完全一样，开出新一期才会变
-const DEEP={window:200,tune:300,temper:5,cover:.8,lags:10,recent:30,sims:300,near:Math.log(1.02)} // 回测最近 200 期、调参用回测前的 300 期、权重的缓和系数、走势图常见范围合起来覆盖 80% 的开奖、自相关检验看前 10 期、近期走势看 30 期、蒙特卡洛模拟 300 次、得分相差不到 2% 算“差不多”
+const DEEP={window:200,tune:300,temper:5,cover:.8,lags:10,recent:30,sims:300} // 回测最近 200 期、调参用回测前的 300 期、权重的缓和系数、走势图常见范围合起来覆盖 80% 的开奖、自相关检验看前 10 期、近期走势看 30 期、蒙特卡洛模拟 300 次
 const NN={features:15,hidden:16,epochs:6,train:1100,valid:200} // 神经网络设置：每个号码 15 项特征、隐藏层 16 个神经元、训练 6 轮、用 1100 期训练、最近 200 期留作回测（和其他专家同一段）
 const LSTM={steps:8,hidden:6,epochs:2,train:300,lr:.01} // LSTM 设置：看前 8 期、6 个记忆单元、训练 2 轮、用回测前的 300 期训练、学习率
 const GBDT={rounds:30,depth:3,bins:32,lr:.1,lambda:1,minHess:5,train:700} // 梯度提升树设置：30 棵树、每棵 3 层、特征分 32 档、学习率、L2 正则、叶子最少的样本权重、用回测前的 700 期训练
@@ -689,38 +689,29 @@ function deepAnalyze({draws,rule}){ // 研究全部开奖：17 张走势图（�
   }
 }
 // ===== 选号和自我检查 =====
-function popularity(reds,prevSet){ // 大众爱选的程度：连号、等差数列、照抄上期的号码都是很多人爱买的，中了奖要和更多人分
-  let repeat=0,run=1,longest=1,ap=reds.length>2;const step=reds[1]-reds[0] // 重号、连号、是不是等差
-  reds.forEach((n,i)=>{if(prevSet[n])repeat++;if(i){run=n===reds[i-1]+1?run+1:1;longest=Math.max(longest,run);if(n-reds[i-1]!==step)ap=false}}) // 逐个看
-  return 2*(longest-1)+(ap?5:0)+repeat // 越大越多人爱选
-}
-function deepPickTask({rule,redMix,blueMix,limits,state,jackpots}){ // 选号（不用随机数）：枚举全部红球组合，去掉走势图上少见的形态，逐一算分；得分最高、相差不到 2% 的几注里挑大众最少选的
+function deepPickTask({rule,redMix,blueMix,limits,state,jackpots}){ // 选号（不用随机数）：枚举全部红球组合，去掉走势图上少见的形态，逐一算分，取得分最高的一注
   const [kr,Mr]=rule.red,[kb,Mb]=rule.blue,score=Array.from({length:Mr+1},(_,n)=>n?Math.log(redMix[n]*Mr/kr):0) // 规则、每个号码的分数（概率相对平均值的对数）
-  const prevSet=new Uint8Array(Mr+1);state.prev.forEach(n=>prevSet[n]=1) // 上一期红球
+  const prevSet=new Uint8Array(Mr+1);state.prev.forEach(n=>prevSet[n]=1) // 上一期红球（重号走势图要用）
   const allow=SET_KEYS.map(key=>{const a=new Uint8Array(1000);limits[key].forEach(v=>{a[v]=1});return a}),lo=RANGE_KEYS.map(key=>limits[key][0]),hi=RANGE_KEYS.map(key=>limits[key][1]) // 常见范围换成查表（比逐个查集合快）
   const ok=x=>{for(let i=0;i<RANGE_KEYS.length;i++){const v=x[RANGE_KEYS[i]];if(v<lo[i]||v>hi[i])return false}for(let i=0;i<SET_KEYS.length;i++)if(!allow[i][x[SET_KEYS[i]]])return false;return true} // 和 fits 一样的判断
-  const cur=new Array(kr);let valid=0,best=-Infinity,cand=[],anyBest=null // 当前组合、形态常见的组合数、最高分、得分接近最高的组合、不筛时的最高分组合（万一全被筛掉时用）
-  const walk=(start,depth,sc)=>{ // 逐个往组合里加号码
+  const cur=new Array(kr);let valid=0,best=null,anyBest=null // 当前组合、形态常见的组合数、得分最高的一注、不筛时的最高分组合（万一全被筛掉时用）
+  const walk=(start,depth,sc)=>{ // 逐个往组合里加号码（从小到大，得分一样时保留先看到的，结果固定）
     if(depth===kr){ // 凑够了
       if(!anyBest||sc>anyBest.score)anyBest={nums:cur.slice(),score:sc} // 不筛时的最高分
       if(!ok(shapeOf(cur,rule,prevSet,state.prevSum,state.cls)))return // 形态少见，去掉
       valid++ // 数一下
-      if(sc>best){best=sc;cand=cand.filter(c=>c.score>=best-DEEP.near)} // 新的最高分：去掉不再接近的
-      if(sc>=best-DEEP.near)cand.push({nums:cur.slice(),score:sc}) // 接近最高分
+      if(!best||sc>best.score)best={nums:cur.slice(),score:sc} // 得分最高的
       return // 这一注看完了
     }
     for(let n=start;n<=Mr-(kr-depth)+1;n++){cur[depth]=n;walk(n+1,depth+1,sc+score[n])} // 依次尝试
   }
   walk(1,0,0) // 开始
-  if(!cand.length)cand=[anyBest] // 万一全被筛掉，就不筛
+  const chosen=best||anyBest // 万一全被筛掉，就不筛
   const byArray=(x,y)=>{for(let i=0;i<x.length;i++)if(x[i]!==y[i])return x[i]-y[i];return 0} // 两组号码按数字逐个比较（保证顺序固定）
-  cand.forEach(c=>c.pop=popularity(c.nums,prevSet)) // 每注的大众爱选程度
-  const top=[...cand].sort((a,b)=>b.score-a.score||byArray(a.nums,b.nums))[0] // 得分最高的一注
-  const chosen=[...cand].sort((a,b)=>a.pop-b.pop||b.score-a.score||byArray(a.nums,b.nums))[0] // 大众最少选的（一样时取得分高的）
   const blues=[],bc=[];const walkB=(s0,d,sc)=>{if(d===kb){blues.push({nums:bc.slice(),score:sc});return}for(let n=s0;n<=Mb-(kb-d)+1;n++){bc[d]=n;walkB(n+1,d+1,sc+Math.log(blueMix[n]*Mb/kb))}};walkB(1,0,0) // 蓝球的全部组合
   blues.sort((a,b)=>b.score-a.score||byArray(a.nums,b.nums)) // 按得分从高到低
   const b=blues.find(b=>!jackpots.has(chosen.nums.join(",")+"|"+b.nums.join(",")))||blues[0] // 得分最高、又不和这注红球凑成历史头奖的
-  return {ticket:{red:chosen.nums,blue:b.nums},total:comb(Mr,kr),valid,near:cand.length,changed:byArray(top.nums,chosen.nums)!==0} // 结果和过程数据
+  return {ticket:{red:chosen.nums,blue:b.nums},total:comb(Mr,kr),valid} // 结果和过程数据
 }
 function deepCheck(a,rule,ticket){ // 自我检查：逐项核对这一注
   const prevSet=new Uint8Array(rule.red[1]+1);a.state.prev.forEach(n=>prevSet[n]=1) // 上一期红球
@@ -745,7 +736,7 @@ function deepWorkerURL(){ // 把用到的函数拼成后台线程（Web Worker�
     "const randomWord=new Uint32Array(1)", // 随机数缓冲区
     randomIntUnbiased,randomFloat,seededRandom,lnGamma,gammaQ,chiP,normP,scaledChiP,popcount,comb,sigmoid,zoneOf, // 工具函数
     nnTrainSpan,nnSamples,trainNet,nnWindow,pause,trainLSTM,trainGBDT,trainLogit,hmmFit,deepExperts,deepPool, // 专家和机器学习
-    shapeOf,ratio3,classOf,ljungBox,commonSet,limitsOf,fits,dateTests,independenceTests,deepAnalyze,popularity,deepPickTask,runDeepTaskHere, // 走势图、检验、选号（直接用页面里同一份函数代码）
+    shapeOf,ratio3,classOf,ljungBox,commonSet,limitsOf,fits,dateTests,independenceTests,deepAnalyze,deepPickTask,runDeepTaskHere, // 走势图、检验、选号（直接用页面里同一份函数代码）
     `onmessage=async event=>{
   const {task,payload}=event.data
   const result=await runDeepTaskHere(task,payload,(stage,e,total,loss)=>{postMessage({progress:[stage,e,total,loss]})},1e9)
@@ -853,7 +844,7 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     const ranked=[...red.models].sort((x,y)=>y.weight-x.weight) // 发言权从高到低
     await write("第五步｜综合打分",`按考试成绩分配发言权，差距小就不拉开：${ranked.slice(0,3).map(m=>`${m.key==="uniform"?"机会均等":m.name.replace("专家","")} ${pct(m.weight)}`).join("、")} 排在前面，八位专家的意见合成每个号码的最终分数。`)
     const pick=await pickJob,ticket=pick.ticket // 综合选号的结果（后台线程）
-    await write("第六步｜综合选号",`把全部 ${fmt(pick.total)} 种红球组合逐一算分，去掉历史上少见的形态，${pick.near>1?"分数差不多的几注里，再避开连号、等差、照抄上期这些很多人爱买的（中了奖少人分），":"取得分最高的，"}选定红 ${nums(ticket.red)}，蓝 ${nums(ticket.blue)}。`)
+    await write("第六步｜综合选号",`把全部 ${fmt(pick.total)} 种红球组合逐一算分，去掉历史上少见的形态，取得分最高的一注：红 ${nums(ticket.red)}，蓝 ${nums(ticket.blue)}。`)
     const check=deepCheck(a,rule,ticket) // 自我检查
     await write("第七步｜自我检查",check.ok?"号码规则、走势图形态、历史头奖都核对过，全部通过。":`有一项没通过：${[!check.rules&&"号码规则",!check.shapes&&"走势图形态",check.jackpot&&"历史头奖"].filter(Boolean).join("、")}。`)
     title.textContent="已深度思考" // 标题改成已完成（不显示用时）
