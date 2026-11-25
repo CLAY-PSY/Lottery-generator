@@ -3,7 +3,7 @@
 // 开奖是独立事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。这里把能找到的分析方法都用上，按严谨的统计流程来做，并如实显示结论：
 // 1. 走势图：逐期算出 17 张走势图（和值、和尾、跨度、AC 值、奇偶、大小、质合、区间、012 路、尾数、连号、重号、冷温热、振幅、首位、末位、蓝球），
 //    做 Ljung-Box 检验（前 10 期的自相关）看走势会不会延续（振幅由和值算出，不单独检验；冷温热先扣掉热号多少的影响）；
-//    再定出各图的常见范围（合起来覆盖历史上 80% 的开奖），用来筛选组合
+//    再定出各图的常见范围（全部历史都用上，越近的开奖分量越重：半衰期 500 期；合起来覆盖 80% 的开奖），用来筛选组合
 // 2. 开奖日期：红球、蓝球分别按星期、月份、年份分组做卡方检验，再检验全部开奖是否均匀（按每期不放回抽取校正）
 // 3. 独立性：游程检验、间隔检验、二维序列检验（上一期对下一期）、伴侣号检验（同一期两两同出，蒙特卡洛模拟校准）、热号命中检验
 // 4. 八位专家各自给下一期每个号码估概率，逐期往前走，每期只用它之前的数据。每位手里有几种方法，用回测前的 300 期挑出最准的方法、参数和收缩比例：
@@ -16,7 +16,7 @@
 //    蓝球取得分最高、又不和这注红球凑成历史头奖的
 // 8. 自我检查：号码规则、走势图形态、历史头奖逐项核对
 // 全程不用随机数：模型的起点和蒙特卡洛模拟由彩种和最新期号决定，选号按得分排序。同样的开奖数据，每次点击结果完全一样，开出新一期才会变
-const DEEP={window:200,tune:300,temper:5,cover:.8,lags:10,recent:30,sims:300} // 回测最近 200 期、调参用回测前的 300 期、权重的缓和系数、走势图常见范围合起来覆盖 80% 的开奖、自相关检验看前 10 期、近期走势看 30 期、蒙特卡洛模拟 300 次
+const DEEP={window:200,tune:300,temper:5,cover:.8,chartHalfLife:500,lags:10,recent:30,sims:300} // 回测最近 200 期、调参用回测前的 300 期、权重的缓和系数、走势图常见范围合起来覆盖 80% 的开奖、常见范围里每往前 500 期分量减半、自相关检验看前 10 期、近期走势看 30 期、蒙特卡洛模拟 300 次
 const NN={features:15,hidden:16,epochs:6,train:1100,valid:200} // 神经网络设置：每个号码 15 项特征、隐藏层 16 个神经元、训练 6 轮、用 1100 期训练、最近 200 期留作回测（和其他专家同一段）
 const LSTM={steps:8,hidden:6,epochs:2,train:300,lr:.01} // LSTM 设置：看前 8 期、6 个记忆单元、训练 2 轮、用回测前的 300 期训练、学习率
 const GBDT={rounds:30,depth:3,bins:32,lr:.1,lambda:1,minHess:5,train:700} // 梯度提升树设置：30 棵树、每棵 3 层、特征分 32 档、学习率、L2 正则、叶子最少的样本权重、用回测前的 700 期训练
@@ -572,19 +572,22 @@ function ljungBox(x,h){ // Ljung-Box 检验：前 h 期的自相关是否都为�
   let q=0;for(let lag=1;lag<=h;lag++){let s=0;for(let t=lag;t<n;t++)s+=c[t]*c[t-lag];q+=(s/c0)**2/(n-lag)} // 各期自相关的平方
   return chiP(n*(n+2)*q,h) // Q 统计量服从自由度 h 的卡方分布
 }
-function commonSet(values,cover){ // 最常见的取值，合计占到 cover 为止
-  const counts=new Map() // 每个取值出现的次数
-  values.forEach(v=>counts.set(v,(counts.get(v)||0)+1)) // 计数
-  const order=[...counts.keys()].sort((a,b)=>counts.get(b)-counts.get(a)||(a<b?-1:1)) // 按次数从多到少（一样时按取值，顺序固定）
-  const keep=new Set() // 保留的取值
-  let covered=0 // 已覆盖的期数
-  for(const v of order){keep.add(v);covered+=counts.get(v);if(covered>=values.length*cover)break} // 从最常见的开始，够了就停
+function commonSet(values,cover,w){ // 最常见的取值（每期按权重 w 计），合计占到 cover 为止
+  const counts=new Map();let total=0 // 每个取值的权重合计、总权重
+  values.forEach((v,i)=>{counts.set(v,(counts.get(v)||0)+w[i]);total+=w[i]}) // 计数
+  const order=[...counts.keys()].sort((a,b)=>counts.get(b)-counts.get(a)||(a<b?-1:1)) // 按分量从多到少（一样时按取值，顺序固定）
+  const keep=new Set();let covered=0 // 保留的取值、已覆盖的分量
+  for(const v of order){keep.add(v);covered+=counts.get(v);if(covered>=total*cover-1e-9)break} // 从最常见的开始，够了就停
   return keep // 返回
 }
-function limitsOf(shapes,cover){ // 每张走势图的常见范围：和值、跨度取中间 cover 的区间，其余取最常见的几个值
-  const lim={} // 结果
-  RANGE_KEYS.forEach(key=>{const v=shapes.map(s=>s[key]).sort((a,b)=>a-b),q=(1-cover)/2;lim[key]=[v[Math.floor((v.length-1)*q)],v[Math.ceil((v.length-1)*(1-q))]]}) // 百分位区间
-  SET_KEYS.forEach(key=>{lim[key]=commonSet(shapes.map(s=>s[key]),cover)}) // 常见取值
+function limitsOf(shapes,cover,w){ // 每张走势图的常见范围（每期按权重 w 计，越近的开奖分量越重）：和值、跨度等取中间 cover 的区间，其余取最常见的几个值
+  const lim={},total=w.reduce((a,b)=>a+b,0),q=(1-cover)/2 // 结果、总权重、两头各去掉多少
+  RANGE_KEYS.forEach(key=>{ // 加权百分位区间
+    const idx=shapes.map((s,i)=>i).sort((a,b)=>shapes[a][key]-shapes[b][key]||a-b);let c=0,lo=null,hi=null // 按取值从小到大
+    for(const i of idx){c+=w[i];if(lo===null&&c>=total*q)lo=shapes[i][key];if(c>=total*(1-q)-1e-9){hi=shapes[i][key];break}} // 累计权重到两个分位点
+    lim[key]=[lo===null?shapes[idx[0]][key]:lo,hi===null?shapes[idx[idx.length-1]][key]:hi] // 区间
+  })
+  SET_KEYS.forEach(key=>{lim[key]=commonSet(shapes.map(s=>s[key]),cover,w)}) // 常见取值
   return lim // 返回
 }
 function fits(x,lim){ // 这注红球的形态在不在全部走势图的常见范围里
@@ -667,9 +670,10 @@ function deepAnalyze({draws,rule}){ // 研究全部开奖：17 张走势图（�
   }
   const nextCls=new Int8Array(Mr+1);classOf(last,T,Mr,nextCls) // 下一期开奖前的冷温热
   const charts=CHARTS.map(([key,name])=>({key,name,p:key==="amp"?null:ljungBox(key==="hwc"?hotZ:shapes.map(s=>s[key]),DEEP.lags)})) // 每张走势图的自相关检验（振幅由和值算出，相邻两期天然相关，不单独检验；冷温热用扣掉热号多少后的偏差）
-  let cover=.85,limits=null,joint=0 // 每张图的覆盖率、常见范围、合起来覆盖的比例
+  const n=shapes.length,wts=shapes.map((s,i)=>.5**((n-1-i)/DEEP.chartHalfLife)),wsum=wts.reduce((a,b)=>a+b,0) // 每期的分量：全部历史都算，越近越重（每往前 500 期减半）
+  let cover=.85,limits=null,joint=0 // 每张图的覆盖率、常见范围、合起来覆盖的比例（按分量算）
   for(cover of [.85,.875,.9,.92,.94,.95,.96,.97,.975,.98,.985,.99,.993,.995,.997,1]){ // 从 85% 往上调，直到合起来覆盖历史上 80% 的开奖
-    limits=limitsOf(shapes,cover);joint=shapes.filter(s=>fits(s,limits)).length/shapes.length // 各图的常见范围、合起来覆盖多少
+    limits=limitsOf(shapes,cover,wts);joint=shapes.reduce((a,s,i)=>a+(fits(s,limits)?wts[i]:0),0)/wsum // 各图的常见范围、合起来覆盖多少
     if(joint>=DEEP.cover) break // 够了
   }
   const mode=key=>{const c=new Map();shapes.forEach(s=>c.set(s[key],(c.get(s[key])||0)+1));return [...c.keys()].sort((a,b)=>c.get(b)-c.get(a)||(a<b?-1:1))[0]} // 最常见的取值
@@ -823,7 +827,7 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     const dates=[["红球星期",dr.weekday],["红球月份",dr.month],["红球年份",dr.year],["红球整体",dr.uniform],["蓝球星期",db.weekday],["蓝球月份",db.month],["蓝球年份",db.year],["蓝球整体",db.uniform]],dateSig=dates.filter(([,p])=>p<.05/dates.length) // 8 项日期检验、校正后显著的
     const drift=dr.year<.05/dates.length,driftOnly=dateSig.every(([name])=>name==="红球年份"||name==="红球整体") // 红球随年份漂移；显著的是不是只有年份漂移带来的两项
     const indep=[["游程",ir.runs],["间隔",ir.gap],["上期对下期",ir.serial],["伴侣号",ir.pair],["热号",ir.hot],["蓝球游程",ib.runs],["蓝球间隔",ib.gap],["蓝球上期对下期",ib.serial],...(ib.pair===null?[]:[["蓝球伴侣号",ib.pair]])],indSig=indep.filter(([,p])=>p<.05/indep.length) // 独立性检验、校正后显著的
-    await write("第一步｜看走势",`${CHARTS.length} 张走势图逐期看过：和值平均 ${Math.round(a.sumAll)}，最常见奇偶 ${ratio(a.oddMode,kr)}、大小 ${ratio(a.bigMode,kr)}、区间 ${ratio3(a.zoneMode)}。${trend.length?drift?`和值这些年整体在变（各年平均 ${Math.round(a.yearSums[0])}～${Math.round(a.yearSums[1])}），早年的规律不一定适用现在。`:`${trend.map(c=>c.name).join("、")}有点规律，交给专家去验证。`:""}近期偏高偏低不代表下期会怎样，所以不追走势，只去掉历史上少见的形态。`)
+    await write("第一步｜看走势",`${CHARTS.length} 张走势图逐期看过，全部历史和近期走势都算进去：和值全部平均 ${Math.round(a.sumAll)}、近 ${DEEP.recent} 期 ${Math.round(a.sumRecent)}，最常见奇偶 ${ratio(a.oddMode,kr)}、大小 ${ratio(a.bigMode,kr)}、区间 ${ratio3(a.zoneMode)}。${trend.length?drift?`和值这些年整体在变（各年平均 ${Math.round(a.yearSums[0])}～${Math.round(a.yearSums[1])}）。`:`${trend.map(c=>c.name).join("、")}有点规律，也交给专家去验证。`:""}近期每个号码的冷热变化交给专家打分；挑形态时越近的开奖分量越重，去掉少见的形态。`)
     const dateLine=!dateSig.length?"开奖日期（星期、月份、年份）和号码无关":drift&&driftOnly?"星期、月份和号码无关，只有早年和近年的号码分布不太一样":`开奖日期方面，${dateSig.map(([name])=>name).join("、")}有些不一样` // 日期的结论
     const indLine=!indSig.length?"上一期不影响下一期，同一期也没有固定搭配的“伴侣号”，热号也不会更容易出":`${indSig.map(([name])=>name).join("、")}有些异常，交给专家去验证` // 独立性的结论
     await write("第二步｜找规律",`${dateLine}；${indLine}。${dateSig.length||indSig.length?"":"每个号码的机会都一样。"}`)
@@ -837,7 +841,7 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     const ranked=[...red.models].sort((x,y)=>y.weight-x.weight) // 发言权从高到低
     await write("第五步｜综合打分",`按考试成绩分配发言权，差距小就不拉开：${ranked.slice(0,3).map(m=>`${m.key==="uniform"?"机会均等":m.name.replace("专家","")} ${pct(m.weight)}`).join("、")} 排在前面，八位专家的意见合成每个号码的最终分数。`)
     const pick=await pickJob,ticket=pick.ticket // 综合选号的结果（后台线程）
-    await write("第六步｜综合选号",`把全部 ${fmt(pick.total)} 种红球组合逐一算分，去掉历史上少见的形态，取得分最高的一注：红 ${nums(ticket.red)}，蓝 ${nums(ticket.blue)}。`)
+    await write("第六步｜综合选号",`把全部 ${fmt(pick.total)} 种红球组合逐一算分，去掉走势图上少见的形态，取得分最高的一注：红 ${nums(ticket.red)}，蓝 ${nums(ticket.blue)}。`)
     const check=deepCheck(a,rule,ticket) // 自我检查
     await write("第七步｜自我检查",check.ok?"号码规则、走势图形态、历史头奖都核对过，全部通过。":`有一项没通过：${[!check.rules&&"号码规则",!check.shapes&&"走势图形态",check.jackpot&&"历史头奖"].filter(Boolean).join("、")}。`)
     title.textContent="已深度思考" // 标题改成已完成（不显示用时）
