@@ -810,11 +810,8 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     const data=await loadHistory(type),draws=data.draws,latest=draws[0] // 读取开奖历史、全部开奖（新的在前）、最新一期
     const [kr,Mr]=rule.red,[kb,Mb]=rule.blue,half=M=>[[1,Math.floor(M/2)],[Math.floor(M/2)+1,M]] // 红球、蓝球的个数和范围；蓝球分成前后两区
     const nextDate=nextDrawDate(latest[1],rule.drawDays),next=new Date(nextDate+"T00:00:00Z") // 下一期预计的开奖日期
-    const STAGES={"神经网络":0,"LSTM":NN.epochs,"梯度提升树":NN.epochs+LSTM.epochs,"逻辑回归":NN.epochs+LSTM.epochs+GBDT.rounds/10},STEPS=NN.epochs+LSTM.epochs+GBDT.rounds/10+1 // 四个模型依次训练：各自从第几步开始、一共几步
-    let done=0,liveLine=null // 训练到第几步、显示进度的那一段
-    const showStep=()=>{if(liveLine){const n=Math.round(done/STEPS*6);liveLine.textContent=`训练中 ${"■".repeat(n)}${"□".repeat(6-n)}`}} // 进度条（6 格）
     const analysisJob=runDeepTask("analyze",{draws,rule},()=>{}) // 研究全部开奖（后台线程，和下面写字同时进行）
-    const redJob=runDeepTask("pool",{draws,col:2,k:kr,max:Mr,zones:rule.zones,nextDate},(s,e)=>{done=(STAGES[s]||0)+e;showStep()}) // 红球分析
+    const redJob=runDeepTask("pool",{draws,col:2,k:kr,max:Mr,zones:rule.zones,nextDate},()=>{}) // 红球分析
     const blueJob=runDeepTask("pool",{draws,col:3,k:kb,max:Mb,zones:half(Mb),nextDate},()=>{}) // 蓝球分析
     const pickJob=Promise.all([analysisJob,redJob,blueJob]).then(([a,red,blue])=>runDeepTask("pick",{rule,redMix:red.mix,blueMix:blue.mix,limits:a.limits,state:a.state,jackpots:a.jackpots},()=>{})) // 选号：两种球都分析完就开始枚举全部组合（和写字同时进行）
     pickJob.catch(()=>{}) // 前面出错时由下面的 await 处理，这里不重复报“未处理的错误”
@@ -830,12 +827,8 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     const dateLine=!dateSig.length?"开奖日期（星期、月份、年份）和号码无关":drift&&driftOnly?"星期、月份和号码无关，只有早年和近年的号码分布不太一样":`开奖日期方面，${dateSig.map(([name])=>name).join("、")}有些不一样` // 日期的结论
     const indLine=!indSig.length?"上一期不影响下一期，同一期也没有固定搭配的“伴侣号”，热号也不会更容易出":`${indSig.map(([name])=>name).join("、")}有些异常，交给专家去验证` // 独立性的结论
     await write("第二步｜找规律",`${dateLine}；${indLine}。${dateSig.length||indSig.length?"":"每个号码的机会都一样。"}`)
-    await write("第三步｜专家打分","八位专家各管一个角度：冷热、遗漏、关联、分组、日期、时序、杀号、机器学习。每位手里有好几种方法，先用更早的开奖比一比，只用最准的那种。")
-    liveLine=await write("机器学习","","live") // 训练进度这一段
-    showStep() // 先显示当前进度
-    const red=await redJob // 等红球分析完成
-    liveLine.textContent="训练完成，同样的数据每次结果都一样。" // 完成
-    liveLine.parentNode.classList.remove("live") // 不再是进度
+    await write("第三步｜专家打分","八位专家各管一个角度：冷热、遗漏、关联、分组、日期、时序、杀号、机器学习。每位手里有好几种方法，先用更早的开奖比一比，只用最准的那种；机器学习的模型当场训练，同样的数据每次结果都一样。")
+    const red=await redJob // 等红球分析完成（不显示进度）
     const experts=red.models.filter(m=>m.key!=="uniform"),t=red.test,kill=red.kill // 八位专家、最好的专家和均衡基准的比较、杀号公式
     const votes={};experts.filter(m=>m.key!=="group"&&m.key!=="kill").forEach(m=>m.top.forEach(n=>{votes[n]=(votes[n]||0)+1})) // 每个号码被几位专家看好（各自前 3 名；分组专家只看组、杀号专家只看淡号码，不参加）
     const consensus=Object.keys(votes).map(Number).filter(n=>votes[n]>=3).sort((x,y)=>votes[y]-votes[x]||x-y) // 被三位以上专家同时看好的号码
