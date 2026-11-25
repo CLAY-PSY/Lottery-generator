@@ -24,15 +24,19 @@ const SHRINK=[0,.3,.6,.85] // 专家的概率向平均值收缩的比例（调�
 const CHARTS=[["sum","和值"],["sumTail","和尾"],["span","跨度"],["ac","AC 值"],["odd","奇偶"],["big","大小"],["prime","质合"],["zoneMax","区间"],["road0","012 路"],["tails","尾数"],["longest","连号"],["repeat","重号"],["hwc","冷温热"],["amp","振幅"],["first","首位"],["last","末位"],["blue","蓝球"]] // 17 张走势图：指标、名字
 const RANGE_KEYS=["sum","span","amp","first","last"],SET_KEYS=["sumTail","ac","odd","big","prime","zoneMax","road","tails","longest","repeat","hwc"] // 筛选组合用的 16 张红球走势图：取值多的按百分位区间，取值少的按最常见的几个
 const WEEKDAYS=["周日","周一","周二","周三","周四","周五","周六"] // 星期的写法（getUTCDay 的 0～6）
-const historyCache={} // 已读取的开奖历史：彩种 → 数据
-async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/dlt.json，每期：[期号, 日期, 红球, 蓝球]，新的在前）
-  if(historyCache[type]) return historyCache[type] // 读过就直接用
-  const response=await fetch(`data/${type}.json`,{cache:"no-cache"}) // 向服务器确认最新版本
-  if(!response.ok) throw new Error(`HTTP ${response.status}`) // 读取失败
-  const data=await response.json() // 解析 JSON
-  if(!Array.isArray(data.draws)||data.draws.length<600) throw new Error("数据不完整") // 数据太少（回测 200 期 + 调参 300 期 + 起步）
-  historyCache[type]=data // 缓存
-  return data // 返回
+const historyCache={} // 上次读到的开奖历史：彩种 → 数据（联网失败时用）
+async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/dlt.json，每期：[期号, 日期, 红球, 蓝球]，新的在前）：每次都向服务器确认最新版本，页面一直开着也能用上新开奖
+  try{ // 先联网取
+    const response=await fetch(`data/${type}.json`,{cache:"no-cache"}) // 向服务器确认最新版本（没变时服务器只回“没变”，很快）
+    if(!response.ok) throw new Error(`HTTP ${response.status}`) // 读取失败
+    const data=await response.json() // 解析 JSON
+    if(!Array.isArray(data.draws)||data.draws.length<600) throw new Error("数据不完整") // 数据太少（回测 200 期 + 调参 300 期 + 起步）
+    historyCache[type]=data // 记下，联网失败时用
+    return data // 返回
+  }catch(error){ // 联网失败
+    if(historyCache[type]) return historyCache[type] // 用上次读到的
+    throw error // 一次都没读到过
+  }
 }
 function randomFloat(){ // [0,1) 内的随机小数（用加密随机数；trainNet 的默认参数，深度思考里传入固定序列，不会用到）
   return randomIntUnbiased(0x100000000)/0x100000000 // 32 位随机整数除以 2^32

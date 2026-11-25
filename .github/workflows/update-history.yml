@@ -41,8 +41,18 @@ jobs:  # 任务
           git pull --rebase origin main  # 先接上 main 最新的提交（期间可能刚合并了 PR），免得推送被拒；数据提交只改 web/data，不会冲突
           git push origin HEAD:main  # 推送到 main
           echo "pushed=true" >> "$GITHUB_OUTPUT"  # 记下已推送
+      - name: 检查网站上的数据是不是最新的  # 上次发布如果失败（GitHub Pages 偶尔出错），网站会一直停在旧数据，这里发现了就重新发布
+        id: live  # 供下一步判断
+        if: steps.commit.outputs.pushed != 'true'  # 刚推送了新数据的话下一步一定会发布，不用检查
+        run: |  # 多行脚本
+          owner=$(echo "${{ github.repository_owner }}" | tr 'A-Z' 'a-z')  # 网址里的用户名是小写
+          for f in web/data/*.json; do  # 每个开奖数据文件
+            url="https://$owner.github.io/${{ github.event.repository.name }}/data/$(basename "$f")?v=${{ github.run_id }}"  # 网站上的同一个文件（加参数，绕过缓存）
+            if ! curl -fsS --retry 3 -o live.json "$url" || ! cmp -s live.json "$f"; then echo "::warning::网站上的 $(basename "$f") 不是最新的，重新发布"; echo "stale=true" >> "$GITHUB_OUTPUT"; exit 0; fi  # 先下载再比较；不一样（或取不到）就要重新发布
+          done
+          echo "网站数据是最新的"
       - name: 发布网页  # 网页由 static.yml 用 Actions 发布；机器人（GITHUB_TOKEN）推送的提交不会触发其他工作流，这里手动启动它（GitHub 允许这样启动）
-        if: steps.commit.outputs.pushed == 'true'  # 只有推送了新数据才需要
+        if: steps.commit.outputs.pushed == 'true' || steps.live.outputs.stale == 'true'  # 推送了新数据，或者网站上的数据落后了
         env:  # 环境变量
           GH_TOKEN: ${{ github.token }}  # 调用 GitHub API 用的令牌（需要 actions: write）
         run: gh workflow run static.yml --ref main --repo "${{ github.repository }}"  # 启动失败时这次运行会显示失败，方便发现（数据已经提交，不受影响）
