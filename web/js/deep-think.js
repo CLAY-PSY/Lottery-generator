@@ -766,7 +766,7 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     const ranked=[...red.models].sort((x,y)=>y.weight-x.weight) // 发言权从高到低
     await write("第四步｜综合打分",`按考试成绩分配发言权，差距小就不拉开：${ranked.slice(0,3).map(m=>`${m.key==="uniform"?"机会均等":m.name.replace("专家","")} ${pct(m.weight)}`).join("、")} 排在前面，八位专家的意见合成每个号码的最终分数。`)
     const pick=await pickJob,ticket=pick.ticket // 综合选号的结果（后台线程）
-    await write("第五步｜综合选号",`把全部 ${fmt(pick.total)} 种红球组合逐一算分，去掉走势图上少见的形态，取得分最高的一注：红 ${nums(ticket.red)}，蓝 ${nums(ticket.blue)}。`)
+    await write("第五步｜综合选号","去掉走势图上少见的形态，取得分最高一注。")
     const check=deepCheck(a,rule,ticket) // 自我检查
     await write("第六步｜自我检查",check.ok?"号码规则、走势图形态、历史头奖都核对过，全部通过。":`有一项没通过：${[!check.rules&&"号码规则",!check.shapes&&"走势图形态",check.jackpot&&"历史头奖"].filter(Boolean).join("、")}。`)
     title.textContent="已深度思考" // 标题改成已完成（不显示用时）
