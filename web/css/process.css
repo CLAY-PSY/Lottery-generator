@@ -89,10 +89,6 @@
   font-weight:700; /* 加粗 */
   margin-right:6px; /* 和正文的间距 */
 }
-.deep-p.live { /* 实时更新的一段（神经网络训练进度） */
-  color:var(--text-sub); /* 颜色淡一点 */
-  font-variant-numeric:tabular-nums; /* 数字等宽 */
-}
 /* 一注卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的一注（随机选号、深度思考都是） */
 .pick-box { /* 一注卡片 */
   flex-shrink:0; /* 不被压缩 */

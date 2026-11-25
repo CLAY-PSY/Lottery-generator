@@ -1,4 +1,4 @@
-// 深度思考：研究全部开奖的走势图、开奖日期和独立性，八位专家打分、回测、加权，枚举全部组合按综合得分选出一注，思考过程逐段写出
+// 深度思考：研究全部开奖的走势图、开奖日期和独立性，八位专家打分、回测、加权，枚举全部组合按综合得分选出一注；窗口里只写简单的结论，计算全部在后台做
 // ===== 流程（过程像推理模型一样实时显示）=====
 // 开奖是独立事件，任何号码组合的中奖概率都一样，历史统计不能提高中奖概率。这里把能找到的分析方法都用上，按严谨的统计流程来做，并如实显示结论：
 // 1. 走势图：逐期算出 17 张走势图（和值、和尾、跨度、AC 值、奇偶、大小、质合、区间、012 路、尾数、连号、重号、冷温热、振幅、首位、末位、蓝球），
@@ -12,11 +12,11 @@
 //    机器学习（神经网络、LSTM、梯度提升树、逻辑回归，四个模型取平均）
 // 5. 回测：最近 200 期逐期检验，算各专家的对数损失和命中；最好的专家和均衡基准做配对检验（8 位里挑最好的，按 Bonferroni 校正）
 // 6. 贝叶斯模型平均（按缓和系数降温）：把“均衡基准”（每个号码机会均等）也当作一个模型，按回测损失算后验权重，混合成最终概率
-// 7. 选号：枚举全部红球组合，去掉走势图上少见的形态，逐一算分；得分最高、彼此相差不到 2% 的几注里，挑大众最少选的（中奖后少人分奖）；
+// 7. 选号：枚举全部红球组合，去掉走势图上少见的形态，逐一算分，取得分最高的一注；
 //    蓝球取得分最高、又不和这注红球凑成历史头奖的
 // 8. 自我检查：号码规则、走势图形态、历史头奖逐项核对
 // 全程不用随机数：模型的起点和蒙特卡洛模拟由彩种和最新期号决定，选号按得分排序。同样的开奖数据，每次点击结果完全一样，开出新一期才会变
-const DEEP={window:200,tune:300,temper:5,cover:.8,lags:10,recent:30,sims:300,near:Math.log(1.02)} // 回测最近 200 期、调参用回测前的 300 期、权重的缓和系数、走势图常见范围合起来覆盖 80% 的开奖、自相关检验看前 10 期、近期走势看 30 期、蒙特卡洛模拟 300 次、得分相差不到 2% 算“差不多”
+const DEEP={window:200,tune:300,temper:5,cover:.8,lags:10,recent:30,sims:300} // 回测最近 200 期、调参用回测前的 300 期、权重的缓和系数、走势图常见范围合起来覆盖 80% 的开奖、自相关检验看前 10 期、近期走势看 30 期、蒙特卡洛模拟 300 次
 const NN={features:15,hidden:16,epochs:6,train:1100,valid:200} // 神经网络设置：每个号码 15 项特征、隐藏层 16 个神经元、训练 6 轮、用 1100 期训练、最近 200 期留作回测（和其他专家同一段）
 const LSTM={steps:8,hidden:6,epochs:2,train:300,lr:.01} // LSTM 设置：看前 8 期、6 个记忆单元、训练 2 轮、用回测前的 300 期训练、学习率
 const GBDT={rounds:30,depth:3,bins:32,lr:.1,lambda:1,minHess:5,train:700} // 梯度提升树设置：30 棵树、每棵 3 层、特征分 32 档、学习率、L2 正则、叶子最少的样本权重、用回测前的 700 期训练
@@ -689,38 +689,29 @@ function deepAnalyze({draws,rule}){ // 研究全部开奖：17 张走势图（�
   }
 }
 // ===== 选号和自我检查 =====
-function popularity(reds,prevSet){ // 大众爱选的程度：连号、等差数列、照抄上期的号码都是很多人爱买的，中了奖要和更多人分
-  let repeat=0,run=1,longest=1,ap=reds.length>2;const step=reds[1]-reds[0] // 重号、连号、是不是等差
-  reds.forEach((n,i)=>{if(prevSet[n])repeat++;if(i){run=n===reds[i-1]+1?run+1:1;longest=Math.max(longest,run);if(n-reds[i-1]!==step)ap=false}}) // 逐个看
-  return 2*(longest-1)+(ap?5:0)+repeat // 越大越多人爱选
-}
-function deepPickTask({rule,redMix,blueMix,limits,state,jackpots}){ // 选号（不用随机数）：枚举全部红球组合，去掉走势图上少见的形态，逐一算分；得分最高、相差不到 2% 的几注里挑大众最少选的
+function deepPickTask({rule,redMix,blueMix,limits,state,jackpots}){ // 选号（不用随机数）：枚举全部红球组合，去掉走势图上少见的形态，逐一算分，取得分最高的一注
   const [kr,Mr]=rule.red,[kb,Mb]=rule.blue,score=Array.from({length:Mr+1},(_,n)=>n?Math.log(redMix[n]*Mr/kr):0) // 规则、每个号码的分数（概率相对平均值的对数）
-  const prevSet=new Uint8Array(Mr+1);state.prev.forEach(n=>prevSet[n]=1) // 上一期红球
+  const prevSet=new Uint8Array(Mr+1);state.prev.forEach(n=>prevSet[n]=1) // 上一期红球（重号走势图要用）
   const allow=SET_KEYS.map(key=>{const a=new Uint8Array(1000);limits[key].forEach(v=>{a[v]=1});return a}),lo=RANGE_KEYS.map(key=>limits[key][0]),hi=RANGE_KEYS.map(key=>limits[key][1]) // 常见范围换成查表（比逐个查集合快）
   const ok=x=>{for(let i=0;i<RANGE_KEYS.length;i++){const v=x[RANGE_KEYS[i]];if(v<lo[i]||v>hi[i])return false}for(let i=0;i<SET_KEYS.length;i++)if(!allow[i][x[SET_KEYS[i]]])return false;return true} // 和 fits 一样的判断
-  const cur=new Array(kr);let valid=0,best=-Infinity,cand=[],anyBest=null // 当前组合、形态常见的组合数、最高分、得分接近最高的组合、不筛时的最高分组合（万一全被筛掉时用）
-  const walk=(start,depth,sc)=>{ // 逐个往组合里加号码
+  const cur=new Array(kr);let valid=0,best=null,anyBest=null // 当前组合、形态常见的组合数、得分最高的一注、不筛时的最高分组合（万一全被筛掉时用）
+  const walk=(start,depth,sc)=>{ // 逐个往组合里加号码（从小到大，得分一样时保留先看到的，结果固定）
     if(depth===kr){ // 凑够了
       if(!anyBest||sc>anyBest.score)anyBest={nums:cur.slice(),score:sc} // 不筛时的最高分
       if(!ok(shapeOf(cur,rule,prevSet,state.prevSum,state.cls)))return // 形态少见，去掉
       valid++ // 数一下
-      if(sc>best){best=sc;cand=cand.filter(c=>c.score>=best-DEEP.near)} // 新的最高分：去掉不再接近的
-      if(sc>=best-DEEP.near)cand.push({nums:cur.slice(),score:sc}) // 接近最高分
+      if(!best||sc>best.score)best={nums:cur.slice(),score:sc} // 得分最高的
       return // 这一注看完了
     }
     for(let n=start;n<=Mr-(kr-depth)+1;n++){cur[depth]=n;walk(n+1,depth+1,sc+score[n])} // 依次尝试
   }
   walk(1,0,0) // 开始
-  if(!cand.length)cand=[anyBest] // 万一全被筛掉，就不筛
+  const chosen=best||anyBest // 万一全被筛掉，就不筛
   const byArray=(x,y)=>{for(let i=0;i<x.length;i++)if(x[i]!==y[i])return x[i]-y[i];return 0} // 两组号码按数字逐个比较（保证顺序固定）
-  cand.forEach(c=>c.pop=popularity(c.nums,prevSet)) // 每注的大众爱选程度
-  const top=[...cand].sort((a,b)=>b.score-a.score||byArray(a.nums,b.nums))[0] // 得分最高的一注
-  const chosen=[...cand].sort((a,b)=>a.pop-b.pop||b.score-a.score||byArray(a.nums,b.nums))[0] // 大众最少选的（一样时取得分高的）
   const blues=[],bc=[];const walkB=(s0,d,sc)=>{if(d===kb){blues.push({nums:bc.slice(),score:sc});return}for(let n=s0;n<=Mb-(kb-d)+1;n++){bc[d]=n;walkB(n+1,d+1,sc+Math.log(blueMix[n]*Mb/kb))}};walkB(1,0,0) // 蓝球的全部组合
   blues.sort((a,b)=>b.score-a.score||byArray(a.nums,b.nums)) // 按得分从高到低
   const b=blues.find(b=>!jackpots.has(chosen.nums.join(",")+"|"+b.nums.join(",")))||blues[0] // 得分最高、又不和这注红球凑成历史头奖的
-  return {ticket:{red:chosen.nums,blue:b.nums},total:comb(Mr,kr),valid,near:cand.length,changed:byArray(top.nums,chosen.nums)!==0} // 结果和过程数据
+  return {ticket:{red:chosen.nums,blue:b.nums},total:comb(Mr,kr),valid} // 结果和过程数据
 }
 function deepCheck(a,rule,ticket){ // 自我检查：逐项核对这一注
   const prevSet=new Uint8Array(rule.red[1]+1);a.state.prev.forEach(n=>prevSet[n]=1) // 上一期红球
@@ -745,7 +736,7 @@ function deepWorkerURL(){ // 把用到的函数拼成后台线程（Web Worker�
     "const randomWord=new Uint32Array(1)", // 随机数缓冲区
     randomIntUnbiased,randomFloat,seededRandom,lnGamma,gammaQ,chiP,normP,scaledChiP,popcount,comb,sigmoid,zoneOf, // 工具函数
     nnTrainSpan,nnSamples,trainNet,nnWindow,pause,trainLSTM,trainGBDT,trainLogit,hmmFit,deepExperts,deepPool, // 专家和机器学习
-    shapeOf,ratio3,classOf,ljungBox,commonSet,limitsOf,fits,dateTests,independenceTests,deepAnalyze,popularity,deepPickTask,runDeepTaskHere, // 走势图、检验、选号（直接用页面里同一份函数代码）
+    shapeOf,ratio3,classOf,ljungBox,commonSet,limitsOf,fits,dateTests,independenceTests,deepAnalyze,deepPickTask,runDeepTaskHere, // 走势图、检验、选号（直接用页面里同一份函数代码）
     `onmessage=async event=>{
   const {task,payload}=event.data
   const result=await runDeepTaskHere(task,payload,(stage,e,total,loss)=>{postMessage({progress:[stage,e,total,loss]})},1e9)
@@ -812,60 +803,43 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
   const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
   const list=v=>v.map(pad2).join("、") // 号码顿号分隔的写法
   const pct=x=>`${Math.round(x*100)}%` // 百分比
-  const pct1=x=>`${(x*100).toFixed(1)}%` // 一位小数的百分比
   const fmt=x=>x.toLocaleString("en-US") // 千位逗号
-  const pv=p=>p<.001?"<0.001":p<.01?p.toFixed(3):p.toFixed(2) // p 值的写法
-  const pt=p=>{const v=pv(p);return v[0]==="<"?`p${v}`:`p=${v}`} // 带“p=”的写法（很小时写 p<0.001）
   const ratio=(x,k)=>`${x}:${k-x}` // 比例的写法，例如 3:3
+  // 窗口里只写结论，说得简单；后台照样做完全部计算（17 张走势图、各项统计检验、八位专家、回测加权、枚举全部组合）
   try{ // 尝试
     const data=await loadHistory(type),draws=data.draws,latest=draws[0] // 读取开奖历史、全部开奖（新的在前）、最新一期
     const [kr,Mr]=rule.red,[kb,Mb]=rule.blue,half=M=>[[1,Math.floor(M/2)],[Math.floor(M/2)+1,M]] // 红球、蓝球的个数和范围；蓝球分成前后两区
     const nextDate=nextDrawDate(latest[1],rule.drawDays),next=new Date(nextDate+"T00:00:00Z") // 下一期预计的开奖日期
-    let stage="",ep=0,eps=1,epLoss=0,liveLine=null // 训练进度：哪个模型、第几轮、共几轮、误差；显示进度的那一段
-    const showStep=()=>{if(liveLine) liveLine.textContent=`正在训练${stage||"神经网络"} ${"■".repeat(ep)}${"□".repeat(eps-ep)} 误差 ${ep?epLoss.toFixed(4):"…"}`} // 更新进度
     const analysisJob=runDeepTask("analyze",{draws,rule},()=>{}) // 研究全部开奖（后台线程，和下面写字同时进行）
-    const redJob=runDeepTask("pool",{draws,col:2,k:kr,max:Mr,zones:rule.zones,nextDate},(s,e,t,l)=>{stage=s;ep=e;eps=t;epLoss=l;showStep()}) // 红球分析
+    const redJob=runDeepTask("pool",{draws,col:2,k:kr,max:Mr,zones:rule.zones,nextDate},()=>{}) // 红球分析
     const blueJob=runDeepTask("pool",{draws,col:3,k:kb,max:Mb,zones:half(Mb),nextDate},()=>{}) // 蓝球分析
     const pickJob=Promise.all([analysisJob,redJob,blueJob]).then(([a,red,blue])=>runDeepTask("pick",{rule,redMix:red.mix,blueMix:blue.mix,limits:a.limits,state:a.state,jackpots:a.jackpots},()=>{})) // 选号：两种球都分析完就开始枚举全部组合（和写字同时进行）
     pickJob.catch(()=>{}) // 前面出错时由下面的 await 处理，这里不重复报“未处理的错误”
-    await write("思路",`为${rule.name}选 1 注号码。先研究全部开奖的 ${CHARTS.length} 张走势图、开奖日期和独立性，再请八位专家各从一个角度给号码打分，用最近 ${DEEP.window} 期考试决定多听谁的，然后枚举全部 ${fmt(comb(Mr,kr))} 种红球组合，按综合得分选出一注，兼顾中奖后少人分奖，最后自我检查。结论只由开奖数据决定：数据不变，结论就不变，开出新一期才会更新。`)
+    await write("思路",`为${rule.name}选 1 注。先把全部开奖从头到尾复盘一遍，再请八位专家各自打分，用最近 ${DEEP.window} 期考一考谁更准，最后从所有组合里挑出综合得分最高的一注。`)
     await write("数据",`共 ${fmt(draws.length)} 期（${draws[draws.length-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。下一期预计 ${next.getUTCMonth()+1} 月 ${next.getUTCDate()} 日（${WEEKDAYS[next.getUTCDay()]}）开奖。`)
     const a=await analysisJob // 等全部开奖研究完
-    const tested=a.charts.filter(c=>c.p!==null),alpha=.05/tested.length,trend=tested.filter(c=>c.p<alpha),minChart=tested.reduce((x,y)=>y.p<x.p?y:x) // 做了检验的图、校正后的显著水平、有显著自相关的图、p 值最小的图
-    const dr=a.dates.red,db=a.dates.blue // 开奖日期的检验
-    await write("第一步｜研究走势图",`把全部开奖逐期画成 ${CHARTS.length} 张走势图：${CHARTS.map(c=>c[1]).join("、")}。和值历史平均 ${Math.round(a.sumAll)}、近 ${DEEP.recent} 期 ${Math.round(a.sumRecent)}，最常见的是奇偶 ${ratio(a.oddMode,kr)}、大小 ${ratio(a.bigMode,kr)}、区间 ${ratio3(a.zoneMode)}、冷温热 ${ratio3(a.hwcMode)}。走势会不会延续？除振幅（由和值算出）外，每张图都检验前 ${DEEP.lags} 期的自相关（Ljung-Box；冷温热先扣掉热号多少的影响）：${trend.length?`${trend.map(c=>`${c.name}（${pt(c.p)}）`).join("、")}有显著自相关，其余都没有；${dr.year<.05/8?`再看各年和值平均在 ${Math.round(a.yearSums[0])}～${Math.round(a.yearSums[1])} 之间，是整体水平随年份漂移，不是能追的短期走势。`:"这么多张图里出现一两张，也可能只是巧合，交给专家在回测里验证。"}`:`最小的是${minChart.name} ${pt(minChart.p)}，按 ${tested.length} 张图同时检验校正后都不显著，近期偏高偏低不代表接下来会怎样。`}所以不追近期走势，只用全部历史定出每张图的常见范围，合起来覆盖历史上 ${pct(a.joint)} 的开奖，用来筛选组合。`)
-    const tests=[["红球星期",dr.weekday],["红球月份",dr.month],["红球年份",dr.year],["红球整体均匀",dr.uniform],["蓝球星期",db.weekday],["蓝球月份",db.month],["蓝球年份",db.year],["蓝球整体均匀",db.uniform]],dateSig=tests.filter(([,p])=>p<.05/tests.length),drift=dateSig.some(([name])=>name.endsWith("年份")) // 8 项检验、校正后显著的项、是不是随年份变化
-    await write("第二步｜分析开奖日期",`按开奖日期把 ${fmt(draws.length)} 期分组：星期（${rule.drawDays.map(d=>WEEKDAYS[d]).join("、")}）、月份、年份，检验号码分布有没有差别，再检验全部开奖是否均匀。卡方检验（已按每期不放回抽取校正）的 p 值依次是：红球 ${pv(dr.weekday)}、${pv(dr.month)}、${pv(dr.year)}、${pv(dr.uniform)}，蓝球 ${pv(db.weekday)}、${pv(db.month)}、${pv(db.year)}、${pv(db.uniform)}。${dateSig.length?`按 8 项同时检验校正后，${dateSig.map(([name])=>name).join("、")}显著${drift?"：号码分布在不同年份不一样，早年的特点不一定适用于现在，交给按时间衰减的专家在回测里验证。":"，交给专家们在回测里验证。"}`:"按 8 项同时检验校正后都不显著：号码和开奖日期无关，每个号码出现的机会一样。"}`)
-    const ir=a.indep.red,ib=a.indep.blue,itests=[["红球游程",ir.runs],["红球间隔",ir.gap],["红球二维序列",ir.serial],["红球伴侣号",ir.pair],["红球热号命中",ir.hot],["蓝球游程",ib.runs],["蓝球间隔",ib.gap],["蓝球二维序列",ib.serial],...(ib.pair===null?[]:[["蓝球伴侣号",ib.pair]])],indSig=itests.filter(([,p])=>p<.05/itests.length) // 独立性检验、校正后显著的项
-    await write("第三步｜检验独立性",`每期开奖是不是彼此独立？红球：游程检验（每个号码开、没开交替得正不正常）${pt(ir.runs)}，间隔检验（两次开出隔几期）${pt(ir.gap)}，二维序列检验（上一期对下一期有没有影响）${pt(ir.serial)}，伴侣号检验（同一期两两同出）${pt(ir.pair)}，热号命中检验（近 4 期出过的号是不是更容易出）${pt(ir.hot)}；蓝球：游程 ${pt(ib.runs)}、间隔 ${pt(ib.gap)}、二维序列 ${pt(ib.serial)}${ib.pair===null?"":`、伴侣号 ${pt(ib.pair)}`}。游程和伴侣号没有现成的分布，用蒙特卡洛模拟 ${DEEP.sims} 次“完全独立”的开奖来校准。${indSig.length?`按 ${itests.length} 项同时检验校正后，${indSig.map(([name])=>name).join("、")}显著${drift?"，和开奖日期里看到的年份漂移有关（早年和近年的号码分布不一样）":""}，交给专家们在回测里验证。`:`按 ${itests.length} 项同时检验校正后都不显著：每期开奖彼此独立，过去的号码不会影响下一期。`}`)
-    await write("第四步｜专家打分",`八位专家各管一个角度，每位手里有几种方法，先用回测前的 ${DEEP.tune} 期比一比，连参数一起挑出最准的那种：冷热（频率、冷温热、回补、Holt 指数平滑）、遗漏（遗漏、周期、隐马尔可夫）、关联（转移、邻号、定位）、分组（尾数、012 路、区间）、日期（星期、同期）、时序（灰色预测 GM(1,1)、频谱、相似形态）、杀号（10 个常见杀号公式）、机器学习（神经网络、LSTM、梯度提升树、逻辑回归四个模型取平均，从 ${NN.features} 项特征和前 ${LSTM.steps} 期序列里自己学）。`)
-    liveLine=await write("机器学习","","live") // 训练进度这一段
-    showStep() // 先显示当前进度
-    const red=await redJob // 等红球分析完成
-    liveLine.textContent=`学完了：神经网络误差 ${red.losses.nn.toFixed(4)}、LSTM ${red.losses.lstm.toFixed(4)}、梯度提升树（${GBDT.rounds} 棵树）${red.losses.gbdt.toFixed(4)}、逻辑回归 ${red.losses.logit.toFixed(4)}；训练起点由第 ${latest[0]} 期固定，结果可以复现。` // 完成
-    liveLine.parentNode.classList.remove("live") // 不再是进度
-    const experts=red.models.filter(m=>m.key!=="uniform") // 八位专家
-    const short=m=>m.name.replace("专家","") // 简称
-    const GROUPS={tail:n=>`${n%10} 尾`,road:n=>`${n%3} 路`,zone:n=>`第${"一二三"[zoneOf(rule.zones,n)]}区`} // 分组方法：同组号码分数一样，说它看好哪一组（最看好的号码所在的组）
-    const view=m=>GROUPS[m.method]?GROUPS[m.method](m.top[0]):m.key==="kill"?list(red.kill.next):pad2(m.top[0]) // 每位专家最看好什么（杀号专家是这次排除的号码）
-    const tag=m=>m.key==="kill"?"杀号（排除）":`${short(m)}（${m.methodName}）` // 专家名和这次用的方法
-    const voters=experts.filter(m=>m.key!=="group"&&m.key!=="kill"),votes={} // 看单个号码的专家（分组专家只看组、杀号专家只排除号码，不参加）
-    voters.forEach(m=>m.top.forEach(n=>{votes[n]=(votes[n]||0)+1})) // 每个号码被几位专家看好（各自前 3 名）
+    const tested=a.charts.filter(c=>c.p!==null),trend=tested.filter(c=>c.p<.05/tested.length) // 做了自相关检验的走势图、校正后有显著自相关的
+    const dr=a.dates.red,db=a.dates.blue,ir=a.indep.red,ib=a.indep.blue // 开奖日期、独立性的检验
+    const dates=[["红球星期",dr.weekday],["红球月份",dr.month],["红球年份",dr.year],["红球整体",dr.uniform],["蓝球星期",db.weekday],["蓝球月份",db.month],["蓝球年份",db.year],["蓝球整体",db.uniform]],dateSig=dates.filter(([,p])=>p<.05/dates.length) // 8 项日期检验、校正后显著的
+    const drift=dr.year<.05/dates.length,driftOnly=dateSig.every(([name])=>name==="红球年份"||name==="红球整体") // 红球随年份漂移；显著的是不是只有年份漂移带来的两项
+    const indep=[["游程",ir.runs],["间隔",ir.gap],["上期对下期",ir.serial],["伴侣号",ir.pair],["热号",ir.hot],["蓝球游程",ib.runs],["蓝球间隔",ib.gap],["蓝球上期对下期",ib.serial],...(ib.pair===null?[]:[["蓝球伴侣号",ib.pair]])],indSig=indep.filter(([,p])=>p<.05/indep.length) // 独立性检验、校正后显著的
+    await write("第一步｜看走势",`${CHARTS.length} 张走势图逐期看过：和值平均 ${Math.round(a.sumAll)}，最常见奇偶 ${ratio(a.oddMode,kr)}、大小 ${ratio(a.bigMode,kr)}、区间 ${ratio3(a.zoneMode)}。${trend.length?drift?`和值这些年整体在变（各年平均 ${Math.round(a.yearSums[0])}～${Math.round(a.yearSums[1])}），早年的规律不一定适用现在。`:`${trend.map(c=>c.name).join("、")}有点规律，交给专家去验证。`:""}近期偏高偏低不代表下期会怎样，所以不追走势，只去掉历史上少见的形态。`)
+    const dateLine=!dateSig.length?"开奖日期（星期、月份、年份）和号码无关":drift&&driftOnly?"星期、月份和号码无关，只有早年和近年的号码分布不太一样":`开奖日期方面，${dateSig.map(([name])=>name).join("、")}有些不一样` // 日期的结论
+    const indLine=!indSig.length?"上一期不影响下一期，同一期也没有固定搭配的“伴侣号”，热号也不会更容易出":`${indSig.map(([name])=>name).join("、")}有些异常，交给专家去验证` // 独立性的结论
+    await write("第二步｜找规律",`${dateLine}；${indLine}。${dateSig.length||indSig.length?"":"每个号码的机会都一样。"}`)
+    await write("第三步｜专家打分","八位专家各管一个角度：冷热、遗漏、关联、分组、日期、时序、杀号、机器学习。每位手里有好几种方法，先用更早的开奖比一比，只用最准的那种；机器学习的模型当场训练，同样的数据每次结果都一样。")
+    const red=await redJob // 等红球分析完成（不显示进度）
+    const experts=red.models.filter(m=>m.key!=="uniform"),t=red.test,kill=red.kill // 八位专家、最好的专家和均衡基准的比较、杀号公式
+    const votes={};experts.filter(m=>m.key!=="group"&&m.key!=="kill").forEach(m=>m.top.forEach(n=>{votes[n]=(votes[n]||0)+1})) // 每个号码被几位专家看好（各自前 3 名；分组专家只看组、杀号专家只看淡号码，不参加）
     const consensus=Object.keys(votes).map(Number).filter(n=>votes[n]>=3).sort((x,y)=>votes[y]-votes[x]||x-y) // 被三位以上专家同时看好的号码
-    await write("各自最看好",`${experts.map(m=>`${tag(m)}${view(m)}`).join("｜")}。${consensus.length?`看各自前 3 名，${list(consensus)} 被三位以上专家同时看好。`:"看各自前 3 名，意见很分散，没有号码被三位以上专家同时看好。"}`)
-    const byHits=[...experts].sort((x,y)=>y.hits-x.hits),t=red.test,kill=red.kill // 按命中排序、配对检验、杀号公式
-    await write("第五步｜回测",`用最近 ${DEEP.window} 期逐期考试，每期只用它之前的数据，不偷看答案。前 ${kr} 名平均猜中：最好的${byHits.slice(0,3).map(m=>`${short(m)} ${m.hits.toFixed(2)}`).join("、")}，最差的${short(byHits[byHits.length-1])} ${byHits[byHits.length-1].hits.toFixed(2)}；均衡基准（每个号码机会均等）是 ${(kr*kr/Mr).toFixed(2)}。${kill.count} 个杀号公式的历史准确率在 ${pct1(kill.min)}～${pct1(kill.max)} 之间，而任意排除一个号码也有 ${pct1(kill.base)} 不会开出，${kill.max-kill.base<.01?"杀号公式并没有更准。":`最好的公式也只高 ${((kill.max-kill.base)*100).toFixed(1)} 个百分点。`}${t.rel>0?`按误差算，最好的${t.name}比均衡基准低 ${(t.rel*100).toFixed(2)}%，配对检验 ${pt(t.p)}（${experts.length} 位里挑最好的，已校正），${t.p<.05?"达到显著":"不显著"}。`:"按误差算，没有一位专家比均衡基准低。"}`)
+    await write("第四步｜考一考",`用最近 ${DEEP.window} 期逐期考试，每期只用之前的数据。${t.rel>0?`成绩最好的是${t.name}，但只比“每个号码机会均等”好一点点${t.p<.05?"，算是有点真本事":"，算不上真本事"}；`:"没有一位专家比“每个号码机会均等”考得好；"}杀号公式${kill.max-kill.base<.01?"也不比随便排除一个号准":"也只准一点点"}。${consensus.length?`看好 ${list(consensus)} 的专家最多。`:"专家们的看法很分散。"}`)
     const blue=await blueJob // 等蓝球分析完成
     const ranked=[...red.models].sort((x,y)=>y.weight-x.weight) // 发言权从高到低
-    const blueTop=[...blue.models].sort((x,y)=>y.weight-x.weight)[0] // 蓝球发言权最高的
-    await write("第六步｜分配权重",`${t.rel>0&&t.p<.05?`${t.name}显著好于平均水平，但优势很小，不能全信。`:drift?"八位专家都没有显著超过平均水平：年份漂移是很多年里慢慢形成的整体变化，对下一期几乎没有帮助，历史上的“冷热”多半是巧合。":"八位专家都没有显著超过平均水平：开奖本身没有规律可循，历史上的“冷热”多半是巧合。"}所以按考试成绩分配发言权（贝叶斯模型平均），成绩差距小就不拉开太多：${ranked.map(m=>`${m.name} ${pct(m.weight)}`).join("、")}。蓝球里${blueTop.name}的发言权最高（${pct(blueTop.weight)}）。`)
+    await write("第五步｜综合打分",`按考试成绩分配发言权，差距小就不拉开：${ranked.slice(0,3).map(m=>`${m.key==="uniform"?"机会均等":m.name.replace("专家","")} ${pct(m.weight)}`).join("、")} 排在前面，八位专家的意见合成每个号码的最终分数。`)
     const pick=await pickJob,ticket=pick.ticket // 综合选号的结果（后台线程）
-    const inPick=consensus.filter(n=>ticket.red.includes(n)) // 多位专家共同看好、并且在这一注里的号码
-    await write("第七步｜综合选号",`不只看前 20 个号码，直接枚举全部 ${fmt(pick.total)} 种红球组合，用 ${CHARTS.length-1} 张红球走势图的常见范围去掉少见形态，剩 ${fmt(pick.valid)} 种，逐一按加权后的分数算分。${pick.near>1?`得分最高的 ${fmt(pick.near)} 注彼此相差不到 2%，再按期望奖金挑大众最少选的：连号、等差、照抄上期号码都是很多人爱买的，中了奖要和更多人分。${pick.changed?"":"得分最高的那注正好也是最少人选的。"}`:"得分最高的一注明显领先。"}选定红 ${nums(ticket.red)}。蓝球取分数最高、又不和这注红球凑成历史头奖的：${nums(ticket.blue)}。${!consensus.length?"":inPick.length?`三位以上专家看好的 ${list(inPick)} 在这一注里。`:"三位以上专家看好的号码因为分数或形态限制，没有进入这一注。"}`)
-    const check=deepCheck(a,rule,ticket),x=check.x,L=a.limits // 自我检查、这注的指标、常见范围
-    await write("第八步｜自我检查",check.ok // 检查通过
-      ?`号码个数和范围正确；和值 ${x.sum}（常见 ${L.sum[0]}～${L.sum[1]}）、跨度 ${x.span}（常见 ${L.span[0]}～${L.span[1]}）、AC 值 ${x.ac}、奇偶 ${ratio(x.odd,kr)}、区间 ${ratio3(x.zones)}、冷温热 ${ratio3(x.hwc)}、重号 ${x.repeat} 个，全部 ${CHARTS.length-1} 张红球走势图都在常见范围；不是历史头奖组合。全部通过，给出结果。`
-      :`有一项没通过（${[!check.rules&&"号码规则",!check.shapes&&"走势图形态",check.jackpot&&"历史头奖"].filter(Boolean).join("、")}），结果仅供参考。`)
+    await write("第六步｜综合选号",`把全部 ${fmt(pick.total)} 种红球组合逐一算分，去掉历史上少见的形态，取得分最高的一注：红 ${nums(ticket.red)}，蓝 ${nums(ticket.blue)}。`)
+    const check=deepCheck(a,rule,ticket) // 自我检查
+    await write("第七步｜自我检查",check.ok?"号码规则、走势图形态、历史头奖都核对过，全部通过。":`有一项没通过：${[!check.rules&&"号码规则",!check.shapes&&"走势图形态",check.jackpot&&"历史头奖"].filter(Boolean).join("、")}。`)
     title.textContent="已深度思考" // 标题改成已完成（不显示用时）
     resultInner.classList.add("deep-done") // 想完了（思考过程留在窗口里，可以上下滑动回看）
     showPick(ticket) // 中间的卡片填上这一注
