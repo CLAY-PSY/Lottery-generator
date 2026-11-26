@@ -43,7 +43,7 @@ SOFTWARE.
 <link rel="stylesheet" href="css/layout.css"> <!-- 页面布局：背景画布、内容容器、主屏幕 App 的修正、状态栏、标题 -->
 <link rel="stylesheet" href="css/glass.css"> <!-- 液态玻璃材质：半透明、背景模糊、高光描边、触摸发光 -->
 <link rel="stylesheet" href="css/controls.css"> <!-- 表单卡片和分段控件（彩种、选号方式）：滑块、液态拉伸动画、按住和禁用状态 -->
-<link rel="stylesheet" href="css/process.css"> <!-- 过程窗口（深度思考、随机选号共用）和中间的一注卡片：标题行、逐字写出的过程、空球、弹出动画 -->
+<link rel="stylesheet" href="css/process.css"> <!-- 过程窗口（深度思考、随机选号共用）和中间的号码卡片：标题行、逐字写出的过程、空球、弹出动画 -->
 <link rel="stylesheet" href="css/buttons.css"> <!-- 按钮：生成号码、保存图片 -->
 <link rel="stylesheet" href="css/balls.css"> <!-- 结果卡片和号码球；小屏幕时缩小 -->
 <link rel="stylesheet" href="css/landscape.css"> <!-- 横屏：标题在上，选择和结果左右并排 -->
@@ -83,8 +83,8 @@ SOFTWARE.
       <button type="button" id="save-btn" class="prominent">保存图片</button> <!-- “保存图片”按钮 -->
     </div> <!-- 按钮组结束 -->
   </div> <!-- 表单卡片结束 -->
-  <div class="pick-box glass" id="pick-box"> <!-- 一注卡片（玻璃）：只放选出的一注；下面的卡片显示选号过程 -->
-    <div class="pick-line" id="pick-line" aria-live="polite" aria-label="选出的一注"></div> <!-- 一注号码：还没选时是空球 -->
+  <div class="pick-box glass" id="pick-box"> <!-- 号码卡片（玻璃）：只放选出的号码（随机选号一注；深度思考 A、B 两注）；下面的卡片显示选号过程 -->
+    <div class="pick-line" id="pick-line" aria-live="polite" aria-label="选出的号码"></div> <!-- 号码：一注一行，还没选时是空球 -->
   </div> <!-- 一注卡片结束 -->
   <div class="result-box glass"> <!-- 结果卡片（玻璃） -->
     <div class="result-inner" id="result-inner" aria-live="polite" aria-label="选号过程"></div> <!-- 选号过程：随机选号写出每个球怎么抽出来，深度思考写出思考过程 -->
@@ -92,10 +92,10 @@ SOFTWARE.
 </div> <!-- 页面内容容器结束 -->
 <script src="js/gestures.js" defer></script> <!-- 禁止页面缩放（手机、平板、电脑一套规则）：双击、两指捏合、触控板捏合、Ctrl＋滚轮；过程窗口随时能滑；生成号码时页面其他地方不能拖 -->
 <script src="js/common.js" defer></script> <!-- 公共部分：页面元素、彩种和选号方式、分段控件动画、触摸发光、加密随机数、号码球、按钮状态 -->
-<script src="js/pick-card.js" defer></script> <!-- 两种彩票的规则；中间的一注卡片：空球（依次呼吸）和填上号码 -->
+<script src="js/pick-card.js" defer></script> <!-- 两种彩票的规则；中间的号码卡片：空球（依次呼吸）和填上号码 -->
 <script src="js/random-pick.js" defer></script> <!-- 随机选号：和深度思考一样分步写出过程（思路、准备号码池、生成随机数、抽红球、抽蓝球、自我检查），过程中不显示抽中的号码，抽完后一注一起填上 -->
-<script src="js/deep-think.js" defer></script> <!-- 深度思考：看全部开奖记录，画出每个号码的冷热走势，留下最热的号作为一注，思考过程逐段写出 -->
-<script src="js/save-image.js" defer></script> <!-- 保存图片：把中间的一注画成图片；iPhone、iPad 弹出预览长按保存，其他设备直接下载 -->
+<script src="js/deep-think.js" defer></script> <!-- 深度思考：一次给出两注——方案 A 看冷热走势留下最热的号，方案 B 八位专家打分取平均分最高的号；思考过程逐段写出 -->
+<script src="js/save-image.js" defer></script> <!-- 保存图片：把中间卡片里的号码画成图片（深度思考 A、B 两注）；iPhone、iPad 弹出预览长按保存，其他设备直接下载 -->
 <script src="js/liquid-glass.js" defer></script> <!-- 液态背景和玻璃：WebGL 画液体和玻璃面板，不支持时用 2D 兜底；跟随深浅模式和减弱动态效果 -->
 <script src="js/main.js" defer></script> <!-- 启动：绑定两个按钮，一注卡片先放空球，注册离线缓存 -->
 </body> <!-- 页面主体结束 -->

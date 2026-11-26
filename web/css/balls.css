@@ -47,8 +47,14 @@
 @media (max-width:360px) { /* 屏幕宽度不超过 360px 时 */
   :root {--ctl-h:42px;--pad:8px;} /* 控件和内边距缩小 */
   .ball {width:24px;height:24px;font-size:.75rem;} /* 号码球缩小到 24px */
-  .pick-line {height:30px;} /* 一注的行高跟着缩小 */
+  .pick-row {height:30px;} /* 一注的行高跟着缩小 */
   .pick-line .ball {width:30px;height:30px;margin:0 3px;font-size:.85rem;} /* 一注的球缩小到 30px */
   button, /* 按钮、 */
   .segmented label {font-size:.9rem;} /* 选项文字的字号缩小 */
 }
+@media (max-width:340px) { /* 最窄的屏幕（例如 320px 宽）：一行 7 个球也要放进号码卡片（放在 360px 的规则后面，才能盖过它） */
+  .pick-row {height:28px;} /* 行高 */
+  .pick-line .ball {width:28px;height:28px;margin:0 2px;font-size:.8rem;} /* 球缩到 28px */
+  .pick-tag {width:12px;} /* A、B 标签再收窄 */
+}
+

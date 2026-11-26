@@ -1,4 +1,4 @@
-// 保存图片：把中间的一注画成图片；iPhone、iPad 弹出预览长按保存，其他设备直接下载
+// 保存图片：把中间卡片里的号码画成图片（随机选号一注；深度思考 A、B 两注）；iPhone、iPad 弹出预览长按保存，其他设备直接下载
 function formatDateLocal(date){ // 时间格式化为 2026-10-30_123456
   const y=date.getFullYear() // 年
   const m=String(date.getMonth()+1).padStart(2,"0") // 月，补零
@@ -10,7 +10,7 @@ function formatDateLocal(date){ // 时间格式化为 2026-10-30_123456
 }
 // 导出图片直接用 Canvas 画：版式与原来的截图一致，配色随当前深浅模式。
 // 不用 html2canvas 截图：它按自己估算的字体基线画字，iPhone 的苹方、SF 字体上数字会明显偏下
-const EXPORT_LAYOUT={ball:28,gap:8,rowGap:12,padX:16,padY:20,titleSize:16,titleHeight:22,titleGap:16,numberSize:13.6} // 导出图片的版式：球直径、球间距、行间距、左右留白、上下留白、标题字号、标题行高、标题与号码的间距、数字字号
+const EXPORT_LAYOUT={ball:28,gap:8,rowGap:12,padX:16,padY:20,titleSize:16,titleHeight:22,titleGap:16,numberSize:13.6,tag:20} // 导出图片的版式：球直径、球间距、行间距、左右留白、上下留白、标题字号、标题行高、标题与号码的间距、数字字号、A/B 标签的宽度
 // 按字形实际的上下边界垂直居中，不依赖各字体不同的基线和行高
 function fillTextCentered(ctx,text,x,cy){ // 在 (x, cy) 处画文字，按字形上下边界垂直居中
   ctx.textBaseline="alphabetic" // 以字母基线为准
@@ -56,25 +56,30 @@ function drawExportBall(ctx,theme,scale,color,number,x,y,r){ // 画一个导出�
   fillTextCentered(ctx,number,x,y) // 在球心画数字，按字形居中
   ctx.restore() // 恢复画布状态，去掉阴影
 }
-function exportRows(){ // 要保存的号码行：中间卡片里的一注（随机选号、深度思考都是）
-  return pickLine.querySelector(".ball:not(.ghost)")&&!pickLine.querySelector(".ghost")?[pickLine]:[] // 一注卡片里的号码（抽完、算完才算数）
+function exportRows(){ // 要保存的号码行：中间卡片里的每一注（随机选号一注；深度思考 A、B 两注）
+  const rows=[...pickLine.querySelectorAll(".pick-row")] // 每一注一行
+  return rows.length&&rows.every(row=>row.querySelector(".ball:not(.ghost)")&&!row.querySelector(".ghost"))?rows:[] // 全部抽完、算完才算数
 }
 function drawExportImage(title){ // 画出导出图片，返回画布
   const L=EXPORT_LAYOUT // 版式参数的简写
   const theme=getComputedStyle(document.documentElement) // 当前深浅模式下的 CSS 变量
   const font=getComputedStyle(document.body).fontFamily // 页面使用的字体
-  const lines=exportRows().map(line=>[...line.children].map(ball=>({ // 从页面读出每行的号码球（不含深度思考的标题和思考过程）
-    number:ball.textContent, // 号码文字
-    color:ball.classList.contains("blue")?"blue":"red" // 颜色：有 blue 类就是蓝球，否则是红球
-  })))
+  const lines=exportRows().map(row=>({ // 从页面读出每一注（不含深度思考的标题和思考过程）
+    tag:(row.querySelector(".pick-tag")||{}).textContent||"", // 深度思考的 A、B 标签（随机选号没有）
+    balls:[...row.querySelectorAll(".ball")].map(ball=>({ // 这一注的号码球
+      number:ball.textContent, // 号码文字
+      color:ball.classList.contains("blue")?"blue":"red" // 颜色：有 blue 类就是蓝球，否则是红球
+    })),
+  }))
+  const tagW=lines.some(line=>line.tag)?L.tag:0 // 有标签时每行左边留出标签的位置
   // 至少 2 倍；iPhone 等 3 倍屏按 3 倍导出，图片更清晰
   const scale=Math.min(Math.max(window.devicePixelRatio||1,2),3) // 导出倍数：至少 2，最多 3，跟随屏幕像素密度
   const canvas=document.createElement("canvas") // 新建画布
   const ctx=canvas.getContext("2d") // 取 2D 绘图上下文
   const titleFont=`600 ${L.titleSize}px ${font}` // 标题字体：粗体 16px
   ctx.font=titleFont // 先设好字体，用来量标题宽度
-  const columns=Math.max(...lines.map(line=>line.length)) // 最多一行有几个球
-  const width=Math.ceil(Math.max(columns*(L.ball+L.gap),ctx.measureText(title).width)+L.padX*2) // 图片宽度：号码行和标题取较宽者，再加左右留白
+  const columns=Math.max(...lines.map(line=>line.balls.length)) // 最多一行有几个球
+  const width=Math.ceil(Math.max(tagW+columns*(L.ball+L.gap),ctx.measureText(title).width)+L.padX*2) // 图片宽度：号码行（含标签）和标题取较宽者，再加左右留白
   const height=L.padY*2+L.titleHeight+L.titleGap+lines.length*L.ball+(lines.length-1)*L.rowGap // 图片高度：上下留白 + 标题 + 间距 + 各行号码 + 行间距
   canvas.width=width*scale // 画布实际像素宽度
   canvas.height=height*scale // 画布实际像素高度
@@ -90,9 +95,15 @@ function drawExportImage(title){ // 画出导出图片，返回画布
   ctx.font=`600 ${L.numberSize}px ${font}` // 号码数字字体：粗体 13.6px
   const top=L.padY+L.titleHeight+L.titleGap // 第一行号码的顶部位置
   lines.forEach((line,row)=>{ // 每一行
-    const left=(width-line.length*(L.ball+L.gap))/2+L.gap/2 // 这一行最左边球的左边缘，让整行水平居中
-    line.forEach((ball,i)=>{ // 这一行的每个球
-      drawExportBall(ctx,theme,scale,ball.color,ball.number,left+i*(L.ball+L.gap)+L.ball/2,top+row*(L.ball+L.rowGap)+L.ball/2,L.ball/2) // 画球：圆心 x、圆心 y、半径
+    const start=(width-(tagW+line.balls.length*(L.ball+L.gap)))/2 // 这一行（含标签）的左边缘，让整行水平居中
+    const cy=top+row*(L.ball+L.rowGap)+L.ball/2 // 这一行的中线
+    if(line.tag){ // 深度思考的 A、B 标签
+      ctx.fillStyle=theme.getPropertyValue("--export-title").trim() // 和标题同色
+      fillTextCentered(ctx,line.tag,start+tagW/2,cy) // 画在这一行最左边
+    }
+    const left=start+tagW+L.gap/2 // 这一行最左边球的左边缘
+    line.balls.forEach((ball,i)=>{ // 这一行的每个球
+      drawExportBall(ctx,theme,scale,ball.color,ball.number,left+i*(L.ball+L.gap)+L.ball/2,cy,L.ball/2) // 画球：圆心 x、圆心 y、半径
     })
   })
   return canvas // 返回画好的画布
