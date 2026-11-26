@@ -1,15 +1,14 @@
-// 深度思考：用彩票分析最常用的公式逐个号码计算，再让 10 个公式各自推荐号码、按回测命中率定权重、加权投票，得分最高的号留下；思考过程逐段写出
-// 用到的公式（红球、蓝球分开算；N 是期数，k 是每期开出几个，M 是号码总数）：
-//   理论概率 p = k ÷ M；理论平均遗漏 =（1−p）÷ p（几何分布：连续没开出的期数的期望）
-//   应出次数 = N × p；标准差 = √(N × p ×（1−p）)；偏离值 Z =（出现次数 − 应出次数）÷ 标准差（二项分布的标准分）
-//   当前遗漏：最近一次开出后已经过了几期；平均遗漏 = 总遗漏期数 ÷（出现次数 + 1）
-//   欲出几率 = 当前遗漏 ÷ 平均遗漏；冷热指数 = 当前遗漏 ÷ 理论平均遗漏（小于 0.8 为热号，0.8～1.5 为温号，大于 1.5 为冷号）
-//   遗漏概率 =（1−p）^当前遗漏（几何分布：连续这么多期没开出的可能性）
-//   指数平滑：近 30 期出现情况按半衰期 8 期加权；马尔可夫一阶：按上一期开没开，统计全部历史里下一期开出的比例（拉普拉斯平滑）
-// 公式投票：10 个公式各推荐 k 个号码；用近 40 期逐期回测（每期只用它之前的开奖）算各公式的命中率，越近的期分量越重（每 20 期减半），
-//   再向理论命中率 p 收缩（贝叶斯平滑，伪样本 8 个），权重 = 0.3 + 2.2 × 命中率；每个号码把推荐它的公式权重加起来，得分最高的号留下。
-// 全程不用随机数：同样的开奖数据，每次结果完全一样，开出新一期才会变
-const VOTE={window:40,halfLife:20,prior:8,base:.3,scale:2.2} // 回测近 40 期、越近越重（每 20 期分量减半）、贝叶斯平滑的伪样本数、权重 = 0.3 + 2.2 × 命中率
+// 深度思考：照 GitHub 上星标最多的彩票预测项目 zepen/predict_Lottery_ticket（AI 彩票号码预测，约 1.1k 星）的模型来算；思考过程逐段写出
+// 原项目的做法（config.py、modeling.py、run_train_model.py），这里按同样的结构和参数用 JavaScript 重写，在浏览器后台线程里训练：
+//   样本：窗口 3 期，用前 3 期的号码（新的一期在前）预测下一期；号码减 1 当成类别
+//   红球（LstmWithCRFModel）：嵌入层（号码数 × 32）→ 每个位置一个 LSTM(32) 看前 3 期 → 一个 LSTM(32) 把各位置串成序列 → 全连接（号码数）→ CRF（学号码之间的转移矩阵），
+//     损失是 CRF 负对数似然，预测用维特比解码
+//   蓝球：双色球（SignalLstmModel）嵌入层 16×32 → 三层 LSTM(32)（最后一层循环 dropout 0.2）→ softmax 16 类，交叉熵损失，取概率最高的号；
+//     大乐透和红球一样用 LSTM + CRF（2 个位置、12 类）
+//   训练：Adam（学习率 0.001，β1 0.9，β2 0.999，ε 1e-8），每批 1 个样本，1 轮；初始化和 Keras 默认一样（Glorot 均匀、循环权重正交、遗忘门偏置 1）
+// 和原项目不同的地方：原项目用前 70% 的开奖训练、后 30% 测试；这里按时间顺序把全部开奖逐期“先预测、再学习”，全部历史都学一遍，每期也都当了一次测试；
+//   维特比解码万一出现重复的红球，改取不重复的路径里得分最高的一条（原项目没有处理）
+// 初始化和 dropout 用固定种子：同样的开奖数据，每次结果完全一样，开出新一期才会变
 const WEEKDAYS=["周日","周一","周二","周三","周四","周五","周六"] // 星期的写法（getUTCDay 的 0～6）
 const historyCache={} // 上次读到的开奖历史：彩种 → 数据（联网失败时用）
 async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/dlt.json，每期：[期号, 日期, 红球, 蓝球]，新的在前）：每次都向服务器确认最新版本，页面一直开着也能用上新开奖
@@ -17,7 +16,7 @@ async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/d
     const response=await fetch(`data/${type}.json`,{cache:"no-cache"}) // 向服务器确认最新版本（没变时服务器只回“没变”，很快）
     if(!response.ok) throw new Error(`HTTP ${response.status}`) // 读取失败
     const data=await response.json() // 解析 JSON
-    if(!Array.isArray(data.draws)||data.draws.length<200) throw new Error("数据不完整") // 至少要有 200 期（近 100 期的指标 + 回测 40 期）
+    if(!Array.isArray(data.draws)||data.draws.length<200) throw new Error("数据不完整") // 至少要有 200 期（逐期学习要有足够的样本）
     historyCache[type]=data // 记下，联网失败时用
     return data // 返回
   }catch(error){ // 联网失败
@@ -25,58 +24,113 @@ async function loadHistory(type){ // 读取开奖历史（data/ssq.json、data/d
     throw error // 一次都没读到过
   }
 }
-function ballStats(hist,col,k,M){ // 用 hist（新的在前）给每个号码算出各项指标；col 是红球 2 或蓝球 3
-  const N=hist.length,W=M+1,p=k/M,lambda=.5**(1/8) // 期数、每期一行、理论概率、指数平滑的衰减（半衰期 8 期）
-  const has=new Uint8Array(N*W);for(let i=0;i<N;i++)for(const n of hist[i][col])has[i*W+n]=1 // 每期每个号码开没开
-  const out=[] // 结果
-  for(let n=1;n<=M;n++){ // 每个号码
-    let c10=0,c30=0,c100=0,call=0,gap=N,ewma=0 // 近 10、30、100 期和全部的出现次数、当前遗漏、指数平滑
-    const tr=[[1,2],[1,2]] // 马尔可夫一阶：上一期没开/开了 → 下一期开出的次数、总次数（拉普拉斯平滑，各从 1/2 起）
-    for(let i=0;i<N;i++){ // 从新到旧
-      const y=has[i*W+n] // 这一期开没开
-      if(y){call++;if(i<10)c10++;if(i<30){c30++;ewma+=lambda**i}if(i<100)c100++;if(gap===N)gap=i} // 计数；第一次碰到就是当前遗漏
-      if(i+1<N){const s=has[(i+1)*W+n];tr[s][0]+=y;tr[s][1]++} // 上一期（更旧的一期）的状态 → 这一期
-    }
-    const z=(c,w)=>{w=Math.min(w,N);return (c-w*p)/Math.sqrt(w*p*(1-p))} // 偏离值：（出现次数 − 应出次数）÷ 标准差
-    const avgGap=(N-call)/(call+1) // 平均遗漏 = 总遗漏期数 ÷（出现次数 + 1）
-    const last=has[n] // 最新一期开没开（决定马尔可夫看哪一行）
-    out.push({n,c10,c30,c100,call,gap,avgGap,ewma, // 基本计数
-      Z30:z(c30,30),Z100:z(c100,100),Zall:z(call,N), // 三个窗口的偏离值
-      want:gap/avgGap, // 欲出几率 = 当前遗漏 ÷ 平均遗漏
-      heat:gap/((1-p)/p), // 冷热指数 = 当前遗漏 ÷ 理论平均遗漏
-      markov:tr[last][0]/tr[last][1]}) // 马尔可夫一阶：按最新一期的状态，下一期开出的比例
-  }
-  return out // 每个号码一项
+function gapBucket(g){ // 当前遗漏分档（朴素贝叶斯用）：0、1～2、3～5、6～10、11～20、21 期以上
+  return g===0?0:g<=2?1:g<=5?2:g<=10?3:g<=20?4:5 // 六档
 }
-const FORMULAS=[ // 10 个公式：名字、打分（越大越看好；分数一样时遗漏少的在前，再一样号码小的在前）
-  ["近 10 期热号",s=>s.c10],
-  ["近 30 期偏离值",s=>s.Z30],
-  ["近 100 期偏离值",s=>s.Z100],
-  ["全部历史偏离值",s=>s.Zall],
-  ["指数平滑",s=>s.ewma],
-  ["冷热指数",s=>-s.heat], // 冷热指数越小越热
-  ["欲出几率",s=>s.want],
-  ["遗漏概率",s=>s.gap], // 遗漏越久，（1−p）^遗漏 越小，越“该出了”
-  ["近 30 期冷号",s=>-s.c30*1000+s.gap], // 出得最少的；一样时遗漏久的在前
-  ["马尔可夫转移",s=>s.markov],
-]
-function recommend(stats,score,k){ // 一个公式推荐的 k 个号码
-  return [...stats].sort((a,b)=>score(b)-score(a)||a.gap-b.gap||a.n-b.n).slice(0,k).map(s=>s.n) // 按打分从高到低取前 k 个
+function lottoNet(job){ // 一种球的模型：按时间顺序逐期先预测、再学习全部开奖，最后预测下一期（在后台线程里运行，不能用外面的变量）
+  const {seqs,kind,S,C,seed}=job // 每期这种球的号码（从早到晚，从小到大）、模型（crf：LSTM + CRF；lstm3：三层 LSTM）、每期几个号、号码总数、固定种子
+  const E=32,H=32,G=4*H,WIN=3,LR=.001,B1=.9,B2=.999,EPS=1e-8 // 嵌入 32 维、LSTM 32 维、四个门、窗口 3 期、Adam 的参数（和原项目一样）
+  let st=seed>>>0;const rnd=()=>{st=(st+0x6D2B79F5)>>>0;let t=st;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296} // 固定种子的数列（mulberry32）：初始化和 dropout 用
+  const nrm=()=>{let u=0;while(u===0)u=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*rnd())} // 标准正态（Box–Muller，正交初始化用）
+  const P=[] // 全部参数（Adam 逐个更新）
+  const param=(n,init)=>{const w=new Float64Array(n);if(init)init(w);const p={w,g:new Float64Array(n),m:new Float64Array(n),v:new Float64Array(n)};P.push(p);return p} // 一组参数：值、梯度、Adam 的一阶和二阶矩
+  const glorot=(fi,fo)=>w=>{const l=Math.sqrt(6/(fi+fo));for(let i=0;i<w.length;i++)w[i]=(rnd()*2-1)*l} // Glorot 均匀初始化（Keras 默认）
+  const orth=w=>{const A=Array.from({length:H},()=>Float64Array.from({length:G},nrm)) // 循环权重的正交初始化（Keras 默认）：正态矩阵做 Gram–Schmidt 正交化
+    for(let j=0;j<H;j++){for(let k=0;k<j;k++){let d=0;for(let i=0;i<G;i++)d+=A[j][i]*A[k][i];for(let i=0;i<G;i++)A[j][i]-=d*A[k][i]}let n=0;for(let i=0;i<G;i++)n+=A[j][i]*A[j][i];n=Math.sqrt(n);for(let i=0;i<G;i++)A[j][i]/=n}
+    for(let j=0;j<H;j++)for(let i=0;i<G;i++)w[j*G+i]=A[j][i]}
+  const ZH=new Float64Array(H) // 全 0 的初始状态
+  const lstm=(I,T)=>({I,T,W:param(I*G,glorot(I,G)),U:param(H*G,orth),b:param(G,w=>{for(let i=H;i<2*H;i++)w[i]=1}), // 一层 LSTM：输入权重、循环权重、偏置（遗忘门偏置 1）
+    X:new Float64Array(T*I),HM:new Float64Array(T*H),GA:new Float64Array(T*G),TC:new Float64Array(T*H),HO:new Float64Array(T*H),CO:new Float64Array(T*H), // 每步的输入、（dropout 后的）上一步输出、门、tanh(c)、输出、细胞状态
+    DH:new Float64Array(T*H),DX:new Float64Array(T*I),dz:new Float64Array(G),dhn:new Float64Array(H),dcn:new Float64Array(H)}) // 反向传播用的缓冲
+  function fwd(L,mask){const {I,T,X,HM,GA,TC,HO,CO}=L,W=L.W.w,U=L.U.w,b=L.b.w // LSTM 前向：门的顺序 i、f、c、o（和 Keras 一样）
+    for(let t=0;t<T;t++){const z=GA.subarray(t*G,t*G+G);z.set(b);const xo=t*I,ho=t*H,hp=t?HO.subarray((t-1)*H,t*H):ZH,cp=t?CO.subarray((t-1)*H,t*H):ZH
+      for(let i=0;i<I;i++){const xi=X[xo+i],o=i*G;for(let j=0;j<G;j++)z[j]+=xi*W[o+j]} // x·W
+      for(let i=0;i<H;i++){const hi=mask?hp[i]*mask[i]:hp[i];HM[ho+i]=hi;const o=i*G;for(let j=0;j<G;j++)z[j]+=hi*U[o+j]} // h·U（循环 dropout 只作用在这里）
+      for(let k=0;k<H;k++){const ig=1/(1+Math.exp(-z[k])),fg=1/(1+Math.exp(-z[H+k])),gg=Math.tanh(z[2*H+k]),og=1/(1+Math.exp(-z[3*H+k])) // 输入门、遗忘门、候选值、输出门
+        z[k]=ig;z[H+k]=fg;z[2*H+k]=gg;z[3*H+k]=og;const c=fg*cp[k]+ig*gg,tc=Math.tanh(c);CO[ho+k]=c;TC[ho+k]=tc;HO[ho+k]=og*tc}}} // c = f·c' + i·g，h = o·tanh(c)
+  function bwd(L,mask){const {I,T,X,HM,GA,TC,CO,DH,DX,dz,dhn,dcn}=L,W=L.W.w,U=L.U.w,gW=L.W.g,gU=L.U.g,gb=L.b.g;dhn.fill(0);dcn.fill(0) // LSTM 反向（沿时间反向传播）：DH 是每步输出的梯度，算出每步输入的梯度 DX，并累加参数梯度
+    for(let t=T-1;t>=0;t--){const go=t*G,ho=t*H,xo=t*I,cp=t?CO.subarray((t-1)*H,t*H):ZH
+      for(let k=0;k<H;k++){const d=DH[ho+k]+dhn[k],ig=GA[go+k],fg=GA[go+H+k],gg=GA[go+2*H+k],og=GA[go+3*H+k],tc=TC[ho+k],dc=dcn[k]+d*og*(1-tc*tc)
+        dz[3*H+k]=d*tc*og*(1-og);dz[k]=dc*gg*ig*(1-ig);dz[H+k]=dc*cp[k]*fg*(1-fg);dz[2*H+k]=dc*ig*(1-gg*gg);dcn[k]=dc*fg}
+      for(let j=0;j<G;j++)gb[j]+=dz[j]
+      for(let i=0;i<I;i++){const xi=X[xo+i],o=i*G;let s=0;for(let j=0;j<G;j++){s+=W[o+j]*dz[j];gW[o+j]+=xi*dz[j]}DX[xo+i]=s}
+      for(let i=0;i<H;i++){const hi=HM[ho+i],o=i*G;let s=0;for(let j=0;j<G;j++){s+=U[o+j]*dz[j];gU[o+j]+=hi*dz[j]}dhn[i]=mask?s*mask[i]:s}}}
+  const emb=param(C*E,w=>{for(let i=0;i<w.length;i++)w[i]=(rnd()*2-1)*.05}) // 嵌入层（Keras 默认均匀 ±0.05）
+  let slots,top,l1,l2,l3,trans // 各层
+  if(kind==='crf'){slots=Array.from({length:S},()=>lstm(E,WIN));top=lstm(H,S)}else{l1=lstm(E,WIN);l2=lstm(H,WIN);l3=lstm(H,WIN)} // LSTM + CRF：每个位置一个 LSTM，再一个跨位置的 LSTM；三层 LSTM
+  const DW=param(H*C,glorot(H,C)),DB=param(C) // 全连接层
+  if(kind==='crf')trans=param(C*C,glorot(C,C)) // CRF 转移矩阵
+  const nParams=P.reduce((a,p)=>a+p.w.length,0) // 参数个数
+  const SS=kind==='crf'?S:1,u=new Float64Array(SS*C),du=new Float64Array(SS*C),al=new Float64Array(S*C),be=new Float64Array(S*C),eu=new Float64Array(S*C),eA=new Float64Array(C*C),zs=new Float64Array(S) // 每个位置每个号码的分、梯度，CRF 前向后向的缓冲
+  function dense(h,ho,uo){for(let c=0;c<C;c++)u[uo+c]=DB.w[c];for(let i=0;i<H;i++){const hi=h[ho+i],o=i*C;for(let c=0;c<C;c++)u[uo+c]+=hi*DW.w[o+c]}} // 全连接前向
+  function denseB(h,ho,uo,out,oo){for(let c=0;c<C;c++)DB.g[c]+=du[uo+c];for(let i=0;i<H;i++){const hi=h[ho+i],o=i*C;let s=0;for(let c=0;c<C;c++){s+=DW.w[o+c]*du[uo+c];DW.g[o+c]+=hi*du[uo+c]}out[oo+i]=s}} // 全连接反向
+  const vd=new Float64Array(C),vn=new Float64Array(C),vb=new Int32Array(S*C) // 维特比的缓冲
+  function viterbi(){const A=trans.w;for(let c=0;c<C;c++)vd[c]=u[c] // 维特比解码（原项目的 crf_decode）
+    for(let s=1;s<S;s++){for(let c=0;c<C;c++){let best=-Infinity,bi=0;for(let i=0;i<C;i++){const v=vd[i]+A[i*C+c];if(v>best){best=v;bi=i}}vn[c]=best+u[s*C+c];vb[s*C+c]=bi}vd.set(vn)}
+    let c=0;for(let i=1;i<C;i++)if(vd[i]>vd[c])c=i;const path=new Array(S);path[S-1]=c;for(let s=S-1;s>0;s--){c=vb[s*C+c];path[s-1]=c}return path}
+  function uniquePaths(){const A=trans.w;let beams=[{s:0,p:[]}] // 不重复号码的路径：束搜索（宽 512），按 CRF 得分从高到低
+    for(let s=0;s<S;s++){const nb=[];for(const b of beams)for(let c=0;c<C;c++){if(b.p.includes(c))continue;nb.push({s:b.s+u[s*C+c]+(s?A[b.p[s-1]*C+c]:0),p:[...b.p,c]})}nb.sort((x,y)=>y.s-x.s);beams=nb.slice(0,512)}
+    return beams.slice(0,6).map(b=>b.p)}
+  let mask=null;const MK=new Float64Array(H) // 循环 dropout 的遮罩
+  function forward(inp,train){ // 前向：inp 是前 3 期（新的在前），每期 S 个号码（从 0 起）
+    if(kind==='crf'){
+      for(let s=0;s<S;s++){const L=slots[s];for(let t=0;t<WIN;t++)L.X.set(emb.w.subarray(inp[t][s]*E,inp[t][s]*E+E),t*E);fwd(L,null);top.X.set(L.HO.subarray((WIN-1)*H,WIN*H),s*H)} // 每个位置的 LSTM 看前 3 期，取最后的输出
+      fwd(top,null);for(let s=0;s<S;s++)dense(top.HO,s*H,s*C)} // 跨位置的 LSTM，再接全连接
+    else{for(let t=0;t<WIN;t++)l1.X.set(emb.w.subarray(inp[t][0]*E,inp[t][0]*E+E),t*E);fwd(l1,null);l2.X.set(l1.HO);fwd(l2,null);l3.X.set(l2.HO) // 三层 LSTM
+      if(train){for(let i=0;i<H;i++)MK[i]=rnd()<.2?0:1/.8;mask=MK}else mask=null // 训练时最后一层用循环 dropout 0.2
+      fwd(l3,mask);dense(l3.HO,(WIN-1)*H,0)}}
+  function backward(inp,target){ // 反向：算损失，梯度累加到各参数
+    if(kind==='crf'){const A=trans.w;let amax=-Infinity;for(let i=0;i<C*C;i++)if(A[i]>amax)amax=A[i];for(let i=0;i<C*C;i++)eA[i]=Math.exp(A[i]-amax) // CRF：缩放的前向后向算法
+      let logZ=(S-1)*amax
+      for(let s=0;s<S;s++){let mu=-Infinity;for(let c=0;c<C;c++)if(u[s*C+c]>mu)mu=u[s*C+c];for(let c=0;c<C;c++)eu[s*C+c]=Math.exp(u[s*C+c]-mu);logZ+=mu}
+      let z=0;for(let c=0;c<C;c++){al[c]=eu[c];z+=al[c]}for(let c=0;c<C;c++)al[c]/=z;zs[0]=z;logZ+=Math.log(z)
+      for(let s=1;s<S;s++){z=0;for(let c=0;c<C;c++){let v=0;for(let i=0;i<C;i++)v+=al[(s-1)*C+i]*eA[i*C+c];v*=eu[s*C+c];al[s*C+c]=v;z+=v}for(let c=0;c<C;c++)al[s*C+c]/=z;zs[s]=z;logZ+=Math.log(z)}
+      for(let c=0;c<C;c++)be[(S-1)*C+c]=1
+      for(let s=S-2;s>=0;s--)for(let i=0;i<C;i++){let v=0;for(let c=0;c<C;c++)v+=eA[i*C+c]*eu[(s+1)*C+c]*be[(s+1)*C+c];be[s*C+i]=v/zs[s+1]}
+      let gold=0;for(let s=0;s<S;s++){gold+=u[s*C+target[s]];if(s)gold+=A[target[s-1]*C+target[s]]} // 真实号码序列的得分
+      for(let s=0;s<S;s++)for(let c=0;c<C;c++)du[s*C+c]=al[s*C+c]*be[s*C+c]-(c===target[s]?1:0) // 每个位置的梯度 = 边缘概率 − 真实
+      for(let s=1;s<S;s++){const k=1/zs[s];for(let i=0;i<C;i++){const a=al[(s-1)*C+i]*k;for(let c=0;c<C;c++)trans.g[i*C+c]+=a*eA[i*C+c]*eu[s*C+c]*be[s*C+c]}trans.g[target[s-1]*C+target[s]]-=1} // 转移矩阵的梯度
+      top.DH.fill(0);for(let s=0;s<S;s++)denseB(top.HO,s*H,s*C,top.DH,s*H);bwd(top,null)
+      for(let s=0;s<S;s++){const L=slots[s];L.DH.fill(0);L.DH.set(top.DX.subarray(s*H,s*H+H),(WIN-1)*H);bwd(L,null);for(let t=0;t<WIN;t++){const o=inp[t][s]*E;for(let k=0;k<E;k++)emb.g[o+k]+=L.DX[t*E+k]}}
+      return logZ-gold} // 负对数似然
+    let m=-Infinity;for(let c=0;c<C;c++)if(u[c]>m)m=u[c];let sum=0;for(let c=0;c<C;c++){du[c]=Math.exp(u[c]-m);sum+=du[c]}for(let c=0;c<C;c++)du[c]/=sum // softmax
+    const loss=-Math.log(du[target[0]]);du[target[0]]-=1 // 交叉熵
+    l3.DH.fill(0);denseB(l3.HO,(WIN-1)*H,0,l3.DH,(WIN-1)*H);bwd(l3,mask);l2.DH.set(l3.DX);bwd(l2,null);l1.DH.set(l2.DX);bwd(l1,null)
+    for(let t=0;t<WIN;t++){const o=inp[t][0]*E;for(let k=0;k<E;k++)emb.g[o+k]+=l1.DX[t*E+k]}
+    return loss}
+  const order=()=>Array.from({length:C},(_,c)=>c).sort((a,b)=>u[b]-u[a]||a-b) // 三层 LSTM：号码按概率从高到低
+  let it=0
+  function adam(){it++;const lt=LR*Math.sqrt(1-B2**it)/(1-B1**it);for(const p of P){const {w,g,m,v}=p;for(let i=0;i<w.length;i++){const gi=g[i],mi=B1*m[i]+(1-B1)*gi,vi=B2*v[i]+(1-B2)*gi*gi;m[i]=mi;v[i]=vi;w[i]-=lt*mi/(Math.sqrt(vi)+EPS);g[i]=0}}} // Adam 一步（每批 1 个样本）
+  const ids=seqs.map(d=>d.map(n=>n-1)),N=ids.length // 号码减 1 当类别
+  let hit=0,cnt=0,lossA=0,lossB=0,nA=0,nB=0 // 回测：命中个数、样本数，前 100 个和最后 100 个样本的平均损失
+  for(let t=WIN;t<N;t++){const inp=[ids[t-1],ids[t-2],ids[t-3]],tg=ids[t] // 第 t 期：用前 3 期（新的在前）
+    forward(inp,true);const pred=kind==='crf'?viterbi():[order()[0]] // 先预测
+    for(const c of pred)if(tg.includes(c))hit++ // 中了几个号
+    const loss=backward(inp,tg);cnt++;if(t<WIN+100){lossA+=loss;nA++}if(t>=N-100){lossB+=loss;nB++} // 再学习
+    adam()}
+  forward([ids[N-1],ids[N-2],ids[N-3]],false) // 下一期：输入最近 3 期
+  const plain=kind==='crf'?viterbi():[order()[0]],alts=kind==='crf'?uniquePaths():order().slice(0,6).map(c=>[c]) // 原项目的解码结果、不重复的备选（从好到差）
+  return {plain:plain.map(c=>c+1),alts:alts.map(p=>p.map(c=>c+1)),dup:new Set(plain).size<plain.length,samples:cnt,hitPer:hit/cnt,lossFirst:lossA/nA,lossLast:lossB/nB,params:nParams} // 结果
 }
-function analyzeBall(draws,col,k,M){ // 一种球：各项指标、10 个公式回测定权重、加权投票
-  const p=k/M,stats=ballStats(draws,col,k,M) // 理论概率、用全部开奖算的指标（推荐下一期用）
-  const past=[];for(let i=1;i<=VOTE.window;i++)past.push({w:.5**((i-1)/VOTE.halfLife),actual:new Set(draws[i-1][col]),stats:ballStats(draws.slice(i),col,k,M)}) // 回测：第 i 期只用它之前的开奖算指标；越近的期分量越重
-  const formulas=FORMULAS.map(([name,score])=>{ // 每个公式
-    let wh=0,wt=0 // 加权命中数、加权推荐数
-    for(const t of past){const rec=recommend(t.stats,score,k);wh+=t.w*rec.filter(n=>t.actual.has(n)).length;wt+=t.w*k} // 推荐的 k 个里开出了几个
-    const rate=(wh+VOTE.prior*p)/(wt+VOTE.prior) // 命中率：向理论命中率 p 收缩（贝叶斯平滑）
-    return {name,rate,weight:VOTE.base+VOTE.scale*rate,rec:recommend(stats,score,k)} // 权重、这次推荐的号码
+let netWorkerUrl=null // 后台线程的脚本地址（只生成一次）
+function runNet(job){ // 在后台线程里训练一种球的模型（不卡页面）；浏览器不支持时在页面里算
+  return new Promise((resolve,reject)=>{
+    try{
+      if(!netWorkerUrl) netWorkerUrl=URL.createObjectURL(new Blob([`${lottoNet.toString()}\nonmessage=e=>postMessage(lottoNet(e.data))`],{type:"text/javascript"})) // 把模型函数做成后台线程的脚本
+      const w=new Worker(netWorkerUrl) // 新开一个后台线程
+      w.onmessage=e=>{resolve(e.data);w.terminate()} // 算完就关掉
+      w.onerror=e=>{w.terminate();e.preventDefault();setTimeout(()=>{try{resolve(lottoNet(job))}catch(err){reject(err)}},0)} // 后台线程出错：改在页面里算
+      w.postMessage(job) // 开始
+    }catch(error){setTimeout(()=>{try{resolve(lottoNet(job))}catch(err){reject(err)}},0)} // 不支持后台线程：在页面里算
   })
-  const total=new Float64Array(M+1),votes=new Int32Array(M+1) // 每个号码的加权得分、被几个公式推荐
-  formulas.forEach(f=>f.rec.forEach(n=>{total[n]+=f.weight;votes[n]++})) // 投票
-  const byN=new Map(stats.map(s=>[s.n,s])) // 按号码查指标
-  const ranked=Array.from({length:M},(_,i)=>i+1).sort((a,b)=>total[b]-total[a]||votes[b]-votes[a]||byN.get(b).c10-byN.get(a).c10||a-b) // 得分从高到低；一样时票数多的、近 10 期出得多的、号码小的在前
-  return {p,N:draws.length,stats,formulas,total,votes,ranked} // 结果
+}
+const netCache={} // 算过的结果：彩种和最新一期 → 红球、蓝球的结果（同样的数据结果一样，不用重算）
+function trainFor(type,draws,rule){ // 一种彩票的红球、蓝球模型（两个后台线程同时训练）
+  const key=`${type}|${draws[0][0]}|${draws.length}` // 彩种、最新期号、期数
+  if(!netCache[key]){const seq=col=>draws.map(d=>d[col]).reverse() // 每期的号码，从早到晚
+    netCache[key]=Promise.all([runNet({seqs:seq(2),kind:"crf",S:rule.red[0],C:rule.red[1],seed:1}),runNet({seqs:seq(3),kind:rule.blue[0]>1?"crf":"lstm3",S:rule.blue[0],C:rule.blue[1],seed:2})]) // 红球 LSTM + CRF；蓝球一个号用三层 LSTM，两个号用 LSTM + CRF
+    netCache[key].catch(()=>{delete netCache[key]})} // 出错时下次重算
+  return netCache[key]
 }
 function nextDrawDate(latest,days){ // 下一期的开奖日期：从最新一期往后找第一个开奖日（节假日停售时会顺延，所以只是预计）
   const d=new Date(latest+"T00:00:00Z") // 最新一期
@@ -125,32 +179,32 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
   })
   const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
   const fmt=x=>x.toLocaleString("en-US") // 千位逗号
-  const pct1=x=>`${(x*100).toFixed(1)}%` // 一位小数的百分比
-  const sign=x=>`${x>=0?"+":"−"}${Math.abs(x).toFixed(1)}` // 带正负号、一位小数
   try{ // 尝试
     const data=await loadHistory(type),draws=data.draws,latest=draws[0],T=draws.length // 读取全部开奖记录（新的在前）、最新一期、期数
     const [kr,Mr]=rule.red,[kb,Mb]=rule.blue // 红球、蓝球的个数和范围
     const next=new Date(nextDrawDate(latest[1],rule.drawDays)+"T00:00:00Z") // 下一期预计的开奖日期
-    const R=analyzeBall(draws,2,kr,Mr),B=analyzeBall(draws,3,kb,Mb) // 红球、蓝球：指标、公式权重、投票
-    const reds=R.ranked.slice(0,kr).sort((a,b)=>a-b) // 得分最高的红球
-    const jackpots=new Set(draws.map(d=>d[2].join(",")+"|"+d[3].join(","))) // 开过的头奖组合
-    let blues=B.ranked.slice(0,kb),swapped=null // 得分最高的蓝球；为了不撞历史头奖换掉的蓝球
-    const key=()=>reds.join(",")+"|"+[...blues].sort((a,b)=>a-b).join(",") // 这一注的写法（和头奖记录一样的格式）
-    for(let i=kb;jackpots.has(key())&&i<B.ranked.length;i++){swapped=swapped||blues[kb-1];blues=[...B.ranked.slice(0,kb-1),B.ranked[i]]} // 万一和开过的头奖一模一样，最后一个蓝球换成下一个
-    blues=blues.sort((a,b)=>a-b) // 蓝球从小到大
-    const p=R.p,tg=(1-p)/p,E=T*p,sd=Math.sqrt(T*p*(1-p)),tgB=(1-B.p)/B.p // 红球理论概率、理论平均遗漏、应出次数、标准差；蓝球理论平均遗漏
-    const hot=R.stats.reduce((x,y)=>y.Zall>x.Zall?y:x),cold=R.stats.reduce((x,y)=>y.Zall<x.Zall?y:x),due=R.stats.reduce((x,y)=>y.want>x.want?y:x) // 全部历史偏离值最高、最低的红球，欲出几率最高的红球
-    const heatCount=(lo,hi)=>R.stats.filter(s=>s.heat>=lo&&s.heat<hi).length // 冷热指数在某个范围的红球个数
-    const byRate=[...R.formulas].sort((x,y)=>y.rate-x.rate),top=R.ranked[0] // 公式按命中率排、得分最高的红球
-    await write("思路",`为${rule.name}选 1 注：用彩票分析最常用的公式，逐个号码算出现次数、偏离值、遗漏、欲出几率和冷热指数，再让 10 个公式各自推荐号码，按近 ${VOTE.window} 期的命中率给公式定权重，加权投票，得分最高的号留下。`)
+    const job=trainFor(type,draws,rule) // 开始训练（后台线程，和下面写字同时进行）
+    job.catch(()=>{}) // 出错时由下面的 await 处理，这里不重复报“未处理的错误”
+    const crfParams=(S,C)=>C*32+S*8320+8320+32*C+C+C*C,lstm3Params=C=>C*32+3*8320+32*C+C // 参数个数：嵌入、LSTM（每层 32×128×2 + 128）、全连接、CRF 转移矩阵
+    const blueOne=kb===1 // 双色球蓝球只有一个号：三层 LSTM
+    await write("思路",`为${rule.name}选 1 注：照 GitHub 上星标最多的彩票预测项目 zepen/predict_Lottery_ticket（约 1.1k 星）的模型来算：红球用 LSTM + CRF，把 ${kr} 个红球当成一个序列一起预测；蓝球用${blueOne?"三层 LSTM":"同样的 LSTM + CRF"}。全部 ${fmt(T)} 期开奖按时间顺序逐期先预测、再学习。`)
     await write("数据",`共 ${fmt(T)} 期（${draws[T-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。下一期预计 ${next.getUTCMonth()+1} 月 ${next.getUTCDate()} 日（${WEEKDAYS[next.getUTCDay()]}）开奖。`)
-    await write("第一步｜基础公式",`红球理论概率 p = ${kr}÷${Mr} = ${pct1(p)}，理论平均遗漏 =（1−p）÷ p = ${tg.toFixed(1)} 期（几何分布）；全部 ${fmt(T)} 期里每个号码应出 N×p = ${Math.round(E)} 次，标准差 √(N×p×(1−p)) = ${sd.toFixed(1)} 次。蓝球 p = ${kb}÷${Mb} = ${pct1(B.p)}，理论平均遗漏 ${tgB.toFixed(1)} 期。`)
-    await write("第二步｜逐号计算",`偏离值 Z =（出现次数 − 应出次数）÷ 标准差：全部历史最热的 ${pad2(hot.n)}（Z = ${sign(hot.Zall)}），最冷的 ${pad2(cold.n)}（Z = ${sign(cold.Zall)}）。欲出几率 = 当前遗漏 ÷ 平均遗漏：最高的 ${pad2(due.n)}（${due.gap} 期 ÷ ${due.avgGap.toFixed(1)} 期 = ${due.want.toFixed(1)}）。冷热指数 = 当前遗漏 ÷ 理论平均遗漏：热号 ${heatCount(0,.8)} 个（小于 0.8）、温号 ${heatCount(.8,1.5000001)} 个、冷号 ${heatCount(1.5000001,Infinity)} 个（大于 1.5）。`)
-    await write("第三步｜公式定权重",`10 个公式各推荐 ${kr} 个红球、${kb} 个蓝球：${FORMULAS.map(f=>f[0]).join("、")}。用近 ${VOTE.window} 期逐期回测，每期只用之前的开奖；越近的期分量越重（每 ${VOTE.halfLife} 期减半），再向理论命中率 ${pct1(p)} 收缩（贝叶斯平滑），权重 = ${VOTE.base} + ${VOTE.scale} × 命中率。红球最准的「${byRate[0].name}」${pct1(byRate[0].rate)}，最弱的「${byRate[byRate.length-1].name}」${pct1(byRate[byRate.length-1].rate)}。`)
-    await write("第四步｜加权投票",`每个号码把推荐它的公式的权重加起来，取得分最高的 ${kr} 个红球、${kb} 个蓝球：红 ${nums(reds)}，蓝 ${nums(blues)}。红球 ${pad2(top)} 得分最高（${R.total[top].toFixed(2)}），有 ${R.votes[top]} 个公式推荐。`)
+    await write("第一步｜做样本",`和原项目一样，窗口 3 期：每个样本用前 3 期的号码（新的一期在前）预测下一期，号码减 1 当成类别（红球 0～${Mr-1}，蓝球 0～${Mb-1}）。全部 ${fmt(T)} 期做出 ${fmt(T-3)} 个样本。`)
+    await write("第二步｜红球模型",`嵌入层 ${Mr}×32 → ${kr} 个 LSTM（32 维）各看一个位置的前 3 期 → 一个 LSTM 把 ${kr} 个位置串成序列 → 全连接 ${Mr} 类 → CRF 学 ${Mr}×${Mr} 的转移矩阵；损失是 CRF 负对数似然，共 ${fmt(crfParams(kr,Mr))} 个参数。`)
+    await write("第三步｜蓝球模型",blueOne?`嵌入层 ${Mb}×32 → 三层 LSTM（32 维，最后一层循环 dropout 0.2）→ softmax ${Mb} 类；损失是交叉熵，共 ${fmt(lstm3Params(Mb))} 个参数。`:`和红球一样用 LSTM + CRF：嵌入层 ${Mb}×32 → ${kb} 个 LSTM → 一个 LSTM → 全连接 ${Mb} 类 → CRF；共 ${fmt(crfParams(kb,Mb))} 个参数。`)
+    const [R,B]=await job // 等训练完（不显示进度）
+    const jackpots=new Set(draws.map(d=>d[2].join(",")+"|"+d[3].join(","))) // 开过的头奖组合
+    const reds=[...R.alts[0]].sort((a,b)=>a-b) // 红球：不重复的最高分路径，从小到大
+    let blues=[...B.alts[0]].sort((a,b)=>a-b),swapped=false // 蓝球
+    const key=()=>reds.join(",")+"|"+blues.join(",") // 这一注的写法（和头奖记录一样的格式）
+    for(let i=1;jackpots.has(key())&&i<B.alts.length;i++){blues=[...B.alts[i]].sort((a,b)=>a-b);swapped=true} // 万一和开过的头奖一模一样，蓝球换成下一个备选
+    const expR=kr*kr/Mr,expB=kb*kb/Mb // 全凭运气时每期平均中几个
+    await write("第四步｜逐期学习",`按原项目的参数：Adam（学习率 0.001），每批 1 个样本，学 1 轮。原项目用前 70% 训练、后 30% 测试；这里按时间顺序把 ${fmt(R.samples)} 个样本逐期先预测、再学习，全部历史都学一遍，每期也都当了一次测试。红球损失从前 100 期的 ${R.lossFirst.toFixed(1)} 降到最后 100 期的 ${R.lossLast.toFixed(1)}，蓝球 ${B.lossFirst.toFixed(2)} → ${B.lossLast.toFixed(2)}。`)
+    await write("第五步｜回测成绩",`逐期预测的结果：红球平均每期中 ${R.hitPer.toFixed(2)} 个（全凭运气是 ${expR.toFixed(2)} 个），蓝球平均每期中 ${B.hitPer.toFixed(2)} 个（全凭运气是 ${expB.toFixed(2)} 个）。`)
+    await write("第六步｜预测下一期",`输入最近 3 期，红球维特比解码${R.dup?`得到 ${nums(R.plain)}，有重复的号，改取不重复的路径里得分最高的一条`:""}：红 ${nums(reds)}；蓝球${blueOne?"取概率最高的号":"维特比解码"}：蓝 ${nums(blues)}。`)
     const okNums=(v,[n,max])=>v.length===n&&v.every((y,i)=>y>=1&&y<=max&&(!i||y>v[i-1])) // 个数、范围、从小到大不重复
     const ok=okNums(reds,rule.red)&&okNums(blues,rule.blue)&&!jackpots.has(key()) // 自我检查
-    await write("第五步｜自我检查",ok?`号码个数和范围正确，没有重复${swapped?`；原来那注和开过的头奖一样，蓝球 ${pad2(swapped)} 换成了下一个`:"，也不是开过的头奖组合"}，全部通过。`:"有一项没通过，请再试一次。")
+    await write("第七步｜自我检查",ok?`号码个数和范围正确，没有重复${swapped?"；原来那注和开过的头奖一样，蓝球换成了下一个备选":"，也不是开过的头奖组合"}，全部通过。`:"有一项没通过，请再试一次。")
     title.textContent="已深度思考" // 标题改成已完成（不显示用时）
     resultInner.classList.add("deep-done") // 想完了（思考过程留在窗口里，可以上下滑动回看）
     showPick({red:reds,blue:blues}) // 中间的卡片填上这一注
