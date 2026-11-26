@@ -89,42 +89,22 @@
   font-weight:700; /* 加粗 */
   margin-right:6px; /* 和正文的间距 */
 }
-/* 号码卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的号码（随机选号一注；深度思考 A、B 两注） */
+/* 一注卡片：表单和过程窗口之间单独一块玻璃卡片，只放选出的一注（随机选号、深度思考都是） */
 .pick-box { /* 一注卡片 */
   flex-shrink:0; /* 不被压缩 */
   border-radius:var(--radius-outer); /* 外圆角，和其他卡片一致 */
   padding:14px; /* 内边距，和结果卡片一致 */
 }
-.pick-line { /* 号码：一注一行 */
-  display:flex; /* 弹性布局 */
-  flex-direction:column; /* 竖排（深度思考 A、B 两行） */
-  align-items:center; /* 每行水平居中 */
-  gap:10px; /* 两行之间的间距 */
-}
-.pick-row { /* 一注 */
+.pick-line { /* 一注号码 */
   display:flex; /* 横排 */
   justify-content:center; /* 居中 */
-  align-items:center; /* 标签和球上下居中 */
   height:34px; /* 球的直径 */
-}
-.pick-tag { /* 深度思考每注开头的 A、B 标签 */
-  flex-shrink:0; /* 不被压缩 */
-  width:16px; /* 宽 */
-  margin-right:2px; /* 和球的间距 */
-  font-size:.85rem; /* 字号 */
-  font-weight:700; /* 加粗 */
-  color:var(--text-sub); /* 颜色淡一点 */
-  text-align:center; /* 居中 */
 }
 .pick-line .ball { /* 一注里的号码球：比结果区的大一点，更醒目 */
   width:34px; /* 宽 */
   height:34px; /* 高 */
   margin:0 4px; /* 左右各留 4px */
   font-size:1rem; /* 字号 */
-}
-.pick-tag ~ .ball {margin:0 3px;} /* 带 A、B 标签的行：球间距少 1px，给标签腾地方 */
-@media (max-width:360px) { /* 屏幕宽度不超过 360px 时（球已缩到 30px） */
-  .pick-tag {width:14px;font-size:.75rem;} /* A、B 标签收窄 */
 }
 .ball.ghost { /* 还没算出来的球：只有淡淡的颜色和一圈细边 */
   background:none; /* 不要球的渐变 */
