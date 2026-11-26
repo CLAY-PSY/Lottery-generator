@@ -187,24 +187,24 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     job.catch(()=>{}) // 出错时由下面的 await 处理，这里不重复报“未处理的错误”
     const crfParams=(S,C)=>C*32+S*8320+8320+32*C+C+C*C,lstm3Params=C=>C*32+3*8320+32*C+C // 参数个数：嵌入、LSTM（每层 32×128×2 + 128）、全连接、CRF 转移矩阵
     const blueOne=kb===1 // 双色球蓝球只有一个号：三层 LSTM
-    await write("思路",`为${rule.name}选 1 注：照 GitHub 上星标最多的彩票预测项目 zepen/predict_Lottery_ticket（约 1.1k 星）的模型来算：红球用 LSTM + CRF，把 ${kr} 个红球当成一个序列一起预测；蓝球用${blueOne?"三层 LSTM":"同样的 LSTM + CRF"}。全部 ${fmt(T)} 期开奖按时间顺序逐期先预测、再学习。`)
+    const nParams=crfParams(kr,Mr)+(blueOne?lstm3Params(Mb):crfParams(kb,Mb)) // 两个模型的参数总数
+    await write("思路",`为${rule.name}选 1 注：用神经网络模型把全部 ${fmt(T)} 期开奖按时间顺序一期一期学一遍，红球用 LSTM + CRF 把 ${kr} 个号当成一组一起看，蓝球用${blueOne?"三层 LSTM":"同样的 LSTM + CRF"}，学完后预测下一期。`)
     await write("数据",`共 ${fmt(T)} 期（${draws[T-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。下一期预计 ${next.getUTCMonth()+1} 月 ${next.getUTCDate()} 日（${WEEKDAYS[next.getUTCDay()]}）开奖。`)
-    await write("第一步｜做样本",`和原项目一样，窗口 3 期：每个样本用前 3 期的号码（新的一期在前）预测下一期，号码减 1 当成类别（红球 0～${Mr-1}，蓝球 0～${Mb-1}）。全部 ${fmt(T)} 期做出 ${fmt(T-3)} 个样本。`)
-    await write("第二步｜红球模型",`嵌入层 ${Mr}×32 → ${kr} 个 LSTM（32 维）各看一个位置的前 3 期 → 一个 LSTM 把 ${kr} 个位置串成序列 → 全连接 ${Mr} 类 → CRF 学 ${Mr}×${Mr} 的转移矩阵；损失是 CRF 负对数似然，共 ${fmt(crfParams(kr,Mr))} 个参数。`)
-    await write("第三步｜蓝球模型",blueOne?`嵌入层 ${Mb}×32 → 三层 LSTM（32 维，最后一层循环 dropout 0.2）→ softmax ${Mb} 类；损失是交叉熵，共 ${fmt(lstm3Params(Mb))} 个参数。`:`和红球一样用 LSTM + CRF：嵌入层 ${Mb}×32 → ${kb} 个 LSTM → 一个 LSTM → 全连接 ${Mb} 类 → CRF；共 ${fmt(crfParams(kb,Mb))} 个参数。`)
+    await write("第一步｜整理样本",`每次拿连续 3 期的号码去推下一期，全部历史整理出 ${fmt(T-3)} 组样本。`)
+    await write("第二步｜搭建模型",`红球：每个位置先用 LSTM 记住最近 3 期的走势，再把 ${kr} 个位置连成一串，用 CRF 学号码之间的搭配规律。蓝球：${blueOne?"三层 LSTM 看最近 3 期的变化，算出每个号的概率":`同样用 LSTM + CRF，把 ${kb} 个号连起来看`}。两个模型共约 ${(nParams/1e4).toFixed(1)} 万个参数。`)
+    await write("第三步｜逐期学习",`从第 4 期开始，每一期先让模型预测，再对照真实开奖用 Adam 修正参数，一期一期学到最新一期；每期只学一次，分量都一样。`)
     const [R,B]=await job // 等训练完（不显示进度）
     const jackpots=new Set(draws.map(d=>d[2].join(",")+"|"+d[3].join(","))) // 开过的头奖组合
     const reds=[...R.alts[0]].sort((a,b)=>a-b) // 红球：不重复的最高分路径，从小到大
     let blues=[...B.alts[0]].sort((a,b)=>a-b),swapped=false // 蓝球
     const key=()=>reds.join(",")+"|"+blues.join(",") // 这一注的写法（和头奖记录一样的格式）
     for(let i=1;jackpots.has(key())&&i<B.alts.length;i++){blues=[...B.alts[i]].sort((a,b)=>a-b);swapped=true} // 万一和开过的头奖一模一样，蓝球换成下一个备选
-    const expR=kr*kr/Mr,expB=kb*kb/Mb // 全凭运气时每期平均中几个
-    await write("第四步｜逐期学习",`按原项目的参数：Adam（学习率 0.001），每批 1 个样本，学 1 轮。原项目用前 70% 训练、后 30% 测试；这里按时间顺序把 ${fmt(R.samples)} 个样本逐期先预测、再学习，全部历史都学一遍，每期也都当了一次测试。红球损失从前 100 期的 ${R.lossFirst.toFixed(1)} 降到最后 100 期的 ${R.lossLast.toFixed(1)}，蓝球 ${B.lossFirst.toFixed(2)} → ${B.lossLast.toFixed(2)}。`)
-    await write("第五步｜回测成绩",`逐期预测的结果：红球平均每期中 ${R.hitPer.toFixed(2)} 个（全凭运气是 ${expR.toFixed(2)} 个），蓝球平均每期中 ${B.hitPer.toFixed(2)} 个（全凭运气是 ${expB.toFixed(2)} 个）。`)
-    await write("第六步｜预测下一期",`输入最近 3 期，红球维特比解码${R.dup?`得到 ${nums(R.plain)}，有重复的号，改取不重复的路径里得分最高的一条`:""}：红 ${nums(reds)}；蓝球${blueOne?"取概率最高的号":"维特比解码"}：蓝 ${nums(blues)}。`)
+    const expR=kr*kr/Mr,expB=kb*kb/Mb // 理论上每期平均中几个
+    await write("第四步｜检验成绩",`学完全部历史，红球的误差从开始的 ${R.lossFirst.toFixed(1)} 降到 ${R.lossLast.toFixed(1)}。每期预测和真实开奖对照：红球平均每期中 ${R.hitPer.toFixed(2)} 个（理论 ${expR.toFixed(2)} 个），蓝球 ${B.hitPer.toFixed(2)} 个（理论 ${expB.toFixed(2)} 个）。`)
+    await write("第五步｜预测下一期",`把最近 3 期交给模型：红球用维特比算法找整体得分最高的一组${R.dup?"（结果里有重复的号，换成不重复的最高分组合）":""}，红 ${nums(reds)}；蓝球${blueOne?"取概率最高的号":"同样取整体得分最高的一组"}，蓝 ${nums(blues)}。`)
     const okNums=(v,[n,max])=>v.length===n&&v.every((y,i)=>y>=1&&y<=max&&(!i||y>v[i-1])) // 个数、范围、从小到大不重复
     const ok=okNums(reds,rule.red)&&okNums(blues,rule.blue)&&!jackpots.has(key()) // 自我检查
-    await write("第七步｜自我检查",ok?`号码个数和范围正确，没有重复${swapped?"；原来那注和开过的头奖一样，蓝球换成了下一个备选":"，也不是开过的头奖组合"}，全部通过。`:"有一项没通过，请再试一次。")
+    await write("第六步｜自我检查",ok?`号码个数和范围正确，没有重复${swapped?"；原来那注和开过的头奖一样，蓝球换成了下一个备选":"，也不是开过的头奖组合"}，全部通过。`:"有一项没通过，请再试一次。")
     title.textContent="已深度思考" // 标题改成已完成（不显示用时）
     resultInner.classList.add("deep-done") // 想完了（思考过程留在窗口里，可以上下滑动回看）
     showPick({red:reds,blue:blues}) // 中间的卡片填上这一注
