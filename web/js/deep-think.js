@@ -188,7 +188,7 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     const crfParams=(S,C)=>C*32+S*8320+8320+32*C+C+C*C,lstm3Params=C=>C*32+3*8320+32*C+C // 参数个数：嵌入、LSTM（每层 32×128×2 + 128）、全连接、CRF 转移矩阵
     const blueOne=kb===1 // 双色球蓝球只有一个号：三层 LSTM
     const nParams=crfParams(kr,Mr)+(blueOne?lstm3Params(Mb):crfParams(kb,Mb)) // 两个模型的参数总数
-    await write("思路",`为${rule.name}选 1 注：用深度学习模型把全部 ${fmt(T)} 期开奖按时间顺序一期一期学一遍，红球用 LSTM + CRF 把 ${kr} 个号当成一组一起看，蓝球用${blueOne?"三层 LSTM":"同样的 LSTM + CRF"}，学完后预测下一期。`)
+    await write("思路",`为${rule.name}选 1 注：用神经网络模型把全部 ${fmt(T)} 期开奖按时间顺序一期一期学一遍，红球用 LSTM + CRF 把 ${kr} 个号当成一组一起看，蓝球用${blueOne?"三层 LSTM":"同样的 LSTM + CRF"}，学完后预测下一期。`)
     await write("数据",`共 ${fmt(T)} 期（${draws[T-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。下一期预计 ${next.getUTCMonth()+1} 月 ${next.getUTCDate()} 日（${WEEKDAYS[next.getUTCDay()]}）开奖。`)
     await write("第一步｜整理样本",`每次拿连续 3 期的号码去推下一期，全部历史整理出 ${fmt(T-3)} 组样本。`)
     await write("第二步｜搭建模型",`红球：每个位置先用 LSTM 记住最近 3 期的走势，再把 ${kr} 个位置连成一串，用 CRF 学号码之间的搭配规律。蓝球：${blueOne?"三层 LSTM 看最近 3 期的变化，算出每个号的概率":`同样用 LSTM + CRF，把 ${kb} 个号连起来看`}。两个模型共约 ${(nParams/1e4).toFixed(1)} 万个参数。`)
