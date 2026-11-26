@@ -196,15 +196,15 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     const [R,B]=await job // 等训练完（不显示进度）
     const jackpots=new Set(draws.map(d=>d[2].join(",")+"|"+d[3].join(","))) // 开过的头奖组合
     const reds=[...R.alts[0]].sort((a,b)=>a-b) // 红球：不重复的最高分路径，从小到大
-    let blues=[...B.alts[0]].sort((a,b)=>a-b),swapped=false // 蓝球
+    let blues=[...B.alts[0]].sort((a,b)=>a-b) // 蓝球
     const key=()=>reds.join(",")+"|"+blues.join(",") // 这一注的写法（和头奖记录一样的格式）
-    for(let i=1;jackpots.has(key())&&i<B.alts.length;i++){blues=[...B.alts[i]].sort((a,b)=>a-b);swapped=true} // 万一和开过的头奖一模一样，蓝球换成下一个备选
+    for(let i=1;jackpots.has(key())&&i<B.alts.length;i++)blues=[...B.alts[i]].sort((a,b)=>a-b) // 万一和开过的头奖一模一样，蓝球换成下一个备选
     const expR=kr*kr/Mr,expB=kb*kb/Mb // 理论上每期平均中几个
     await write("第四步｜检验成绩",`学完全部历史，红球的误差从开始的 ${R.lossFirst.toFixed(1)} 降到 ${R.lossLast.toFixed(1)}。每期预测和真实开奖对照：红球平均每期中 ${R.hitPer.toFixed(2)} 个（理论 ${expR.toFixed(2)} 个），蓝球 ${B.hitPer.toFixed(2)} 个（理论 ${expB.toFixed(2)} 个）。`)
     await write("第五步｜预测下一期",`把最近 3 期交给模型：红球用维特比算法找整体得分最高的一组${R.dup?"（结果里有重复的号，换成不重复的最高分组合）":""}，红 ${nums(reds)}；蓝球${blueOne?"取概率最高的号":"同样取整体得分最高的一组"}，蓝 ${nums(blues)}。`)
     const okNums=(v,[n,max])=>v.length===n&&v.every((y,i)=>y>=1&&y<=max&&(!i||y>v[i-1])) // 个数、范围、从小到大不重复
     const ok=okNums(reds,rule.red)&&okNums(blues,rule.blue)&&!jackpots.has(key()) // 自我检查
-    await write("第六步｜自我检查",ok?`号码个数和范围正确，没有重复${swapped?"；原来那注和开过的头奖一样，蓝球换成了下一个备选":"，也不是开过的头奖组合"}，全部通过。`:"有一项没通过，请再试一次。")
+    await write("第六步｜自我检查",ok?"号码个数和范围正确，全部通过。":"有一项没通过，请再试一次。")
     title.textContent="已深度思考" // 标题改成已完成（不显示用时）
     resultInner.classList.add("deep-done") // 想完了（思考过程留在窗口里，可以上下滑动回看）
     showPick({red:reds,blue:blues}) // 中间的卡片填上这一注
