@@ -57,19 +57,9 @@ document.querySelectorAll(".segmented").forEach(ctl=>{ // 每个分段控件
   document.addEventListener("pointerup",release) // 松手时熄灭
   document.addEventListener("pointercancel",release) // 触摸被系统打断时熄灭
 })() // 立即执行函数结束
-// 取 [0,max) 内的无偏随机整数：crypto 生成 32 位随机数，丢弃尾部不能整除的部分（拒绝采样）
+// 加密随机数（随机选号用）
 const randomWord=new Uint32Array(1) // 存放一个 32 位随机数的缓冲区，重复使用
-function randomIntUnbiased(max){ // 取 [0,max) 内的无偏随机整数
-  if(!(max>0&&max<=0x100000000)) throw new Error("max must be in (0, 2^32]") // max 必须在 1 到 2^32 之间
-  const limit=0x100000000-0x100000000%max // 不超过 2^32 的最大的 max 整数倍，超出部分会造成偏差
-  let x // 随机数
-  do{ // 循环
-    crypto.getRandomValues(randomWord) // 用浏览器的加密随机数生成器填充
-    x=randomWord[0] // 取出这个 32 位随机数
-  }while(x>=limit) // 落在尾部不能整除的区间就重取
-  return x%max // 取余，得到 [0,max) 的无偏结果
-}
-function randomIndexWork(max){ // 和 randomIntUnbiased 一样取 [0,max) 的无偏随机整数，按“落点”算：把 0～2^32 的随机数平均分成 max 段，随机数落在第几段就是第几个
+function randomIndexWork(max){ // 取 [0,max) 的无偏随机整数，按“落点”算：把 0～2^32 的随机数平均分成 max 段，随机数落在第几段就是第几个
   const size=Math.floor(0x100000000/max),limit=size*max // 每段一样宽（size 个数）；limit 以上是分不匀的尾部，落在那里要重取
   const rejected=[] // 落在尾部、作废的数
   let x // 加密随机数
