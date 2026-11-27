@@ -6,8 +6,8 @@
 //   蓝球：双色球（SignalLstmModel）嵌入层 16×32 → 三层 LSTM(32)（最后一层循环 dropout 0.2）→ softmax 16 类，交叉熵损失，取概率最高的号；
 //     大乐透和红球一样用 LSTM + CRF（2 个位置、12 类）
 //   训练：Adam（学习率 0.001，β1 0.9，β2 0.999，ε 1e-8），每批 1 个样本，1 轮；初始化和 Keras 默认一样（Glorot 均匀、循环权重正交、遗忘门偏置 1）
-// 和原项目不同的地方：原项目用前 70% 的开奖训练、后 30% 测试；这里按时间顺序把全部开奖逐期“先预测、再学习”，全部历史都学一遍，每期也都当了一次测试；
-//   维特比解码万一出现重复的红球，改取不重复的路径里得分最高的一条（原项目没有处理）
+// 数据的用法也和原项目一样：开奖按新的在前排，前 70%（最近的开奖）做训练样本、从新到旧学 1 轮，后 30%（更早的开奖）只用来检验（按位置对号）；
+//   唯一的补充：维特比解码万一出现重复的红球，改取不重复的路径里得分最高的一条（原项目没有处理，网页上必须给出不重复的一注）
 // 初始化和 dropout 用固定种子：同样的开奖数据，每次结果完全一样，开出新一期才会变
 const WEEKDAYS=["周日","周一","周二","周三","周四","周五","周六"] // 星期的写法（getUTCDay 的 0～6）
 const historyCache={} // 上次读到的开奖历史：彩种 → 数据（联网失败时用）
@@ -101,16 +101,16 @@ function lottoNet(job){ // 一种球的模型：按时间顺序逐期先预测�
   const order=()=>Array.from({length:C},(_,c)=>c).sort((a,b)=>u[b]-u[a]||a-b) // 三层 LSTM：号码按概率从高到低
   let it=0
   function adam(){it++;const lt=LR*Math.sqrt(1-B2**it)/(1-B1**it);for(const p of P){const {w,g,m,v}=p;for(let i=0;i<w.length;i++){const gi=g[i],mi=B1*m[i]+(1-B1)*gi,vi=B2*v[i]+(1-B2)*gi*gi;m[i]=mi;v[i]=vi;w[i]-=lt*mi/(Math.sqrt(vi)+EPS);g[i]=0}}} // Adam 一步（每批 1 个样本）
-  const ids=seqs.map(d=>d.map(n=>n-1)),N=ids.length // 号码减 1 当类别
-  let hit=0,cnt=0,lossA=0,lossB=0,nA=0,nB=0 // 回测：命中个数、样本数，前 100 个和最后 100 个样本的平均损失
-  for(let t=WIN;t<N;t++){const inp=[ids[t-1],ids[t-2],ids[t-3]],tg=ids[t] // 第 t 期：用前 3 期（新的在前）
-    forward(inp,true);const pred=kind==='crf'?viterbi():[order()[0]] // 先预测
-    for(const c of pred)if(tg.includes(c))hit++ // 中了几个号
-    const loss=backward(inp,tg);cnt++;if(t<WIN+100){lossA+=loss;nA++}if(t>=N-100){lossB+=loss;nB++} // 再学习
-    adam()}
-  forward([ids[N-1],ids[N-2],ids[N-3]],false) // 下一期：输入最近 3 期
-  const plain=kind==='crf'?viterbi():[order()[0]],alts=kind==='crf'?uniquePaths():order().slice(0,6).map(c=>[c]) // 原项目的解码结果、不重复的备选（从好到差）
-  return {plain:plain.map(c=>c+1),alts:alts.map(p=>p.map(c=>c+1)),dup:new Set(plain).size<plain.length,samples:cnt,hitPer:hit/cnt,lossFirst:lossA/nA,lossLast:lossB/nB,params:nParams} // 结果
+  const rows=seqs.map(d=>d.map(n=>n-1)).reverse(),N=rows.length,cut=Math.floor(N*.7) // 号码减 1 当类别；和原项目一样新的一期在前，前 70%（最近的开奖）训练、后 30%（更早的开奖）检验
+  const samples=part=>{const out=[];for(let i=0;i<part.length-WIN-1;i++)out.push({x:[part[i+1],part[i+2],part[i+3]],y:part[i]});return out} // 样本：第 i 行是答案，后面 3 行（更早的 3 期，新的在前）是输入（和原项目的 create_data 一样）
+  const train=samples(rows.slice(0,cut)),test=samples(rows.slice(cut)) // 训练样本、检验样本
+  let lossA=0,lossB=0,nA=0,nB=0 // 训练开始 100 个和最后 100 个样本的平均损失
+  train.forEach((s,i)=>{forward(s.x,true);const loss=backward(s.x,s.y);if(i<100){lossA+=loss;nA++}if(i>=train.length-100){lossB+=loss;nB++};adam()}) // 训练：按原项目的顺序（从新到旧）每个样本学一次，1 轮
+  let pos=0,hit=0 // 检验：按位置猜中的个数（原项目的算法）、猜的号在开奖号里出现的个数
+  for(const s of test){forward(s.x,false);const pred=kind==='crf'?viterbi():[order()[0]];pred.forEach((c,k)=>{if(c===s.y[k])pos++;if(s.y.includes(c))hit++})} // 用没学过的更早开奖检验
+  forward([rows[0],rows[1],rows[2]],false) // 下一期：输入最近 3 期（新的在前）
+  const plain=kind==='crf'?viterbi():[order()[0]],alts=kind==='crf'?uniquePaths():order().slice(0,6).map(c=>[c]),dup=new Set(plain).size<plain.length // 维特比解码的结果、不重复的备选（从好到差）、有没有重号
+  return {pred:(dup?alts[0]:plain).map(c=>c+1),plain:plain.map(c=>c+1),alts:alts.map(p=>p.map(c=>c+1)),dup,trainN:train.length,testN:test.length,trainDraws:cut,testDraws:N-cut,posRate:pos/(test.length*S),hitPer:hit/test.length,lossFirst:lossA/nA,lossLast:lossB/nB,params:nParams} // 结果
 }
 let netWorkerUrl=null // 后台线程的脚本地址（只生成一次）
 function runNet(job){ // 在后台线程里训练一种球的模型（不卡页面）；浏览器不支持时在页面里算
@@ -179,6 +179,7 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
   })
   const nums=v=>v.map(pad2).join(" ") // 号码列表的写法
   const fmt=x=>x.toLocaleString("en-US") // 千位逗号
+  const pct1=x=>`${(x*100).toFixed(1)}%` // 一位小数的百分比
   try{ // 尝试
     const data=await loadHistory(type),draws=data.draws,latest=draws[0],T=draws.length // 读取全部开奖记录（新的在前）、最新一期、期数
     const [kr,Mr]=rule.red,[kb,Mb]=rule.blue // 红球、蓝球的个数和范围
@@ -188,19 +189,21 @@ async function generateDeep(){ // 深度思考：思考过程在下面的结果�
     const crfParams=(S,C)=>C*32+S*8320+8320+32*C+C+C*C,lstm3Params=C=>C*32+3*8320+32*C+C // 参数个数：嵌入、LSTM（每层 32×128×2 + 128）、全连接、CRF 转移矩阵
     const blueOne=kb===1 // 双色球蓝球只有一个号：三层 LSTM
     const nParams=crfParams(kr,Mr)+(blueOne?lstm3Params(Mb):crfParams(kb,Mb)) // 两个模型的参数总数
-    await write("思路",`为${rule.name}选 1 注：用神经网络模型把全部 ${fmt(T)} 期开奖按时间顺序一期一期学一遍，红球用 LSTM + CRF 把 ${kr} 个号当成一组一起看，蓝球用${blueOne?"三层 LSTM":"同样的 LSTM + CRF"}，学完后预测下一期。`)
+    const cut=Math.floor(T*.7) // 最近 70% 的开奖做训练，更早的 30% 做检验
+    await write("思路",`为${rule.name}选 1 注：用神经网络模型学习最近 70% 的开奖，红球用 LSTM + CRF 把 ${kr} 个号当成一组一起看，蓝球用${blueOne?"三层 LSTM":"同样的 LSTM + CRF"}；再用更早的 30% 检验成绩，最后预测下一期。`)
     await write("数据",`共 ${fmt(T)} 期（${draws[T-1][1]} 至 ${latest[1]}），最新第 ${latest[0]} 期：红 ${nums(latest[2])}，蓝 ${nums(latest[3])}。下一期预计 ${next.getUTCMonth()+1} 月 ${next.getUTCDate()} 日（${WEEKDAYS[next.getUTCDay()]}）开奖。`)
-    await write("第一步｜整理样本",`每次拿连续 3 期的号码去推下一期，全部历史整理出 ${fmt(T-3)} 组样本。`)
+    await write("第一步｜整理样本",`每次拿连续 3 期的号码（新的一期在前）去推下一期。最近 ${fmt(cut)} 期整理出 ${fmt(cut-4)} 组训练样本，更早的 ${fmt(T-cut)} 期整理出 ${fmt(T-cut-4)} 组检验样本。`)
     await write("第二步｜搭建模型",`红球：每个位置先用 LSTM 记住最近 3 期的走势，再把 ${kr} 个位置连成一串，用 CRF 学号码之间的搭配规律。蓝球：${blueOne?"三层 LSTM 看最近 3 期的变化，算出每个号的概率":`同样用 LSTM + CRF，把 ${kb} 个号连起来看`}。两个模型共约 ${(nParams/1e4).toFixed(1)} 万个参数。`)
-    await write("第三步｜逐期学习",`从第 4 期开始，每一期先让模型预测，再对照真实开奖用 Adam 修正参数，一期一期学到最新一期；每期只学一次，分量都一样。`)
+    await write("第三步｜训练模型",`从最新一期往前，每组训练样本用 Adam（学习率 0.001）修正一次参数，全部训练样本学一遍。`)
     const [R,B]=await job // 等训练完（不显示进度）
     const jackpots=new Set(draws.map(d=>d[2].join(",")+"|"+d[3].join(","))) // 开过的头奖组合
-    const reds=[...R.alts[0]].sort((a,b)=>a-b) // 红球：不重复的最高分路径，从小到大
-    let blues=[...B.alts[0]].sort((a,b)=>a-b) // 蓝球
+    const reds=[...R.pred].sort((a,b)=>a-b) // 红球：维特比解码的结果（有重号时是不重复的最高分组合），从小到大
+    const blueCands=[B.pred,...B.alts].map(p=>[...p].sort((a,b)=>a-b)) // 蓝球：解码结果，再往后是备选
+    let blues=blueCands[0] // 蓝球
     const key=()=>reds.join(",")+"|"+blues.join(",") // 这一注的写法（和头奖记录一样的格式）
-    for(let i=1;jackpots.has(key())&&i<B.alts.length;i++)blues=[...B.alts[i]].sort((a,b)=>a-b) // 万一和开过的头奖一模一样，蓝球换成下一个备选
-    const expR=kr*kr/Mr,expB=kb*kb/Mb // 理论上每期平均中几个
-    await write("第四步｜检验成绩",`学完全部历史，红球的误差从开始的 ${R.lossFirst.toFixed(1)} 降到 ${R.lossLast.toFixed(1)}。每期预测和真实开奖对照：红球平均每期中 ${R.hitPer.toFixed(2)} 个（理论 ${expR.toFixed(2)} 个），蓝球 ${B.hitPer.toFixed(2)} 个（理论 ${expB.toFixed(2)} 个）。`)
+    for(let i=1;jackpots.has(key())&&i<blueCands.length;i++)blues=blueCands[i] // 万一和开过的头奖一模一样，蓝球换成下一个备选
+    const expR=kr*kr/Mr,expB=kb*kb/Mb // 理论上每期平均有几个号出现在开奖号里
+    await write("第四步｜检验成绩",`训练时红球的误差从开始的 ${R.lossFirst.toFixed(1)} 降到 ${R.lossLast.toFixed(1)}。用没学过的 ${fmt(R.testN)} 组样本检验：红球按位置猜中 ${pct1(R.posRate)}，平均每期 ${R.hitPer.toFixed(2)} 个号出现在开奖号里（理论 ${expR.toFixed(2)} 个）；蓝球${blueOne?`猜中 ${pct1(B.posRate)}（理论 ${pct1(1/Mb)}）`:`按位置猜中 ${pct1(B.posRate)}，平均每期 ${B.hitPer.toFixed(2)} 个（理论 ${expB.toFixed(2)} 个）`}。`)
     await write("第五步｜预测下一期",`把最近 3 期交给模型：红球用维特比算法找整体得分最高的一组${R.dup?"（结果里有重复的号，换成不重复的最高分组合）":""}，红 ${nums(reds)}；蓝球${blueOne?"取概率最高的号":"同样取整体得分最高的一组"}，蓝 ${nums(blues)}。`)
     const okNums=(v,[n,max])=>v.length===n&&v.every((y,i)=>y>=1&&y<=max&&(!i||y>v[i-1])) // 个数、范围、从小到大不重复
     const ok=okNums(reds,rule.red)&&okNums(blues,rule.blue)&&!jackpots.has(key()) // 自我检查
